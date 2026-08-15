@@ -1,11 +1,11 @@
-ArenaMP Mobile Client V1 — primary changed files
+ArenaMP Mobile Client V1.2 — primary changed files
 
 Builder / CI:
 .github/workflows/android.yml
 buildscripts/CMakeLists.txt
 buildscripts/build.sh
 buildscripts/tool/compact_cmake_output.py
-buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1.patch
+buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch
 buildscripts/patches/openmw/android_main.cpp
 buildscripts/patches/openmw/patch-sse2neon.sh
 
@@ -28,3 +28,9 @@ CHANGED_FILES.txt
 
 Original ArenaMW engine patch files retained for audit only:
 buildscripts/patches/openmw/legacy-arenamw/
+
+V1.2 launcher/OSC additions:
+app/src/main/java/file/GraphicsPresets.kt
+app/src/main/java/ui/controls/Osc.kt
+app/src/main/java/ui/controls/ButtonTouchListener.kt
+app/src/main/java/ui/controls/KeyboardToggleButton.kt

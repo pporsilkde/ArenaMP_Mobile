@@ -431,7 +431,9 @@ class OscGestureButton(
         private val leftKeyCode: Int,
         private val rightKeyCode: Int,
         private val upKeyCode: Int,
-        private val downKeyCode: Int
+        private val downKeyCode: Int,
+        private val longPressKeyCode: Int = 0,
+        private val longPressMs: Long = 650L
 ) : OscElement(uniqueId, iconName, visibility, defaultX, defaultY, defaultSize) {
 
     override fun makeView(ctx: Context) {
@@ -444,7 +446,9 @@ class OscGestureButton(
 
         // fix blurry icons on old android
         v.scaleType = ImageView.ScaleType.FIT_XY
-        v.setOnTouchListener(GestureButtonTouchListener(ctx, mouseScroll, pressKeyCode, leftKeyCode, rightKeyCode, upKeyCode, downKeyCode))
+        v.setOnTouchListener(GestureButtonTouchListener(
+            ctx, mouseScroll, pressKeyCode, leftKeyCode, rightKeyCode, upKeyCode, downKeyCode,
+            longPressKeyCode, longPressMs))
         v.tag = this
         view = v
     }
@@ -584,17 +588,22 @@ class Osc {
         joystickLeft,
         joystickRight,
 
+        // Scroll wheel keeps normal mouse-wheel gestures. Holding it sends TAB once.
         OscGestureButton("scroll_wheel", "scroll_wheel.png", OscVisibility.ESSENTIAL,
-            R.drawable.scroll_wheel, 0, 450, CONTROL_DEFAULT_SIZE, true, 0, 0, 0, 0, 0),
+            R.drawable.scroll_wheel, 0, 450, CONTROL_DEFAULT_SIZE, true, 0, 0, 0, 0, 0,
+            KeyEvent.KEYCODE_TAB, 650L),
         OscImageButton("crouch", "sneak.png", OscVisibility.NORMAL,
             R.drawable.sneak, 100, 650, 113),
         OscImageButton("pause_top_left", "pause.png", OscVisibility.ESSENTIAL,
-            R.drawable.pause, 12, 12, KeyEvent.KEYCODE_ESCAPE),
+            R.drawable.pause, 12, 12, KeyEvent.KEYCODE_ESCAPE,
+            defaultOpacity = 0.52f),
         OscImageButton("inventory", "inventory.png", OscVisibility.NULL,
             R.drawable.inventory, 965, 290, 3, true),
-        // Wait: вместо прежней Y-кнопки отправляем штатную T.
-        OscImageButton("wait", "wait.png", OscVisibility.NULL,
-            R.drawable.wait, 965, 380, KeyEvent.KEYCODE_T),
+        // Save button: short tap sends Y, long press sends F2.
+        OscLongPressButton("wait", "save.png", OscVisibility.NULL,
+            R.drawable.save, 965, 380, 650L,
+            longPressHandler = { sendKey(KeyEvent.KEYCODE_F2) },
+            shortHandler = { sendKey(KeyEvent.KEYCODE_Y) }),
         OscImageButton("magic", "toggle_magic.png", OscVisibility.NORMAL,
             R.drawable.toggle_magic, 965, 470, KeyEvent.KEYCODE_R),
         OscImageButton("weapon", "toggle_weapon.png", OscVisibility.NORMAL,
@@ -699,7 +708,7 @@ class Osc {
 
         osk.placeElements(target)
 
-        // Кнопка клавиатуры/F11/F12 — поверх всего, под верхней левой кнопкой ESC/меню.
+        // Кнопка клавиатуры/F11/F12 — поверх всего, под колесом прокрутки у левого края.
         kbdToggle.placeInto(target)
 
         target.addOnLayoutChangeListener { v, l, t, r, b, ol, ot, or, ob -> relayout(l, t, r, b, ol, ot, or, ob) }

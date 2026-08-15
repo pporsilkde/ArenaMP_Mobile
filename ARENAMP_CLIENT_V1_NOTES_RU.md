@@ -1,4 +1,4 @@
-# ArenaMP Mobile Client V1.1 — что изменено
+# ArenaMP Mobile Client V1.2 — что изменено
 
 ## Цель
 
@@ -33,7 +33,7 @@
 
 Существующая цепочка ArenaMW была проверена на текущем AMP. Неконфликтующие изменения перенесены, а конфликтующие участки settings/water/shaders вручную сведены с изменениями AMP. Итог собран в один active cumulative patch:
 
-`buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1.patch`
+`buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch`
 
 Патч затрагивает Android lifecycle/input, settings UI, rendering/shadows/water, mobile limits, native effects safety, HUD/controls, collision/quick-loot и shader compatibility, при этом не заменяет MP networking/game state код ArenaMP одиночной реализацией.
 
@@ -58,3 +58,14 @@
 - Изменённые engine MyGUI layout XML проходят отдельную проверку.
 
 Полный APK локально в этой среде не собирался: Gradle wrapper требует сетевой загрузки Gradle/Android toolchain. Для полной native+APK проверки предназначен включённый GitHub Actions workflow.
+
+
+## V1.2 — исправление чёрного мира и OSC
+
+Причина симптома «первый кадр мира виден, затем мир чёрный, GUI остаётся» — fullscreen `NativeEffectsProcessor`: в AMP `sharpening` и `dithering` включены по умолчанию и продолжали активировать финальную POST_RENDER-камеру, хотя SMAA/Bloom/Fog/GodRays были выключены. На Android весь native fullscreen post-chain теперь принудительно выключен в C++ и продублирован выключенными launcher settings.
+
+OSC:
+- старая кнопка Wait/T использует `save.png`; короткий тап = `Y`, удержание 650 мс = `F2`;
+- удержание scroll-wheel 650 мс без движения = `TAB`, обычный scroll сохранён;
+- кнопка keyboard/F11/F12 перенесена под scroll-wheel: X=12, Y=528, соосно Pause;
+- Pause default alpha = 0.52.

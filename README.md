@@ -1,4 +1,4 @@
-# ArenaMP Mobile Client V1.1
+# ArenaMP Mobile Client V1.2
 
 Android builder for the ArenaMP client from `https://github.com/pporsilkde/AMP` (`main` by default).
 
@@ -112,7 +112,7 @@ No local server is started or packaged in V1.
 The active AMP engine patch is:
 
 ```text
-buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1.patch
+buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch
 ```
 
 It is rebased for the supplied AMP snapshot and replaces the conflicting ArenaMW patch chain during the Android build. The original donor patches are retained under:
@@ -132,3 +132,13 @@ ARENAMP_GIT_TAG=main \
 ```
 
 A future upstream `AMP:main` change can legitimately make the cumulative patch fail. In that case rebase the cumulative patch against the new AMP revision instead of forcing partial hunks.
+
+
+## V1.2 render/input fix
+
+- Android now hard-disables the complete ArenaMP native fullscreen post-processing chain (SMAA, Bloom, atmospheric fog, god rays, sharpening and dithering). This prevents the NG-GL4ES black-world/visible-GUI failure after the first rendered frame.
+- Launcher also writes sharpening/dithering disabled, so stale settings cannot reactivate the chain.
+- The former Wait/T button keeps its stored OSC position, uses `save.png`, sends `Y` on a short tap and `F2` on a 650 ms hold.
+- Holding the scroll-wheel control for 650 ms without dragging sends `TAB`; normal scroll gestures are unchanged.
+- The combined keyboard/F11/F12 control is at virtual `(12, 528)`, directly below the scroll wheel and X-aligned with Pause.
+- Pause default alpha is 0.52 (less transparent).

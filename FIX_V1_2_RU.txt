@@ -1,0 +1,14 @@
+ArenaMP Mobile Client V1.2
+
+Render:
+- полностью отключён ArenaMP NativeEffects fullscreen post-chain на Android/NG-GL4ES;
+- дополнительно launcher ставит SMAA/Bloom/Fog/GodRays/Sharpening/Dithering = false;
+- исправляет симптом: мир появляется на первом кадре, затем чёрный, при этом GUI остаётся виден.
+
+OSC:
+- Wait/T -> иконка save; short tap Y; long press 650ms F2;
+- long press scroll wheel 650ms без движения -> TAB; обычный scroll не меняется;
+- keyboard/F11/F12 -> X=12, Y=528, под scroll и по X соосно Pause;
+- Pause alpha 0.52.
+
+Server build по-прежнему отключён.

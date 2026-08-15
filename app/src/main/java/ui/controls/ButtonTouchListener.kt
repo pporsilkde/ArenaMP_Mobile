@@ -202,9 +202,29 @@ class GestureDetectorListener(private val mouseScroll: Boolean, private val pres
 
 }
 
-class GestureButtonTouchListener(ctx: Context, mouseScroll: Boolean, pressKeyCode: Int, leftKeyCode: Int, rightKeyCode: Int, upKeyCode: Int, downKeyCode: Int) : OnTouchListener {
+class GestureButtonTouchListener(
+    ctx: Context,
+    mouseScroll: Boolean,
+    pressKeyCode: Int,
+    leftKeyCode: Int,
+    rightKeyCode: Int,
+    upKeyCode: Int,
+    downKeyCode: Int,
+    private val longPressKeyCode: Int = 0,
+    private val longPressMs: Long = 650L
+) : OnTouchListener {
     var gestureDetector = GestureDetector(ctx, GestureDetectorListener(mouseScroll, pressKeyCode, leftKeyCode, rightKeyCode, upKeyCode, downKeyCode))
     private var baseAlpha: Float? = null
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val touchSlop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop.toFloat()
+    private var downX = 0f
+    private var downY = 0f
+    private val longPressRunnable = Runnable {
+        if (longPressKeyCode != 0) {
+            SDLActivity.onNativeKeyDown(longPressKeyCode)
+            SDLActivity.onNativeKeyUp(longPressKeyCode)
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouch(v: View, event: MotionEvent): Boolean {
@@ -212,8 +232,23 @@ class GestureButtonTouchListener(ctx: Context, mouseScroll: Boolean, pressKeyCod
             baseAlpha = v.alpha
         }
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> v.animate().alpha(Math.min(1.0f, (baseAlpha ?: v.alpha) + 0.12f)).scaleX(0.94f).scaleY(0.94f).setDuration(90).start()
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.animate().alpha(baseAlpha ?: v.alpha).scaleX(1.0f).scaleY(1.0f).setDuration(120).start()
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                handler.removeCallbacks(longPressRunnable)
+                if (longPressKeyCode != 0) handler.postDelayed(longPressRunnable, longPressMs)
+                v.animate().alpha(Math.min(1.0f, (baseAlpha ?: v.alpha) + 0.12f)).scaleX(0.94f).scaleY(0.94f).setDuration(90).start()
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.x - downX
+                val dy = event.y - downY
+                if (dx * dx + dy * dy > touchSlop * touchSlop)
+                    handler.removeCallbacks(longPressRunnable)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacks(longPressRunnable)
+                v.animate().alpha(baseAlpha ?: v.alpha).scaleX(1.0f).scaleY(1.0f).setDuration(120).start()
+            }
         }
         gestureDetector.onTouchEvent(event)
         return true

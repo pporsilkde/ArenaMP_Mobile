@@ -1,0 +1,41 @@
+ArenaMP Mobile Client V1.2 — validation
+
+Источник ошибки logs_86531197839.zip:
+CMake configure не находил:
+- files/shaders/water_pbr_android_fragment.glsl
+- files/shaders/water_pbr_android_data.glsl
+
+Исправлено:
+- оба shader-файла теперь создаются cumulative patch;
+- финальные версии восстановлены из ArenaMW Mobile chain 07 -> 09 -> 10 -> 12 -> 21;
+- patch проходит git apply --check и git apply на чистом AMP snapshot;
+- все Android XML проходят строгий XML parse;
+- workflow YAML проходит parse;
+- shell scripts проходят bash -n;
+- outer builder CMake configure проходит для arm64 release;
+- targets arenamp/raknet/android-dependencies/NG-GL4ES присутствуют;
+- cache epoch: arenamp-android-arm64-client-v1-2.
+
+По присланному CI-логу RakNet уже успешно собран до 100% как libRakNetLibStatic.a.
+Сервер по-прежнему не собирается.
+
+
+V1.2:
+- NativeEffectsProcessor на __ANDROID__ принудительно выключает SMAA/Bloom/Fog/GodRays/Sharpening/Dithering, поэтому final POST_RENDER pass не активируется.
+- GraphicsPresets записывает sharpening enabled=false и dithering enabled=false.
+- OSC Save: short Y / long F2.
+- Scroll: long TAB, drag scroll сохранён.
+- Keyboard/F11/F12: X=12 Y=528.
+- Pause default opacity=0.52.
+
+Финальная проверка V1.2:
+- cumulative V1.2: git apply --check + git apply на чистом AMP(1) — OK;
+- water_pbr_android_fragment.glsl / water_pbr_android_data.glsl после патча — присутствуют;
+- изменённые MyGUI layout — строгий XML parse OK;
+- Android resource XML: 34 файла — parse OK;
+- .github/workflows/android.yml — YAML parse OK;
+- shell scripts — bash -n OK;
+- Python helpers — py_compile OK;
+- root/buildscripts cumulative mirrors идентичны;
+- outer CMake arm64 release configure — OK;
+- targets arenamp, raknet, android-dependencies, NG-GL4ES — присутствуют.

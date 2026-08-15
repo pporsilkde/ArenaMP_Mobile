@@ -193,8 +193,8 @@ object GraphicsPresets {
         w("Video", "antialiasing", "0")
         w("Video", "framerate limit", p.frameLimit)
 
-        // Stable shader path. The launcher never enables the known black-screen
-        // native depth effects, regardless of stale settings.cfg values.
+        // Stable Android shader path. Keep ArenaMP's fullscreen native post chain
+        // completely off on NG-GL4ES; C++ enforces the same policy as a fail-safe.
         w("Shaders", "force shaders", "true")
         w("Shaders", "force per pixel lighting", "false")
         w("Shaders", "lighting method", "shaders compatibility")
@@ -212,6 +212,8 @@ object GraphicsPresets {
         w("Shaders", "smaa enabled", "false")
         w("Shaders", "atmospheric fog enabled", "false")
         w("Shaders", "god rays enabled", "false")
+        w("Shaders", "sharpening enabled", "false")
+        w("Shaders", "dithering enabled", "false")
 
         // V13.7.4: simple shader water is authoritative on Android. This also
         // overwrites stale "new"/PBR values left by older launcher builds.
