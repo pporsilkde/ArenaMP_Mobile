@@ -1,0 +1,333 @@
+diff --git a/apps/openmw/mwrender/nativeeffects.cpp b/apps/openmw/mwrender/nativeeffects.cpp
+index 76eb15e..122643d 100644
+--- a/apps/openmw/mwrender/nativeeffects.cpp
++++ b/apps/openmw/mwrender/nativeeffects.cpp
+@@ -63,7 +63,14 @@ namespace MWRender
+         // effects. Experimental scene-atmosphere replacement passes are not
+         // part of this processor, so ArenaMW keeps its established world/sky path.
+         mSceneTexture = createTexture(GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
++#if defined(__ANDROID__)
++        // GLES drivers are much happier with a real renderable depth attachment
++        // than with copyTexImage2D into a floating depth texture. 16-bit depth is
++        // universally renderable on GLES and is sufficient for the mobile SSR/SMAA path.
++        mDepthTexture = createTexture(GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, false);
++#else
+         mDepthTexture = createTexture(GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_FLOAT, false);
++#endif
+         mEffectsTexture = createTexture(GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+         mBloomHorizontalTexture = createTexture(GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+         mBloomVerticalTexture = createTexture(GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE);
+@@ -186,10 +193,12 @@ namespace MWRender
+         mSmaaEnabledUniform = new osg::Uniform("smaaEnabled", 0.f);
+         mBloomEnabledUniform = new osg::Uniform("bloomEnabled", 0.f);
+         mBloomIntensityUniform = new osg::Uniform("bloomIntensity", 0.50f);
++        mHdrEnabledUniform = new osg::Uniform("hdrPostEnabled", 0.f);
+         mFinalState->addUniform(mInverseSceneSizeFinal);
+         mFinalState->addUniform(mSmaaEnabledUniform);
+         mFinalState->addUniform(mBloomEnabledUniform);
+         mFinalState->addUniform(mBloomIntensityUniform);
++        mFinalState->addUniform(mHdrEnabledUniform);
+         mFinalCamera->addChild(finalPass);
+ 
+         mRootNode->addChild(mEffectsCamera);
+@@ -199,9 +208,11 @@ namespace MWRender
+         mRootNode->addChild(mWeightCamera);
+         mRootNode->addChild(mFinalCamera);
+ 
++#if !defined(__ANDROID__)
+         mFramebufferCopyCallback = new FramebufferCopyCallback(this);
+         if (mMainCamera.valid())
+             mMainCamera->setPostDrawCallback(mFramebufferCopyCallback.get());
++#endif
+ 
+         mReady = true;
+         reloadSettings();
+@@ -212,6 +223,7 @@ namespace MWRender
+     {
+         mEnabled = false;
+         applyPassVisibility();
++        setAndroidMainCameraTarget(false);
+         if (mFramebufferCopyCallback)
+             mFramebufferCopyCallback->detach();
+         if (mMainCamera.valid() && mMainCamera->getPostDrawCallback() == mFramebufferCopyCallback.get())
+@@ -314,6 +326,7 @@ namespace MWRender
+         mSmaaEnabled = Settings::Manager::getBool("smaa enabled", "Shaders");
+         mSsrEnabled = Settings::Manager::getBool("native ssr enabled", "Shaders");
+         mBloomEnabled = Settings::Manager::getBool("bloom enabled", "Shaders");
++        mHdrEnabled = Settings::Manager::getBool("hdr lighting", "Shaders");
+ 
+         mSsrEnabledUniform->set(mSsrEnabled ? 1.f : 0.f);
+         mSsrStrengthUniform->set(std::clamp(Settings::Manager::getFloat("ssr strength", "Shaders"), 0.f, 1.f));
+@@ -328,20 +341,29 @@ namespace MWRender
+         mBloomRadiusHorizontalUniform->set(bloomRadius);
+         mBloomRadiusVerticalUniform->set(bloomRadius);
+         mBloomIntensityUniform->set(std::clamp(Settings::Manager::getFloat("bloom intensity", "Shaders"), 0.f, 3.f));
++#if defined(__ANDROID__)
++        mHdrEnabledUniform->set(mHdrEnabled ? 1.f : 0.f);
++#else
++        // Desktop keeps the established per-material HDR path.
++        mHdrEnabledUniform->set(0.f);
++#endif
+ 
+         const bool wasEnabled = mEnabled;
+ #if defined(__ANDROID__)
+         // Android uses this single compositor for all native post effects. This
+         // avoids chaining two framebuffer-copy callbacks (standalone Bloom +
+         // NativeEffects), which is unnecessarily fragile on mobile OSG/GLES.
+-        mEnabled = mSmaaEnabled || mSsrEnabled || mBloomEnabled;
++        mEnabled = mSmaaEnabled || mSsrEnabled || mBloomEnabled || mHdrEnabled;
+ #else
+         mEnabled = mSmaaEnabled || mSsrEnabled;
+ #endif
+         if (!mEnabled || !wasEnabled)
+             mCaptureReady.store(false, std::memory_order_release);
+         if (!mEnabled)
++        {
+             mWidth = mHeight = 0;
++            setAndroidMainCameraTarget(false);
++        }
+ 
+         updateSourceBindings();
+         applyPassVisibility();
+@@ -419,10 +441,42 @@ namespace MWRender
+         mProjectionEffects->set(projection);
+     }
+ 
++    void NativeEffectsProcessor::setAndroidMainCameraTarget(bool enabled)
++    {
++#if defined(__ANDROID__)
++        if (!mMainCamera.valid() || enabled == mMainCameraRttActive)
++            return;
++
++        if (enabled)
++        {
++            // Render the world directly into textures on GLES. Copying the default
++            // framebuffer after the frame is unreliable on tile-based GPUs and was
++            // the reason Bloom/SSR/SMAA could replace the screen with black.
++            mMainCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT);
++            mMainCamera->setImplicitBufferAttachmentMask(0, 0);
++            mMainCamera->attach(osg::Camera::COLOR_BUFFER0, mSceneTexture.get());
++            mMainCamera->attach(osg::Camera::DEPTH_BUFFER, mDepthTexture.get());
++            mMainCameraRttActive = true;
++            mCaptureReady.store(true, std::memory_order_release);
++        }
++        else
++        {
++            mMainCamera->detach(osg::Camera::COLOR_BUFFER0);
++            mMainCamera->detach(osg::Camera::DEPTH_BUFFER);
++            mMainCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER);
++            mMainCameraRttActive = false;
++            mCaptureReady.store(false, std::memory_order_release);
++        }
++#else
++        (void)enabled;
++#endif
++    }
++
+     void NativeEffectsProcessor::update()
+     {
+         if (!mEnabled || !mMainCamera.valid() || !mMainCamera->getViewport())
+         {
++            setAndroidMainCameraTarget(false);
+             applyPassVisibility();
+             return;
+         }
+@@ -432,6 +486,13 @@ namespace MWRender
+         if (width != mWidth || height != mHeight)
+             resizeTargets(width, height);
+ 
++#if defined(__ANDROID__)
++        setAndroidMainCameraTarget(true);
++        // Rendering directly into the attached textures means the source is valid
++        // for every post-render camera in the same frame; no framebuffer copy needed.
++        mCaptureReady.store(true, std::memory_order_release);
++#endif
++
+         updateMatrices();
+         updateSourceBindings();
+         applyPassVisibility();
+diff --git a/apps/openmw/mwrender/nativeeffects.hpp b/apps/openmw/mwrender/nativeeffects.hpp
+index 32bff46..899a42e 100644
+--- a/apps/openmw/mwrender/nativeeffects.hpp
++++ b/apps/openmw/mwrender/nativeeffects.hpp
+@@ -49,6 +49,7 @@ namespace MWRender
+         void updateMatrices();
+         void updateSourceBindings();
+         void applyPassVisibility();
++        void setAndroidMainCameraTarget(bool enabled);
+ 
+         osg::observer_ptr<osg::Camera> mMainCamera;
+         osg::observer_ptr<osg::Group> mRootNode;
+@@ -60,6 +61,8 @@ namespace MWRender
+         bool mSmaaEnabled = false;
+         bool mSsrEnabled = false;
+         bool mBloomEnabled = false;
++        bool mHdrEnabled = false;
++        bool mMainCameraRttActive = false;
+         std::atomic<bool> mCaptureReady{false};
+         int mWidth = 0;
+         int mHeight = 0;
+@@ -104,6 +107,7 @@ namespace MWRender
+         osg::ref_ptr<osg::Uniform> mBloomRadiusHorizontalUniform;
+         osg::ref_ptr<osg::Uniform> mBloomRadiusVerticalUniform;
+         osg::ref_ptr<osg::Uniform> mBloomIntensityUniform;
++        osg::ref_ptr<osg::Uniform> mHdrEnabledUniform;
+     };
+ }
+ 
+diff --git a/apps/openmw/mwrender/renderingmanager.cpp b/apps/openmw/mwrender/renderingmanager.cpp
+index 712607e..de66157 100644
+--- a/apps/openmw/mwrender/renderingmanager.cpp
++++ b/apps/openmw/mwrender/renderingmanager.cpp
+@@ -779,7 +779,14 @@ namespace MWRender
+         globalDefines["clamp"] = Settings::Manager::getBool("clamp lighting", "Shaders") ? "1" : "0";
+         globalDefines["preLightEnv"] = Settings::Manager::getBool("apply lighting to environment maps", "Shaders") ? "1" : "0";
+         globalDefines["radialFog"] = Settings::Manager::getBool("radial fog", "Shaders") ? "1" : "0";
++#if defined(__ANDROID__)
++        // Android applies HDR as the final screen-space pass. Keeping hdrLighting
++        // out of every material shader avoids a full shader rebuild (and the crash
++        // seen on NG-GL4ES when toggling HDR at runtime).
++        globalDefines["hdrLighting"] = "0";
++#else
+         globalDefines["hdrLighting"] = Settings::Manager::getBool("hdr lighting", "Shaders") ? "1" : "0";
++#endif
+         globalDefines["materialQuality"] = std::to_string(materialQuality);
+         globalDefines["useGPUShader4"] = "0";
+ 
+@@ -2133,12 +2140,19 @@ namespace MWRender
+             }
+             else if (setting.first == "Shaders" && setting.second == "hdr lighting")
+             {
++#if defined(__ANDROID__)
++                // Mobile HDR is a compositor toggle. Do not recreate hundreds of
++                // object/terrain shaders while the renderer is live.
++                refreshHdrSettings = true;
++                refreshNativeEffects = true;
++#else
+                 refreshShaderDefines = true;
+                 refreshHdrLighting = true;
+                 // hdrLighting is a shader define, not only a runtime uniform.
+                 // Existing terrain/groundcover programs must be recreated too.
+                 rebuildTerrainViews = true;
+                 rebuildGroundcoverViews = true;
++#endif
+             }
+             else if (setting.first == "Shaders" && (setting.second == "hdr tonemapper"
+                 || setting.second == "hdr exposure"
+@@ -2328,7 +2342,11 @@ namespace MWRender
+                     defines[name] = value;
+             }
+ 
++#if defined(__ANDROID__)
++            defines["hdrLighting"] = "0";
++#else
+             defines["hdrLighting"] = Settings::Manager::getBool("hdr lighting", "Shaders") ? "1" : "0";
++#endif
+             defines["materialQuality"] = std::to_string(getMaterialQualityLevel());
+             const float groundcoverDistance = std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"));
+             defines["groundcoverFadeStart"] = std::to_string(groundcoverDistance * 0.9f);
+diff --git a/files/shaders/native_final.frag b/files/shaders/native_final.frag
+index af1ed6c..7442812 100644
+--- a/files/shaders/native_final.frag
++++ b/files/shaders/native_final.frag
+@@ -6,6 +6,91 @@ uniform vec2 inverseSceneSize;
+ uniform float smaaEnabled;
+ uniform float bloomEnabled;
+ uniform float bloomIntensity;
++uniform float hdrPostEnabled;
++
++// These are already maintained by RenderingManager on the root StateSet.
++uniform int hdrTonemapper;
++uniform float hdrExposure;
++uniform float hdrInteriorExposure;
++uniform float hdrNightExposure;
++uniform float hdrGamma;
++uniform float hdrBrightness;
++uniform float hdrSaturation;
++uniform bool hdrIsInterior;
++uniform float hdrNightFactor;
++
++vec3 mobilePow3(vec3 x, float e)
++{
++    return vec3(
++        pow(max(x.x, 0.0), e),
++        pow(max(x.y, 0.0), e),
++        pow(max(x.z, 0.0), e));
++}
++
++vec3 mobileAces(vec3 x)
++{
++    const float a = 2.51;
++    const float b = 0.03;
++    const float c = 2.43;
++    const float d = 0.59;
++    const float e = 0.14;
++    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
++}
++
++vec3 mobileReinhard(vec3 x)
++{
++    return x / (vec3(1.0) + x);
++}
++
++vec3 mobileFilmic(vec3 x)
++{
++    const float A = 0.15;
++    const float B = 0.50;
++    const float C = 0.10;
++    const float D = 0.20;
++    const float E = 0.02;
++    const float F = 0.30;
++    vec3 mapped = ((x * (A * x + C * B) + D * E)
++        / (x * (A * x + B) + D * F)) - E / F;
++    const float whitePoint = 11.2;
++    const float white = ((whitePoint * (A * whitePoint + C * B) + D * E)
++        / (whitePoint * (A * whitePoint + B) + D * F)) - E / F;
++    return clamp(mapped / max(white, 0.0001), 0.0, 1.0);
++}
++
++vec3 mobileNeutral(vec3 x)
++{
++    vec3 mapped = x * (x + 0.0245786) - 0.000090537;
++    vec3 divisor = x * (0.983729 * x + 0.4329510) + 0.238081;
++    return clamp(mapped / max(divisor, vec3(0.0001)), 0.0, 1.0);
++}
++
++vec3 applyMobileHdr(vec3 color)
++{
++    // The desktop path linearises before material lighting. On Android the HDR
++    // toggle is intentionally screen-space so it never forces a live rebuild of
++    // every material shader. Linearise the captured scene here before tonemapping.
++    vec3 x = mobilePow3(max(color, vec3(0.0)), 2.2);
++    float environmentExposure = hdrIsInterior
++        ? hdrInteriorExposure
++        : hdrNightExposure * clamp(hdrNightFactor, 0.0, 1.0);
++    x *= max(hdrExposure + environmentExposure, 0.0);
++
++    vec3 mapped;
++    if (hdrTonemapper == 1)
++        mapped = mobileReinhard(x);
++    else if (hdrTonemapper == 2)
++        mapped = mobileFilmic(x);
++    else if (hdrTonemapper == 3)
++        mapped = mobileNeutral(x);
++    else
++        mapped = mobileAces(x);
++
++    mapped *= max(hdrBrightness, 0.0);
++    float luminance = dot(mapped, vec3(0.2126, 0.7152, 0.0722));
++    mapped = mix(vec3(luminance), mapped, max(hdrSaturation, 0.0));
++    return mobilePow3(clamp(mapped, vec3(0.0), vec3(1.0)), 1.0 / max(hdrGamma, 0.1));
++}
+ 
+ void main()
+ {
+@@ -29,5 +114,8 @@ void main()
+     if (bloomEnabled >= 0.5)
+         color += max(texture2D(bloomTexture, uv).rgb, vec3(0.0)) * max(bloomIntensity, 0.0);
+ 
++    if (hdrPostEnabled >= 0.5)
++        color = applyMobileHdr(color);
++
+     gl_FragColor = vec4(max(color, vec3(0.0)), 1.0);
+ }

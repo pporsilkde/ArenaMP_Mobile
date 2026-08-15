@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Nightly-флейвор переопределяет базовые colorPrimary/Dark/Accent,
+    но ССЫЛАЕТСЯ на общую палитру из app/src/main/res/values/colors.xml.
+    Это гарантирует визуальное единство mainline и nightly.
+    Если в будущем захочется разделить флейворы — меняйте значения
+    здесь, не трогая main.
+-->
+<resources>
+    <color name="colorPrimary">@color/accentGold</color>
+    <color name="colorPrimaryDark">@color/bgPrimary</color>
+    <color name="colorAccent">@color/accentGold</color>
+</resources>

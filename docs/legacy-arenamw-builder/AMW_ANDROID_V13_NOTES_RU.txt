@@ -1,0 +1,28 @@
+ArenaMW Android V13.2 — rebase notes
+========================================
+
+Текущая проверенная upstream-база:
+  pporsilkde/AMW
+  commit 731f005b609b37f204f974c36c57496ce5a66beb (AMW(6))
+
+ВАЖНО:
+- Builder по умолчанию отслеживает ветку main, как и GitHub Actions.
+- Commit выше — контрольная точка, на которой весь набор патчей проверен.
+- Если main изменит затрагиваемые файлы, git apply намеренно остановит сборку,
+  чтобы патч был перебазирован, а не молча применился частично.
+
+V13.2:
+- Перебазирована Settings UI под удаление старой Effects-вкладки в AMW(6).
+- Effects и Advanced физически удалены из Android layout.
+- Исправлена навигация 13 оставшихся вкладок.
+- PBR Quality удалён из Quality.
+- SMAA threshold UI удалён.
+- atmospheric fog / god rays / first-person depth bridge принудительно OFF.
+- Shadow map: UI/runtime максимум 1024.
+- Shadow distance: UI/runtime максимум 8192.
+- В лаунчер добавлена отдельная дальность теней.
+- Очень низкий эталон: shadow map 1024, shadow distance 8192, shadows OFF.
+- Balanced streaming уменьшен до 1 pager/DB/preload worker для снижения camera stutter.
+- Quality: 2 pager, 1 DB, 1 compile/preload worker.
+- build.ini синхронизирован с desktop standalone format и сохраняет metadata.
+- Никакие агрессивные runtime texture-shrink параметры NG-GL4ES не включаются.

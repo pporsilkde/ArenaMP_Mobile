@@ -1,0 +1,46 @@
+diff --git a/files/mygui/openmw_hud.layout b/files/mygui/openmw_hud.layout
+index 53e4ab0..f2a49f6 100644
+--- a/files/mygui/openmw_hud.layout
++++ b/files/mygui/openmw_hud.layout
+@@ -6,7 +6,7 @@
+         <Widget type="Widget" position="0 0 300 200" name="GameplayHud" align="Stretch">
+             <Property key="NeedMouse" value="false"/>
+ 	
+-        <Widget type="TextBox" skin="SandBrightText" position="8 6 72 22" name="FpsText" align="Left Top">
++        <Widget type="TextBox" skin="SandBrightText" position="30 6 72 22" name="FpsText" align="Left Top">
+             <Property key="NeedMouse" value="false"/>
+             <Property key="TextAlign" value="Left"/>
+             <Property key="TextShadow" value="true"/>
+diff --git a/files/shaders/water_pbr_android_fragment.glsl b/files/shaders/water_pbr_android_fragment.glsl
+index 550ab12..5b64283 100644
+--- a/files/shaders/water_pbr_android_fragment.glsl
++++ b/files/shaders/water_pbr_android_fragment.glsl
+@@ -446,14 +446,14 @@ void main(void)
+     // is remapped back toward worldPos anyway. The raymarched position is faded
+     // back to the flat worldPos across the far transition band to avoid a seam
+     // where the FBM normal also vanishes.
+-    if (radialDepth < 2900.0 && waveStrength > 0.001)
++    if (radialDepth < 2400.0 && waveStrength > 0.001)
+     {
+         wp = RaymarchWater(osg_ViewMatrixInverse[3].xyz, viewDir, 0.0, radialDepth,
+                 waveTimer, waveStrengthFBM, isUnderwater);
+         // near band: blend in parallax from the flat plane (0..500)
+-        // far band : blend back out to the flat plane (1900..2900)
++        // far band : blend back out to the flat plane (1500..2400)
+         float nearBlend = clamp(radialDepth * 0.002, 0.0, 1.0);
+-        float farBlend  = smoothstep(2900.0, 1900.0, radialDepth);
++        float farBlend  = smoothstep(2400.0, 1500.0, radialDepth);
+         wp = mix(worldPos, wp, nearBlend * farBlend);
+     }
+ #endif // PBR_ENABLED && RAYMARCH_WAVES
+@@ -473,8 +473,8 @@ void main(void)
+     // per fragment. Its contribution is faded smoothly to flat across a transition
+     // band (no hard seam) and skipped entirely past the band, so the cost is
+     // unchanged on wide ocean views.
+-    const float FBM_FADE_START = 1900.0; // full detail up to here
+-    const float FBM_FADE_END   = 2900.0; // fully flat (and skipped) past here
++    const float FBM_FADE_START = 1500.0; // full detail up to here
++    const float FBM_FADE_END   = 2400.0; // fully flat (and skipped) past here
+     float fbmLod = smoothstep(FBM_FADE_END, FBM_FADE_START, radialDepth);
+     if (fbmLod > 0.0)
+     {

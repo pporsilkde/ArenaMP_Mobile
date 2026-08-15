@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Mainline-флейвор — те же значения, что и nightly. Цель: одинаковый
+    визуал между флейворами. См. app/src/main/res/values/colors.xml.
+-->
+<resources>
+    <color name="colorPrimary">@color/accentGold</color>
+    <color name="colorPrimaryDark">@color/bgPrimary</color>
+    <color name="colorAccent">@color/accentGold</color>
+</resources>

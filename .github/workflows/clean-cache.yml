@@ -1,0 +1,30 @@
+name: Clean ArenaMW Android cache
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  clean:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Delete ArenaMW Android caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for prefix in \
+            'arenamw-original-r21e-arm64-' \
+            'arenamw-ccache-arm64-' \
+            'setup-java-Linux-gradle-'; do
+            echo "Deleting caches with prefix: $prefix"
+            gh cache list --repo "$GH_REPO" --limit 100 --json key --jq '.[].key' | \
+              grep -F "$prefix" | while read -r key; do
+                gh cache delete "$key" --repo "$GH_REPO" || true
+              done
+          done

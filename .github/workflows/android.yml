@@ -1,0 +1,325 @@
+name: ArenaMP Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      clean_arenamp_build:
+        description: Ignore the cached ArenaMP source/build tree for this run (third-party dependencies stay cached)
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**/*.md'
+
+concurrency:
+  group: arenamp-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      BUILD_JOBS: 1
+      LTO: "false"
+      LTO_JOBS: 1
+      GENERATE_DEBUG_SYMBOLS: "false"
+      ARENAMP_REPOSITORY: https://github.com/pporsilkde/AMP.git
+      ARENAMP_GIT_TAG: main
+      GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
+      GL4ES_GIT_TAG: Openmw3
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
+
+    steps:
+      - name: Checkout Android builder
+        uses: actions/checkout@v4
+
+      # GitHub's web upload / ZIP extraction does not reliably preserve Unix executable bits.
+      # Make every script used by the original builder executable before the first native step.
+      - name: Restore executable permissions
+        shell: bash
+        run: |
+          find buildscripts -type f -name '*.sh' -exec chmod +x {} +
+          chmod +x gradlew
+          if [ -f storagechooser/gradlew ]; then chmod +x storagechooser/gradlew; fi
+          if [ -f CI/travis.sh ]; then chmod +x CI/travis.sh; fi
+
+      - name: Install native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake curl git patch unzip gettext-base \
+            autoconf automake libtool pkg-config python3 ccache ninja-build
+
+      # Modern sdkmanager itself needs Java 17. Gradle does not use this JDK.
+      - name: Set up JDK 17 for sdkmanager
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK 29
+        shell: bash
+        run: |
+          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-29" \
+            "build-tools;29.0.3"
+
+      # Keep the original AGP 4.0.2 / Gradle 6.1.1 combination on Java 11.
+      - name: Set up JDK 11 for original Gradle toolchain
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: gradle
+
+      - name: Restore original native dependency cache
+        id: native-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            buildscripts/downloads
+            buildscripts/toolchain
+            buildscripts/prefix/arm64
+            buildscripts/build/arm64
+          key: arenamp-original-r21e-arm64-v6-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          restore-keys: |
+            arenamp-original-r21e-arm64-v6-nolto-
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            ~/.ccache
+          key: arenamp-ccache-arm64-${{ github.run_id }}
+          restore-keys: |
+            arenamp-ccache-arm64-
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=4G
+          ccache --zero-stats || true
+
+      # Build expensive third-party libraries once. Save them before compiling
+      # ArenaMP, so an ArenaMP compiler error does not throw away the dependency work.
+      - name: Build native dependencies
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        working-directory: buildscripts
+        run: bash ./build.sh --arch arm64 --ccache --release --dependencies-only
+
+      - name: Save native dependency cache
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            buildscripts/downloads
+            buildscripts/toolchain
+            buildscripts/prefix/arm64
+            buildscripts/build/arm64
+          key: arenamp-original-r21e-arm64-v6-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+
+      - name: Drop ArenaMP incremental tree on request
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.clean_arenamp_build == true }}
+        shell: bash
+        run: rm -rf buildscripts/build/arm64/arenamp-prefix
+
+      # Keep ArenaMP's own source + CMake build tree between CI runs.  The cache
+      # key is intentionally unique per run, while restore-keys select the most
+      # recent compatible tree.  This is the Android equivalent of the Windows
+      # incremental build cache: unchanged .cpp files remain up-to-date.
+      - name: Restore incremental ArenaMP build tree
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.clean_arenamp_build == false }}
+        uses: actions/cache/restore@v4
+        with:
+          path: buildscripts/build/arm64/arenamp-prefix
+          key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-
+
+      # ExternalProject keeps the checked-out AMP repository inside arenamp-prefix.
+      # If upstream/main did not move, leave that tree completely untouched so its
+      # mtimes match the cached object files.  If upstream changed, reset only the
+      # patched working tree, fetch the new commit and invalidate patch/configure
+      # stamps without deleting the binary directory.  Make/CMake then rebuilds
+      # only source files affected by the Git update (plus Android-patched files).
+      - name: Update cached ArenaMP source from pporsilkde/AMP
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="buildscripts/build/arm64/arenamp-prefix/src/arenamp"
+          STAMP="buildscripts/build/arm64/arenamp-prefix/src/arenamp-stamp"
+
+          if [[ ! -d "$SRC/.git" ]]; then
+            echo '==> No cached ArenaMP checkout; ExternalProject will clone pporsilkde/AMP on this run'
+            if [[ -e "$SRC" || -d "buildscripts/build/arm64/arenamp-prefix" ]]; then
+              # A partial/corrupt cache must not block ExternalProject's first clone.
+              rm -rf buildscripts/build/arm64/arenamp-prefix
+            fi
+            exit 0
+          fi
+
+          git -C "$SRC" remote set-url origin "$ARENAMP_REPOSITORY"
+          LOCAL_SHA="$(git -C "$SRC" rev-parse HEAD)"
+          REMOTE_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "refs/heads/$ARENAMP_GIT_TAG" | awk 'NR==1 {print $1}')"
+          if [[ -z "$REMOTE_SHA" ]]; then
+            echo "Could not resolve $ARENAMP_REPOSITORY refs/heads/$ARENAMP_GIT_TAG" >&2
+            exit 1
+          fi
+
+          PATCH_STAMP="$STAMP/arenamp-patch"
+          echo "==> Cached ArenaMP base: $LOCAL_SHA"
+          echo "==> Upstream ArenaMP base: $REMOTE_SHA"
+
+          if [[ "$LOCAL_SHA" == "$REMOTE_SHA" && -f "$PATCH_STAMP" ]]; then
+            echo '==> ArenaMP source is unchanged; preserving source/object mtimes for a true incremental build'
+            exit 0
+          fi
+
+          echo '==> ArenaMP source or patch state changed; updating checkout without deleting the build tree'
+          # Android compatibility patches leave the checkout dirty by design. Revert
+          # them before moving to the new upstream commit, then let ExternalProject
+          # apply them once again via the invalidated patch stamp.
+          git -C "$SRC" reset --hard HEAD
+          git -C "$SRC" clean -fdx
+          git -C "$SRC" fetch --depth=50 origin "$ARENAMP_GIT_TAG"
+          git -C "$SRC" checkout --detach "$REMOTE_SHA"
+
+          rm -f \
+            "$STAMP/arenamp-patch" \
+            "$STAMP/arenamp-configure" \
+            "$STAMP/arenamp-build" \
+            "$STAMP/arenamp-install" \
+            "$STAMP/arenamp-done"
+
+      - name: Ensure linker safety swap
+        shell: bash
+        run: |
+          echo '==> Memory before swap check'
+          free -h || true
+
+          # GitHub-hosted runners may already have swap enabled.  Never touch an
+          # active /swapfile: trying to fallocate it again fails with "Text file busy".
+          EXISTING_SWAP_MB=$(free -m | awk '/^Swap:/ {print $2}')
+          EXISTING_SWAP_MB=${EXISTING_SWAP_MB:-0}
+
+          if [ "$EXISTING_SWAP_MB" -ge 2048 ]; then
+            echo "==> Existing swap is already ${EXISTING_SWAP_MB} MiB; keeping it"
+          else
+            AVAILABLE_MB=$(df --output=avail -m / | tail -n 1 | tr -d ' ')
+            EXTRA_SWAP=/mnt/arenamp-linker.swap
+
+            if [ "${AVAILABLE_MB:-0}" -ge 7000 ]; then
+              echo "==> Existing swap is only ${EXISTING_SWAP_MB} MiB; trying to add 3 GiB at ${EXTRA_SWAP}"
+              sudo swapoff "$EXTRA_SWAP" 2>/dev/null || true
+              sudo rm -f "$EXTRA_SWAP" 2>/dev/null || true
+
+              if sudo fallocate -l 3G "$EXTRA_SWAP" 2>/dev/null ||                  sudo dd if=/dev/zero of="$EXTRA_SWAP" bs=1M count=3072 status=none; then
+                sudo chmod 600 "$EXTRA_SWAP" || true
+                if sudo mkswap "$EXTRA_SWAP" >/dev/null 2>&1 && sudo swapon "$EXTRA_SWAP"; then
+                  echo '==> Added 3 GiB ArenaMP linker swap'
+                else
+                  echo '::warning::Could not enable extra swap; continuing with existing RAM/swap'
+                  sudo rm -f "$EXTRA_SWAP" 2>/dev/null || true
+                fi
+              else
+                echo '::warning::Could not allocate extra swap; continuing with existing RAM/swap'
+              fi
+            else
+              echo "==> Only ${AVAILABLE_MB:-unknown} MiB free on /; skipping extra swap"
+            fi
+          fi
+
+          echo '==> Memory after swap check'
+          free -h || true
+
+      - name: Build ArenaMP native arm64
+        working-directory: buildscripts
+        run: bash ./build.sh --arch arm64 --ccache --release --client-only
+
+      # GitHub cache entries are immutable, therefore every run writes a new key
+      # and the next run restores the newest compatible prefix via restore-keys.
+      # Save even after a compiler error: successfully produced .o files remain
+      # useful for the next run and ccache provides a second level of reuse.
+      - name: Save incremental ArenaMP build tree
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: buildscripts/build/arm64/arenamp-prefix
+          key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Keep the complete compiler/linker log even when the native step fails.
+      # This avoids the GitHub UI ending at "100%" with the real linker error hidden.
+      - name: Prepare native failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p native-diagnostics
+          cp -f buildscripts/build/arm64/arenamp-build.full.log native-diagnostics/ 2>/dev/null || true
+          cp -f buildscripts/build/arm64/arenamp-prefix/src/arenamp-build/CMakeFiles/CMakeError.log native-diagnostics/ 2>/dev/null || true
+          cp -f buildscripts/build/arm64/arenamp-prefix/src/arenamp-build/CMakeFiles/CMakeOutput.log native-diagnostics/ 2>/dev/null || true
+          {
+            echo '=== system ==='
+            uname -a || true
+            echo
+            echo '=== memory ==='
+            free -h || true
+            echo
+            echo '=== disk ==='
+            df -h || true
+            echo
+            echo '=== native outputs ==='
+            find buildscripts/build/arm64/arenamp-prefix/src/arenamp-build -maxdepth 2 -type f \
+              \( -name 'libtes3mp.so' -o -name 'CMakeError.log' -o -name 'CMakeOutput.log' \) \
+              -printf '%p %s bytes\n' 2>/dev/null || true
+            echo
+            echo '=== packaged jniLibs ==='
+            find app/src/main/jniLibs -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
+          } > native-diagnostics/runner-state.txt
+
+      - name: Upload native failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-native-failure-${{ github.run_number }}
+          path: native-diagnostics/*
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Verify ArenaMP client native payload
+        shell: bash
+        run: |
+          test -f app/src/main/jniLibs/arm64-v8a/libtes3mp.so
+          test -f buildscripts/prefix/arm64/lib/libRakNetLibStatic.a
+          test -f app/src/main/assets/libopenmw/openmw/tes3mp-client-default.cfg
+          echo 'ArenaMP client + RakNet checkpoint validated; server artifacts are intentionally not packaged.' 
+
+      - name: Build APK with original Gradle project
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleMainlineDebug
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          mkdir -p dist
+          APK="$(find app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" dist/ArenaMP-arm64-client.apk
+          sha256sum dist/ArenaMP-arm64-client.apk > dist/ArenaMP-arm64-client.apk.sha256
+
+      - name: Show ccache statistics
+        if: always()
+        run: ccache --show-stats || true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-Android-arm64
+          path: dist/*
+          if-no-files-found: error

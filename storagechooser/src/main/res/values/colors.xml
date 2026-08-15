@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Палитра файлового менеджера (StorageChooser) переписана под
+        тему лаунчера (AMOLED-чёрный + золото Pelagiad).
+        Цвета дублируют значения из app/values/colors.xml, потому что
+        модуль storagechooser компилируется отдельно и не видит
+        ресурсов app-модуля.
+    -->
+
+    <!-- Основные акценты лаунчера -->
+    <color name="colorPrimary">#0A0907</color>          <!-- bgSurface -->
+    <color name="colorPrimaryDark">#000000</color>      <!-- bgPrimary -->
+    <color name="colorAccent">#E4C487</color>           <!-- accentGold -->
+
+    <!-- Старые утилитарные цвета (оставлены для совместимости с layout'ами) -->
+    <color name="colorCyanListClick">#331F1C18</color>  <!-- легкий hover -->
+    <color name="colorListDivider">#1F1C18</color>      <!-- bgDivider -->
+
+    <color name="pathLayoutBgColor">#14120F</color>     <!-- bgSurfaceAlt -->
+    <color name="chevronBgColor">#969088</color>        <!-- textSecondary -->
+    <color name="inactiveGradientColor">#CC000000</color>
+
+    <!-- Цвета диалоговых акцентов -->
+    <color name="memory_status_color">#E4C487</color>
+    <color name="memory_bar_color">#B8995F</color>
+    <color name="new_folder_color">#E4C487</color>
+    <color name="select_color">#E4C487</color>
+    <color name="cancel_color">#969088</color>
+
+    <!--
+        Массив цветов, применяемый в диалоге выбора директории.
+        Порядок элементов фиксирован библиотекой StorageChooser.
+        И default_light, и default_dark заполнены ОДИНАКОВО —
+        какую бы из схем ни выбрал код, результат будет одним:
+        тёмный фон + золотые акценты.
+    -->
+    <array name="default_light">
+        <!-- Overview -->
+        <item>#0A0907</item>                 <!-- Top Header bg (bgSurface) -->
+        <item>#E4C487</item>                 <!-- header text (accentGold) -->
+        <item>#000000</item>                 <!-- list bg (bgPrimary) -->
+        <item>#E8E4DB</item>                 <!-- storage list name text (textPrimary) -->
+        <item>#E4C487</item>                 <!-- free space text (accentGold) -->
+        <item>#B8995F</item>                 <!-- memory bar (accentGoldDark) -->
+
+        <!-- secondary dialog -->
+        <item>#0A0907</item>                 <!-- address bar bg (bgSurface) -->
+        <item>#000000</item>                 <!-- list bg (bgPrimary) -->
+        <item>#E8E4DB</item>                 <!-- list text (textPrimary) -->
+        <item>#E4C487</item>                 <!-- address bar tint (accentGold) -->
+        <item>#969088</item>                 <!-- new folder hint tint (textSecondary) -->
+        <item>#E4C487</item>                 <!-- select button color -->
+        <item>#14120F</item>                 <!-- new folder layout bg -->
+        <item>#14120F</item>                 <!-- new folder layout bg (secondary) -->
+        <item>#E4C487</item>                 <!-- new folder accent -->
+    </array>
+
+    <array name="default_dark">
+        <item>#0A0907</item>
+        <item>#E4C487</item>
+        <item>#000000</item>
+        <item>#E8E4DB</item>
+        <item>#E4C487</item>
+        <item>#B8995F</item>
+
+        <item>#0A0907</item>
+        <item>#000000</item>
+        <item>#E8E4DB</item>
+        <item>#E4C487</item>
+        <item>#969088</item>
+        <item>#E4C487</item>
+        <item>#14120F</item>
+        <item>#14120F</item>
+        <item>#E4C487</item>
+    </array>
+</resources>

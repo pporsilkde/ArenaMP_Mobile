@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bgPrimary"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/graphics_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbarBackground"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        app:titleTextColor="@color/toolbarTitle"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="14dp"
+            android:paddingTop="14dp"
+            android:paddingRight="14dp"
+            android:paddingBottom="28dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/launcher_panel_background"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/gfx_overall"
+                    android:textColor="@color/accentGold"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <Spinner
+                    android:id="@+id/gfx_preset"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/gfx_safe_note"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/launcher_panel_background"
+                android:orientation="vertical">
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/gfx_scene_section" android:textColor="@color/accentGoldMuted"
+                    android:textSize="15sp" android:textStyle="bold" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_distance" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_distance" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_terrain" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_terrain" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_grass" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_grass" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/launcher_panel_background"
+                android:orientation="vertical">
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/gfx_render_section" android:textColor="@color/accentGoldMuted"
+                    android:textSize="15sp" android:textStyle="bold" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_water" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_water" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_shaders" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_shaders" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_shadows" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_shadows" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_shadow_map" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_shadow_map" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:text="@string/gfx_shadow_distance" android:textColor="@color/textPrimary" />
+                <Spinner android:id="@+id/gfx_shadow_distance" android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/gfx_apply"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="14dp"
+                android:backgroundTint="@color/accentGold"
+                android:text="@string/gfx_apply"
+                android:textColor="@color/textOnAccent"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,18 @@
+ArenaMW Mobile V13.4
+====================
+Test baseline: user-supplied AMW(6), pporsilkde/AMW commit 731f005b609b37f204f974c36c57496ce5a66beb.
+Builder default remains ARENAMW_GIT_TAG=main.
+
+V13.4 changes:
+- World viewing-distance maximum: 40960 (runtime + MyGUI + Qt-style UI + Android launcher list).
+- Shadow limits remain separate: 8192 distance / 1024 map.
+- Mobile terrain profiles now use AMW terrain/object-paging tiers and adaptive land optimization.
+- Very Low: 4096, performance land optimizer, simple water.
+- Performance: 8192, performance land optimizer, simple water.
+- Balanced: 12288, performance land optimizer, PBR water.
+- Quality: 24576, balance land optimizer, PBR water.
+- Battery: 4096, balance land optimizer, simple water.
+- Preload/pager/database/compile workers kept at one for the automatic mobile profiles; preload distance/cache residence increased instead.
+- OSG VBO runtime hint retained; OSG display lists disabled at build time.
+- LIBGL_FBOFORCETEX=0 adopted from the supplied newer OpenMW-Android builder.
+- Existing OSG atomic/IncrementalCompileOperation safety patches retained.

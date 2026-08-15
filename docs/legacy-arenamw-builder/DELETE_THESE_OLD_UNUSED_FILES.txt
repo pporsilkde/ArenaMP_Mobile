@@ -1,0 +1,4 @@
+Если накладываете ChangedFilesOnly поверх Safe Render V2, старый файл можно удалить:
+buildscripts/patches/openmw/07-android-safe-render-v2-legacy-water.patch
+
+Он больше не вызывается из CMakeLists.txt, поэтому даже если оставить его — на сборку он не влияет.

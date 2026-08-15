@@ -1,0 +1,566 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_server_ip">IP / адрес сервера</string>
+    <string name="pref_server_ip_default">127.0.0.1</string>
+    <string name="pref_server_port">Порт сервера</string>
+    <string name="pref_server_port_default">25565</string>
+    <string name="pref_server_locked">Заблокировано build.ini (complete=true)</string>
+
+    <!--
+        Русская локализация лаунчера.
+        Android сам подхватит этот файл при системной локали ru_*.
+        Английский оригинал остаётся дефолтом в res/values/strings.xml.
+
+        Здесь переведены только видимые пользователю тексты. Массивы
+        с техническими значениями (fps, размеры, коды) не дублируются —
+        они возьмутся из дефолтного файла.
+    -->
+
+    <string name="app_name">ArenaMP</string>
+
+    <!-- Категории настроек -->
+    <string name="general_settings">Основные настройки</string>
+    <string name="cat_game">Игровая механика</string>
+    <string name="pref_ui">Интерфейс</string>
+    <string name="pref_advanced">Отладка</string>
+    <string name="pref_lang">Язык</string>
+    <string name="pref_videopref">Графика</string>
+    <string name="pref_save_options">Сохранения</string>
+    <string name="pref_preload">Предзагрузка</string>
+    <string name="category_performance">Производительность</string>
+
+    <!-- Разделы "меню" -->
+    <string name="pref_menu_gui">GUI</string>
+    <string name="pref_menu_camera">Камера</string>
+    <string name="pref_menu_cells">Ячейки</string>
+    <string name="pref_menu_terrain">Ландшафт</string>
+    <string name="pref_menu_shaders">Шейдеры</string>
+    <string name="pref_menu_input">Управление</string>
+    <string name="pref_menu_water">Вода</string>
+    <string name="pref_menu_navigator">Навигатор</string>
+    <string name="pref_menu_physics">Физика</string>
+    <string name="pref_menu_models">Модели</string>
+
+    <!-- Кнопки и базовые действия -->
+    <string name="start_game_label">Запустить игру</string>
+    <string name="closeDrawer">Открыть меню</string>
+    <string name="openDrawer">Закрыть меню</string>
+    <string name="game_files">Файлы игры</string>
+    <string name="mods">Моды</string>
+    <string name="activity_mods">Моды</string>
+    <string name="configure_mods">Настройка модов</string>
+    <string name="btn_back">Назад</string>
+
+    <!-- Вкладки менеджера модов -->
+    <string name="tab_plugins">Моды ESM/ESP</string>
+    <string name="tab_resources">Архивы BSA</string>
+    <string name="tab_groundcovers">Трава</string>
+
+    <!-- Экранная клавиатура / ползунки -->
+    <string name="btn_opacityPlus">Прозр.+</string>
+    <string name="btn_opacityMinus">Прозр.−</string>
+    <string name="btn_sizePlus">Размер+</string>
+    <string name="btn_sizeMinus">Размер−</string>
+    <string name="btn_resetControlsLayout">Сбросить</string>
+
+    <!-- Сеть -->
+
+    <!-- Интерфейс / экран -->
+    <string name="pref_encoding">Язык игры</string>
+    <string name="pref_gamma">Гамма</string>
+    <string name="pref_uiScaling">Масштаб интерфейса</string>
+    <string name="uiScaling_auto">Авто (%1$.2f)</string>
+    <string name="pref_customResolution">Разрешение экрана</string>
+    <string name="pref_mouse_mode">Режим управления</string>
+    <string name="pref_hide_controls">Скрыть экранные элементы</string>
+    <string name="pref_screen_keeper">Не выключать экран</string>
+    <string name="pref_touchpadSensitivity">Чувствительность тачпада</string>
+    <string name="pref_show_qp">Включить быстрые кнопки</string>
+    <string name="pref_show_fn">Включить FN-кнопки</string>
+    <string name="pref_always_show_top_bar">Всегда показывать верхнюю панель</string>
+    <string name="action_show_screen_controls">Экранное управление</string>
+    <string name="action_reset_screen_controls">Сбросить экранное управление</string>
+    <string name="action_reset_config">Сбросить настройки</string>
+
+    <!-- About / меню -->
+    <string name="action_about">О программе</string>
+    <string name="about_title">О OMW</string>
+
+    <!-- Ошибки и диалоги -->
+    <string name="data_error_title">Файлы игры не найдены</string>
+    <string name="data_error_message">Выберите папку, содержащую \"Morrowind.ini\" и подкаталог \"Data Files\"</string>
+    <string name="permissions_error_title">Нет разрешений</string>
+    <string name="permissions_error_message">OMW нужен доступ к памяти для поиска и чтения файлов Morrowind. Разрешите его в настройках приложения</string>
+    <string name="ini_error_message">Не удалось преобразовать файл настроек. Убедитесь, что \"Morrowind.ini\" корректен</string>
+    <string name="no_data_files_title">Файлы данных не найдены</string>
+    <string name="no_data_files_message">Скопируйте файлы игры Morrowind на устройство и выберите путь в разделе \"Файлы игры\", прежде чем запускать игру</string>
+    <string name="no_content_files_title">Нет активных плагинов</string>
+    <string name="no_content_files_message">Ни один контент-файл не включён. Чтобы запустить игру, включите хотя бы один плагин в разделе \"Моды…\"</string>
+    <string name="no_content_files_dismiss">Запустить всё равно</string>
+    <string name="config_was_reset">Настройки успешно сброшены к значениям по умолчанию</string>
+    <string name="no_browser_title">Не удалось открыть ссылку</string>
+    <string name="no_browser_message">На устройстве нет браузера. Пытались открыть:\n\n%1$s</string>
+
+    <!-- Bugsnag -->
+    <string name="bugsnag_yes">Да</string>
+    <string name="bugsnag_no">Нет</string>
+    <string name="bugsnag_policy">Политика конфиденциальности</string>
+    <string name="bugsnag_consent_title">Автоматически отправлять отчёты об ошибках?</string>
+    <string name="bugsnag_consent_message">Разрешить автоматическую отправку отчётов о сбоях?\nВ случае сбоя некоторые данные об устройстве, конфигурации и установленных модах будут отправлены в Bugsnag. Подробности — в Политике конфиденциальности.\nИзменить этот параметр можно в любой момент через меню</string>
+    <string name="bugsnag_consent_restart_title">Перезапустите приложение</string>
+    <string name="bugsnag_consent_restart_message">Чтобы настройки вступили в силу, приложение нужно перезапустить</string>
+    <string name="action_bugsnag_consent">Отчёты о сбоях</string>
+    <string name="dialog_howto">Как это работает</string>
+
+    <!-- Предпочтения-переключатели (игровая механика) -->
+    <string name="pref_shaders">Шейдеры</string>
+    <string name="pref_pix_light">Попиксельное освещение</string>
+    <string name="pref_radfog">Радиальный туман</string>
+    <string name="pref_gyroscope">Гироскоп</string>
+    <string name="pref_stretch_menu_background">Растягивать фон на весь экран</string>
+    <string name="pref_color_topic_enable">Подсвечивать темы в диалогах</string>
+    <string name="pref_show_projectile_damage">Показывать урон снарядов</string>
+    <string name="pref_show_melee_info">Показывать характеристики оружия ближнего боя</string>
+    <string name="pref_show_enchant_chance">Показывать шанс зачарования</string>
+    <string name="pref_best_attack">Лучшая атака</string>
+    <string name="pref_classic_reflected_absorb_spells_behavior">Классическое поведение отражённых поглощающих заклинаний</string>
+    <string name="pref_show_effect_duration">Показывать длительность эффектов</string>
+    <string name="pref_prevent_merchant_equipping">Торговцы не надевают товары</string>
+    <string name="pref_enchanted_weapons_are_magical">Зачарованное оружие считается магическим</string>
+    <string name="pref_followers_attack_on_sight">Спутники атакуют при виде врага</string>
+    <string name="pref_can_loot_during_death_animation">Обыскивать тело во время анимации смерти</string>
+    <string name="pref_rebalance_soul_gem_values">Перебалансировать ценность камней душ</string>
+    <string name="pref_use_additional_anim_sources">Использовать дополнительные источники анимации</string>
+    <string name="pref_barter_disposition_change_is_permanent">Изменение расположения при торговле — перманентно</string>
+    <string name="pref_weapon_sheathing">Ножны для оружия</string>
+    <string name="pref_shield_sheathing">Ножны для щитов</string>
+    <string name="pref_only_appropriate_ammunition_bypasses_resistance">Сопротивление обходит только подходящий боеприпас</string>
+    <string name="pref_use_magic_item_animations">Анимации магических предметов</string>
+    <string name="pref_normalise_race_speed">Нормализовать скорость рас</string>
+    <string name="pref_uncapped_damage_fatigue">Снять лимит урона по выносливости</string>
+    <string name="pref_turn_to_movement_direction">Поворот в сторону движения</string>
+    <string name="pref_smooth_movement">Плавное движение</string>
+    <string name="pref_NPCs_avoid_collisions">NPC избегают столкновений</string>
+    <string name="pref_NPCs_give_way">NPC уступают дорогу</string>
+    <string name="pref_swim_upward_correction">Коррекция всплывания</string>
+    <string name="pref_trainers_training_skills_based_on_base_skill">Тренеры обучают по базовому уровню навыка</string>
+    <string name="pref_always_allow_stealing_from_knocked_out_actors">Всегда позволять обкрадывать оглушённых</string>
+    <string name="pref_graphic_herbalism">Графический сбор растений</string>
+    <string name="pref_allow_actors_to_follow_over_water_surface">Спутники могут следовать по воде</string>
+    <string name="pref_shader_water">Шейдер воды</string>
+    <string name="pref_refraction">Преломление</string>
+    <string name="pref_head_bobbing">Покачивание головы</string>
+    <string name="pref_view_over_shoulder">Вид из-за плеча</string>
+    <string name="pref_auto_switch_shoulder">Автопереключение плеча</string>
+    <string name="pref_preview_if_stand_still">Предпросмотр при стоянии на месте</string>
+    <string name="pref_deferred_preview_rotation">Отложенный поворот предпросмотра</string>
+    <string name="pref_subtitles">Субтитры</string>
+    <string name="pref_toggle_sneak">Переключаемый стелс</string>
+    <string name="pref_small_feature_culling">Отсечение мелких объектов</string>
+    <string name="pref_auto_use_pbr">Нормал- и спекуляр-мапы</string>
+    <string name="pref_apply_lighting_to_environment_maps">Освещение на environment map</string>
+    <string name="pref_autosave">Автосохранение</string>
+    <string name="pref_timeplayed">Время в игре</string>
+    <string name="pref_clamp_lighting">Ограничить освещение</string>
+    <string name="pref_groundcover">Настройки травы</string>
+    <string name="pref_groundcover_enable">Включить траву</string>
+    <string name="pref_graphicsLibrary">Графическая библиотека</string>
+    <string name="pref_envLine">Переменные окружения</string>
+
+    <!-- Advanced / расширенные -->
+    <string name="pref_physicsFPS2">FPS физики</string>
+    <string name="pref_global_functions">Разрешить запись в settings.cfg</string>
+    <string name="pref_preload_exterior_grid">Предзагрузка внешних ячеек</string>
+    <string name="pref_preload_fast_travel">Предзагрузка быстрых путешествий</string>
+    <string name="pref_preload_doors">Предзагрузка дверей</string>
+    <string name="pref_preload_instances">Предзагрузка экземпляров</string>
+    <string name="pref_object_paging">Object paging</string>
+    <string name="pref_always_run">Всегда бежать</string>
+    <string name="pref_load_unsupported_nif_files">Загружать неподдерживаемые NIF</string>
+    <string name="pref_occlusion_culling">Occlusion culling</string>
+    <string name="pref_reflection_occlusion_culling">Occlusion culling для отражений</string>
+    <string name="pref_unsafe_state_graph">Небезопасные оптимизации графики</string>
+
+    <!-- Выпадающие списки -->
+    <string name="pref_preloading">Предзагрузка</string>
+    <string name="pref_distant">Дальний ландшафт</string>
+    <string name="pref_vsync">Вертикальная синхронизация</string>
+    <string name="pref_antialiasing">Сглаживание</string>
+    <string name="pref_async">Потоков async</string>
+    <string name="pref_show_owned">Показ чужого имущества</string>
+    <string name="pref_strength_influences_hand_to_hand">Сила влияет на рукопашную</string>
+    <string name="pref_projectiles_enchant_multiplier">Множитель зачарования снарядов</string>
+    <string name="pref_rtt_size">Качество отражений и преломлений</string>
+    <string name="pref_reflection_detail">Объекты в отражениях воды</string>
+    <string name="pref_lod_factor">LOD ландшафта</string>
+    <string name="pref_difficulty">Сложность</string>
+    <string name="pref_target_framerate">Целевой FPS для предзагрузки</string>
+    <string name="pref_small_feature_culling_pixel_size">Отсечение мелочи (px)</string>
+    <string name="pref_max_quicksaves">Макс. быстрых сохранений</string>
+    <string name="pref_preload_num_threads">Потоков предзагрузки</string>
+    <string name="pref_density">Плотность травы</string>
+    <string name="pref_min_chunk_size">Мин. размер чанка</string>
+    <string name="pref_stomp_mode">Вытаптывание травы</string>
+    <string name="pref_stomp_intensity">Интенсивность вытаптывания</string>
+    <string name="pref_object_paging_min_size">Отсекать объекты меньше этого размера / расстояние</string>
+    <string name="pref_lighting_method">Метод освещения</string>
+    <string name="pref_max_lights">Количество источников света</string>
+    <string name="pref_minimum_interior_brightness">Яркость в помещениях</string>
+    <string name="pref_preload_distance">Дистанция предзагрузки</string>
+    <string name="pref_object_paging_merge_factor">Object paging: фактор слияния</string>
+    <string name="pref_debug_level">Уровень отладки OpenMW</string>
+    <string name="pref_mygui">Пресет HUD MyGUI</string>
+    <string name="pref_water_preset">Пресет шейдера воды</string>
+    <string name="pref_vfs_selector">Пресет игрового интерфейса</string>
+    <string name="pref_rendering_distance">Дальность отрисовки</string>
+    <string name="pref_vertex_lod_mod">Вершинный LOD</string>
+    <string name="pref_composite_map_level">Качество composite map</string>
+    <string name="pref_color_topic_specific">Цвет особых тем</string>
+    <string name="pref_color_topic_exhausted">Цвет исчерпанных тем</string>
+    <string name="pref_async_nav_mesh_updater_threads">Потоки обновления nav mesh</string>
+    <string name="pref_font_size">Размер шрифта интерфейса</string>
+    <string name="pref_viewing_distance">Дистанция обзора</string>
+    <string name="pref_framerate_limit">Ограничение FPS</string>
+
+    <!--
+        Локализованные entries для списков. Дублируем только те массивы,
+        значения которых видны пользователю (не технические коды).
+        Массивы с *_values НЕ переопределяем — они берутся из дефолтного файла.
+    -->
+    <string-array name="resolution_entry">
+        <item>Обычное (1x)</item>
+        <item>Удвоенное (2x)</item>
+        <item>Половинное (0.5x)</item>
+    </string-array>
+
+    <string-array name="pref_mouse_mode_entries">
+        <item>Гибридный</item>
+        <item>Джойстик</item>
+        <item>Касание</item>
+    </string-array>
+
+    <string-array name="pref_preload_entries">
+        <item>Включено</item>
+        <item>Выключено</item>
+    </string-array>
+
+    <string-array name="pref_unsafe_state_graph_entries">
+        <item>Да</item>
+        <item>Нет</item>
+    </string-array>
+
+    <string-array name="pref_physicsFPS2_entries">
+        <item>60 fps</item>
+        <item>30 fps</item>
+    </string-array>
+
+    <string-array name="pref_framerate_limit_entries">
+        <item>Без ограничений</item>
+        <item>60 fps</item>
+        <item>30 fps</item>
+    </string-array>
+
+    <string-array name="pref_viewing_distance_entries">
+        <item>Ультра</item>
+        <item>Высокое</item>
+        <item>Среднее</item>
+        <item>Нормальное</item>
+        <item>Низкое</item>
+    </string-array>
+
+    <string-array name="pref_rendering_distance_entries">
+        <item>Ультра</item>
+        <item>Высокая</item>
+        <item>Нормальная</item>
+        <item>Низкая</item>
+        <item>Очень низкая</item>
+    </string-array>
+
+    <string-array name="pref_antialiasing_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_async_entries">
+        <item>Два потока</item>
+        <item>Один поток</item>
+    </string-array>
+
+    <string-array name="pref_async_nav_mesh_updater_threads_entries">
+        <item>Два потока</item>
+        <item>Один поток</item>
+    </string-array>
+
+    <string-array name="pref_preload_num_threads_entries">
+        <item>Два потока</item>
+        <item>Один поток</item>
+    </string-array>
+
+    <string-array name="pref_show_owned_entries">
+        <item>Везде</item>
+        <item>Только прицел</item>
+        <item>Только подсказка</item>
+        <item>Без цвета</item>
+    </string-array>
+
+    <string-array name="pref_strength_influences_hand_to_hand_entries">
+        <item>Оборотни игнорируются</item>
+        <item>Учитывается в расчёте урона оборотней</item>
+        <item>Не учитывается</item>
+    </string-array>
+
+    <string-array name="pref_projectiles_enchant_multiplier_entries">
+        <item>1 — максимум</item>
+        <item>0.75</item>
+        <item>0.5</item>
+        <item>0.25 — как в MCP</item>
+        <item>0 — только один снаряд</item>
+    </string-array>
+
+    <string-array name="pref_rtt_size_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_reflection_detail_entries">
+        <item>Трава</item>
+        <item>Актёры</item>
+        <item>Объекты</item>
+        <item>Мир</item>
+        <item>Ландшафт</item>
+        <item>Выкл.</item>
+    </string-array>
+
+    <string-array name="pref_lod_factor_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_difficulty_entries">
+        <item>Очень высокая</item>
+        <item>Высокая</item>
+        <item>Нормальная</item>
+        <item>Низкая</item>
+        <item>Очень низкая</item>
+    </string-array>
+
+    <string-array name="pref_target_framerate_entries">
+        <item>60 fps</item>
+        <item>30 fps</item>
+    </string-array>
+
+    <string-array name="pref_small_feature_culling_pixel_size_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_max_quicksaves_entries">
+        <item>10 сохранений</item>
+        <item>5 сохранений</item>
+        <item>1 сохранение</item>
+    </string-array>
+
+    <string-array name="pref_density_entries">
+        <item>Полная</item>
+        <item>Средняя</item>
+        <item>Низкая</item>
+    </string-array>
+
+    <string-array name="pref_min_chunk_size_entries">
+        <item>Максимум</item>
+        <item>Высокий</item>
+        <item>Средний</item>
+        <item>Низкий</item>
+    </string-array>
+
+    <string-array name="pref_stomp_mode_entries">
+        <item>С учётом высоты игрока над землёй</item>
+        <item>Учитывается только XY игрока</item>
+        <item>Траву нельзя вытоптать</item>
+    </string-array>
+
+    <string-array name="pref_stomp_intensity_entries">
+        <item>Как в MGE XE</item>
+        <item>Пониженная</item>
+        <item>Мягкая</item>
+    </string-array>
+
+    <string-array name="pref_object_paging_min_size_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_lighting_method_entries">
+        <item>Шейдеры</item>
+        <item>Классическое</item>
+    </string-array>
+
+    <string-array name="pref_minimum_interior_brightness_entries">
+        <item>Очень ярко</item>
+        <item>Ярко</item>
+        <item>Нормально</item>
+        <item>Темно</item>
+        <item>Очень темно</item>
+    </string-array>
+
+    <string-array name="pref_preload_distance_entries">
+        <item>Фиксированная безопасная — 1000</item>
+    </string-array>
+
+    <string-array name="pref_object_paging_merge_factor_entries">
+        <item>Высоко</item>
+        <item>Нормально</item>
+        <item>Низко</item>
+    </string-array>
+
+    <string-array name="pref_mygui_entries">
+        <item>OpenHUD</item>
+        <item>OpenMW</item>
+    </string-array>
+
+    <string-array name="pref_water_preset_entries">
+        <item>Vtastek</item>
+        <item>OpenMW</item>
+    </string-array>
+
+    <string-array name="pref_vfs_selector_entries">
+        <item>Тёмный</item>
+        <item>OpenMW</item>
+    </string-array>
+
+    <string-array name="pref_vertex_lod_mod_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_composite_map_level_entries">
+        <item>Качество</item>
+        <item>Сбалансированно</item>
+        <item>Производительность</item>
+    </string-array>
+
+    <string-array name="pref_color_topic_specific_entries">
+        <item>Красный</item>
+        <item>Зелёный</item>
+        <item>Синий</item>
+        <item>Серый</item>
+    </string-array>
+
+    <string-array name="pref_color_topic_exhausted_entries">
+        <item>Красный</item>
+        <item>Зелёный</item>
+        <item>Синий</item>
+        <item>Серый</item>
+    </string-array>
+
+    <string-array name="pref_font_size_entries">
+        <item>Большой 20</item>
+        <item>Большой 18</item>
+        <item>Обычный 16</item>
+    </string-array>
+
+    <string-array name="pref_encoding_entries">
+        <item>Европейская</item>
+        <item>Русская</item>
+        <item>Английская</item>
+    </string-array>
+
+    <string-array name="pref_graphicsLibrary_entries">
+        <item>GLESv1</item>
+        <item>GLESv2</item>
+    </string-array>
+
+    <string-array name="pref_debug_level_entries">
+        <item>DEBUG</item>
+        <item>VERBOSE</item>
+        <item>INFO</item>
+        <item>WARNING</item>
+        <item>ERROR</item>
+    </string-array>
+
+    <!-- ================= Графика и тени ================= -->
+    <string name="pref_graphics_preset_category">Графика и тени</string>
+    <string name="pref_graphics_preset">Пресет графики</string>
+    <string name="pref_graphics_preset_summary">Стабильные мобильные пресеты: без очень высокого ландшафта и проблемных постэффектов.</string>
+    <string name="pref_shadow_scope">Тени</string>
+    <string name="pref_shadow_quality">Качество карты теней</string>
+
+    <string-array name="pref_graphics_preset_entries">
+        <item>Авто (сохранить текущие настройки)</item>
+        <item>Качество — средний ландшафт + тени объектов</item>
+        <item>Баланс — умеренный ландшафт + тени персонажей</item>
+        <item>Производительность — сниженный ландшафт, тени выкл.</item>
+        <item>Энергосбережение — минимум ландшафта, тени выкл.</item>
+    </string-array>
+
+    <string-array name="pref_shadow_scope_entries">
+        <item>Как в пресете графики</item>
+        <item>Выключены</item>
+        <item>Игрок + персонажи</item>
+        <item>Игрок + персонажи + объекты</item>
+    </string-array>
+
+    <string-array name="pref_shadow_quality_entries">
+        <item>Как в пресете графики</item>
+        <item>512 (быстро)</item>
+        <item>1024 (максимум Android)</item>
+    </string-array>
+
+    <!-- ================= Кнопки обновления ================= -->
+    <string name="btn_update_desc">Скачать обновление</string>
+    <string name="btn_globe_desc">Открыть morrowind.site</string>
+    <string name="action_change_update_server">Сменить сервер обновлений</string>
+
+    <string name="update_no_game_files">Сначала выберите папку с ресурсами игры (Game files).</string>
+    <string name="update_invalid_folder">Выбранная папка игры не существует. Укажите её заново в «Game files».</string>
+
+    <!-- диалог подтверждения -->
+    <string name="update_confirm_title">Загрузка обновления</string>
+    <string name="update_confirm_message">Архив обновления будет скачан с:\n%1$s\n\nи распакован в:\n%2$s\n\nСуществующие файлы могут быть перезаписаны. Продолжить?</string>
+
+    <!-- прогресс -->
+    <string name="update_downloading_title">Загрузка обновления</string>
+    <string name="update_downloading_message">Подготовка загрузки…</string>
+    <string name="update_downloading_progress">Загружено %1$d / %2$d КБ</string>
+    <string name="update_downloading_indeterminate">Загружено %1$d КБ</string>
+
+    <string name="update_extracting_title">Распаковка обновления</string>
+    <string name="update_extracting_message">Распаковка файлов…</string>
+    <string name="update_extracting_progress">Распаковка: %1$s</string>
+
+    <!-- результат -->
+    <string name="update_done_title">Обновление установлено</string>
+    <string name="update_done_message">Обновление успешно распаковано в:\n%1$s</string>
+    <string name="update_failed_title">Ошибка обновления</string>
+    <string name="update_failed_message">Не удалось скачать или распаковать обновление.\n\n%1$s</string>
+
+    <!-- диалог смены сервера -->
+    <string name="update_server_dialog_title">Адрес сервера обновлений</string>
+    <string name="update_server_dialog_message">Укажите полный URL до .zip-архива обновления. По умолчанию: mro1.myarena.site/Nirn/update.zip.</string>
+    <string name="update_server_saved">Сервер обновлений:\n%1$s</string>
+    <string name="update_server_reset">Сбросить к умолчанию</string>
+
+    <!-- ArenaMP mobile graphics window V13.3 -->
+    <string name="pref_graphics_settings_title">Графика</string>
+    <string name="pref_graphics_settings_summary">Пресеты, ландшафт, дистанция, вода, тени, трава и шейдеры</string>
+    <string name="gfx_overall">Общий пресет</string><string name="gfx_safe_note">Безопасные мобильные пределы: дистанция мира до 40960, дальность теней до 8192, карта теней до 1024. Нерабочие native depth-эффекты всегда выключены.</string>
+    <string name="gfx_distance">Дистанция мира</string><string name="gfx_terrain">Качество ландшафта</string><string name="gfx_preload">Предзагрузка</string><string name="gfx_water">Вода</string><string name="gfx_shadows">Тени</string><string name="gfx_shadow_map">Карта теней</string><string name="gfx_shadow_distance">Дальность теней</string><string name="gfx_grass">Трава</string><string name="gfx_shaders">Шейдеры</string><string name="gfx_apply">Применить настройки</string><string name="gfx_applied">Настройки графики сохранены</string>
+    <string-array name="gfx_preset_entries"><item>Очень низкие — эталон</item><item>Производительность</item><item>Баланс</item><item>Качество</item><item>Энергосбережение</item><item>Свои настройки</item></string-array>
+    <string-array name="gfx_distance_entries"><item>4096</item><item>5120</item><item>6144</item><item>8192</item><item>12288</item><item>16384</item><item>24576</item><item>32768</item><item>40960</item></string-array>
+    <string-array name="gfx_terrain_entries"><item>Очень низкое</item><item>Низкое</item><item>Баланс</item><item>Среднее (максимум Android)</item></string-array>
+    <string-array name="gfx_preload_entries"><item>Безопасная дистанция — 1000 / 1 поток</item></string-array>
+    <string-array name="gfx_water_entries"><item>Простая вода — 256, без преломления</item></string-array>
+    <string-array name="gfx_shadow_entries"><item>Выключены</item><item>Игрок + персонажи</item><item>Игрок + персонажи + объекты</item></string-array>
+    <string-array name="gfx_shadow_map_entries"><item>512</item><item>1024 (максимум Android)</item></string-array><string-array name="gfx_shadow_distance_entries"><item>1024</item><item>2048</item><item>4096</item><item>6144</item><item>8192 (максимум)</item></string-array>
+    <string-array name="gfx_grass_entries"><item>Выключена</item><item>Низко</item><item>Баланс</item><item>Высоко</item></string-array>
+    <string-array name="gfx_shader_entries"><item>Совместимость (рекомендуется)</item><item>Обычные normal/spec карты</item></string-array>
+
+    <string name="gfx_scene_section">Мир и подгрузка</string>
+    <string name="gfx_render_section">Рендеринг</string>
+</resources>

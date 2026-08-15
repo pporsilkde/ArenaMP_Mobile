@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        MyTheme.Base — главный стиль лаунчера.
+
+        Parent = Theme.AppCompat.NoActionBar (именно AppCompat, НЕ Light
+        и НЕ DayNight). Это фиксирует тему как тёмную независимо от
+        системной настройки Android: хоть light, хоть dark у телефона —
+        лаунчер выглядит одинаково.
+    -->
+    <style name="MyTheme.Base" parent="Theme.AppCompat.NoActionBar">
+        <!-- Базовые цвета темы -->
+        <item name="colorPrimary">@color/accentGold</item>
+        <item name="colorPrimaryDark">@color/bgPrimary</item>
+        <item name="colorAccent">@color/accentGold</item>
+
+        <!-- Системные бары -->
+        <item name="android:statusBarColor">@color/bgPrimary</item>
+        <item name="android:navigationBarColor">@color/bgPrimary</item>
+
+        <!-- Окна / диалоги -->
+        <item name="android:windowBackground">@color/bgPrimary</item>
+        <item name="android:colorBackground">@color/bgPrimary</item>
+
+        <!-- Текст по умолчанию -->
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textColorPrimary">@color/textPrimary</item>
+        <item name="android:textColorSecondary">@color/textSecondary</item>
+        <item name="android:textColorHint">@color/textSecondary</item>
+
+        <!-- ActionBar (toolbar) -->
+        <item name="actionBarStyle">@style/MyActionBar</item>
+
+        <!-- Overflow / popup меню (меню "три точки"): тёмный фон + золотой текст -->
+        <item name="popupMenuStyle">@style/MyPopupMenu</item>
+        <item name="actionOverflowMenuStyle">@style/MyOverflowMenu</item>
+        <item name="android:popupMenuStyle">@style/MyPopupMenu</item>
+        <item name="android:itemBackground">@color/bgSurface</item>
+        <item name="android:textColorPrimaryInverse">@color/textPrimary</item>
+        <item name="android:textColorSecondaryInverse">@color/textSecondary</item>
+    </style>
+
+    <!-- Производная тема, на которую ссылается AndroidManifest -->
+    <style name="MyTheme" parent="MyTheme.Base">
+        <item name="android:fontFamily">@font/pelagiad</item>
+        <item name="android:textSize">18sp</item>
+    </style>
+
+    <!-- Стили popup/overflow меню. Оба наследуются от AppCompat-версий,
+         чтобы корректно отрабатывать на всех API. -->
+    <style name="MyPopupMenu" parent="@style/Widget.AppCompat.PopupMenu">
+        <item name="android:popupBackground">@color/bgSurface</item>
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:colorBackground">@color/bgSurface</item>
+    </style>
+
+    <style name="MyOverflowMenu" parent="@style/Widget.AppCompat.PopupMenu.Overflow">
+        <item name="android:popupBackground">@color/bgSurface</item>
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:colorBackground">@color/bgSurface</item>
+        <item name="overlapAnchor">false</item>
+    </style>
+
+    <!-- ActionBar -->
+    <style name="MyActionBar" parent="@style/Widget.AppCompat.ActionBar.Solid">
+        <item name="titleTextStyle">@style/MyTitleTextStyle</item>
+        <item name="background">@color/toolbarBackground</item>
+        <item name="android:background">@color/toolbarBackground</item>
+        <item name="android:textColor">@color/accentGold</item>
+        <item name="android:font">@font/pelagiad</item>
+        <!-- Popup из меню-кебаба (три точки) в тёмной палитре лаунчера -->
+        <item name="popupTheme">@style/MyPopupTheme</item>
+        <item name="android:popupTheme">@style/MyPopupTheme</item>
+    </style>
+
+    <!-- Тема popup-окна overflow-меню (срабатывает на API 21+).
+         Это именно тема, а не стиль, и применяется к контексту,
+         в котором инфлейтится popup — именно поэтому фон
+         получается тёмным, а не системным дефолтным белым. -->
+    <style name="MyPopupTheme" parent="ThemeOverlay.AppCompat.Dark">
+        <item name="android:colorBackground">@color/bgSurface</item>
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textColorPrimary">@color/textPrimary</item>
+        <item name="android:textColorSecondary">@color/textSecondary</item>
+        <item name="popupMenuStyle">@style/MyPopupMenu</item>
+        <item name="android:popupMenuStyle">@style/MyPopupMenu</item>
+    </style>
+
+    <style name="MyTitleTextStyle" parent="@style/TextAppearance.AppCompat.Widget.ActionBar.Title">
+        <item name="android:textColor">@color/accentGold</item>
+        <item name="android:font">@font/pelagiad</item>
+    </style>
+
+    <!-- TabLayout -->
+    <style name="MyCustomTextAppearance" parent="TextAppearance.Design.Tab">
+        <item name="android:textAppearance">@style/CustomTabWidgetText</item>
+    </style>
+
+    <style name="CustomTabWidgetText" parent="@android:style/TextAppearance.Widget.TabWidget">
+        <item name="android:textSize">16sp</item>
+    </style>
+
+</resources>

@@ -1,0 +1,13 @@
+ArenaMP Mobile Client V1 — validation
+
+PASS: Android resource XML + AndroidManifest parse
+PASS: GitHub Actions YAML parse
+PASS: bash -n for build/clean/full-build/NG-GL4ES scripts
+PASS: Python helper py_compile
+PASS: AMP cumulative patch git apply --check on supplied AMP(1)
+PASS: AMP cumulative patch apply on supplied AMP(1)
+PASS: modified AMP MyGUI layout files parse
+PASS: builder CMake configure/generate
+PASS: generated builder targets include arenamp, raknet, android-dependencies, NG-GL4ES
+
+Native/APK compilation was not executed locally because this environment cannot fetch the Gradle/Android/NDK distribution required by the original Android toolchain. The included GitHub Actions workflow performs the full arm64 native + APK build.

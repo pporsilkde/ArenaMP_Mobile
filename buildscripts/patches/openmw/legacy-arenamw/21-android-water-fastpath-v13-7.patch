@@ -1,0 +1,141 @@
+diff --git a/files/shaders/water_fragment.glsl b/files/shaders/water_fragment.glsl
+index 8911fce..c7978d4 100644
+--- a/files/shaders/water_fragment.glsl
++++ b/files/shaders/water_fragment.glsl
+@@ -232,16 +232,15 @@ vec4 rainCombined(vec2 uv, float time, float intensity)
+ // ========================================================================
+ 
+ float fresnelDielectric(vec3 I, vec3 N, float eta) {
+-    float c = abs(dot(I, N));
+-    float g = eta * eta - 1.0 + c * c;
+-    
+-    if (g > 0.0) {
+-        g = sqrt(g);
+-        float A = (g - c) / (g + c);
+-        float B = (c * (g + c) - 1.0) / (c * (g - c) + 1.0);
+-        return 0.5 * A * A * (1.0 + B * B);
+-    }
+-    return 1.0;
++    // Schlick is a very close fit for water and avoids sqrt + several divisions
++    // in the exact dielectric equation on every fragment.
++    float c = clamp(abs(dot(I, N)), 0.0, 1.0);
++    float r = (1.0 - eta) / (1.0 + eta);
++    float r0 = r * r;
++    float x = 1.0 - c;
++    float x2 = x * x;
++    float x5 = x2 * x2 * x;
++    return r0 + (1.0 - r0) * x5;
+ }
+ 
+ // ========================================================================
+@@ -487,8 +486,9 @@ void main(void) {
+     vec3 n2 = texture2D(normalMap, waveCoords(UV, 0.25, 0.035, wTime,
+              vec2(-0.02, -0.015), n1.xy)).rgb * 2.0 - 1.0;
+ 
+-    vec3 n3 = texture2D(normalMap, waveCoords(UV, 0.5, 0.045, wTime,
+-             vec2(0.015, 0.02), n2.xy)).rgb * 2.0 - 1.0;
++    // Mobile fast path: reuse the mid-frequency sample as the fine layer.
++    // This removes one dependent normal-map fetch for every visible water pixel.
++    vec3 n3 = n2;
+     
+     // ========================================================================
+     // ДОЖДЬ (только вблизи) - НОВАЯ АСИНХРОННАЯ СИСТЕМА
+diff --git a/files/shaders/water_pbr_android_fragment.glsl b/files/shaders/water_pbr_android_fragment.glsl
+index 5b64283..3c00bca 100644
+--- a/files/shaders/water_pbr_android_fragment.glsl
++++ b/files/shaders/water_pbr_android_fragment.glsl
+@@ -2,11 +2,14 @@
+ 
+ // Android GLES compatibility profile for ArenaMW complex PBR water.
+ // Keep the complete PBR/refraction/foam/ripple lighting path, but avoid the
+-// V6: full geometric water path for Android. The FBM raymarched surface and
+-// analytic FBM normal are enabled again, with GLES-safe scalar transcendental
+-// helpers below so NG-GL4ES does not need vector exp/sin overloads.
+-#define RAYMARCH_WAVES 1
+-#define ANDROID_LITE_WAVES 0
++// ArenaMW Android fast path for tiled GPUs / Sisah Openmw3 NG-GL4ES.
++// The old near-field path raymarched the water surface and evaluated FBM
++// height repeatedly per fragment. When water filled the screen this became
++// overwhelmingly fragment-bound. Keep the PBR/reflection/refraction pipeline,
++// but use the animated normal maps as the surface geometry source on Android.
++#define RAYMARCH_WAVES 0
++#define ANDROID_LITE_WAVES 1
++#define MOBILE_SURFACE_DETAIL 0
+ 
+ // Shore foam toggle. 1 = foam on, 0 = foam off.
+ // Foam also requires the engine's Wobbly Shores setting to be enabled.
+@@ -157,6 +160,7 @@ float TrowbridgeReitz(float alpha, float NdotH)
+ // Surface detail layer (animated sparkle / breathing / time-of-day tint)
+ // ===========================================================================
+ 
++#if MOBILE_SURFACE_DETAIL
+ // cheap self-contained value noise
+ float valueHash2(vec2 p)
+ {
+@@ -207,6 +211,7 @@ vec3 dayTint(float sunZ)
+     vec3 base = mix(vec3(1.1, 1.15, 1.4), vec3(0.95, 0.98, 1.0), day);
+     return mix(base, vec3(1.0, 0.8, 0.65), sunset);
+ }
++#endif // MOBILE_SURFACE_DETAIL
+ 
+ vec3 GetUnderwaterPos(vec2 fragUV, float d)
+ {
+@@ -514,7 +519,7 @@ void main(void)
+     // distance its sub-pixel ripples are invisible, so skip the dependent fetch
+     // beyond ~1200 units and fade its contribution in to avoid a seam.
+     vec3 normal5 = vec3(0.0, 0.0, 1.0);
+-    float n5Lod = smoothstep(1200.0, 700.0, radialDepth);
++    float n5Lod = smoothstep(650.0, 350.0, radialDepth);
+     if (n5Lod > 0.0)
+         normal5 = 2.0 * texture2D(normalMap, normalCoords(rotateUV(UV.yx, 3.8), 1.0, 0.4, -waterTimer * 2.5, -0.02, 0.1, normal4)).rgb - 1.0;
+     waterTimer = osg_SimulationTime;
+@@ -758,7 +763,6 @@ void main(void)
+ 
+             vec2 drift1 = vec2(waterTimer * 0.003,  waterTimer * 0.002);
+             vec2 drift2 = vec2(waterTimer * 0.001, -waterTimer * 0.004);
+-            vec2 drift3 = vec2(-waterTimer * 0.0025, waterTimer * 0.0015);
+ 
+             vec2 foamUV1 = foamBase * 2.1 + drift1 * 5.5;
+             float baseFoam = texture2D(normalMap, foamUV1).a;
+@@ -772,12 +776,10 @@ void main(void)
+             float detail2 = texture2D(normalMap, foamUV2).a;
+             result = result * detail2;
+ 
++            // Mobile: two foam samples instead of three. The third high-frequency
++            // alpha lookup was mostly sub-pixel near shore and cost fill-rate.
+             result = mix(result, 0.5, midGrayPulse);
+ 
+-            vec2 foamUV3 = foamBase * 5.5 + drift3 * 6.5;
+-            float detail3 = texture2D(normalMap, foamUV3).a;
+-            result = result * detail3;
+-
+             const float FOAM_CONTRAST_LOW  = 0.0;
+             const float FOAM_CONTRAST_HIGH = 0.4;
+             float combinedFoam = smoothstep(FOAM_CONTRAST_LOW, FOAM_CONTRAST_HIGH, result);
+@@ -1140,15 +1142,12 @@ void main(void)
+         gl_FragData[0].rgb = mix(gl_FragData[0].rgb, foamColor, foamMask);
+     }
+ 
+-    // -----------------------------------------------------------------------
+-    // Surface detail layer
+-    // -----------------------------------------------------------------------
++#if MOBILE_SURFACE_DETAIL
++    // Optional decorative sparkle/breathing layer. Disabled on Android because
++    // it performs multiple procedural-noise evaluations for every water pixel.
+     if (!isUnderwater && !isInterior)
+     {
+         float sunZ = sunWorldDirUnmodified.z;
+-        // Sparkle is direct-sun glinting, so it is gated by the same weatherGate
+-        // computed above (zero in overcast/fog/rain) plus shadow, sun height and
+-        // the engine's sun specular amount.
+         float sparkleGate = shadow * clamp(sunZ * 1.5, 0.0, 1.0) * weatherGate * sunSpec.a;
+         if (sparkleGate > 0.001)
+         {
+@@ -1161,6 +1160,7 @@ void main(void)
+         vec3 tint = dayTint(sunZ);
+         gl_FragData[0].rgb = mix(gl_FragData[0].rgb, gl_FragData[0].rgb * tint, 0.06);
+     }
++#endif // MOBILE_SURFACE_DETAIL
+ 
+     gl_FragData[0] = applyFogAtDist(gl_FragData[0], radialDepth, linearDepth, far);
+ 

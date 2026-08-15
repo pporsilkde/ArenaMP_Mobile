@@ -1,0 +1,193 @@
+diff --git a/apps/openmw/mwrender/nativeeffects.cpp b/apps/openmw/mwrender/nativeeffects.cpp
+index a8678c8..1589af4 100644
+--- a/apps/openmw/mwrender/nativeeffects.cpp
++++ b/apps/openmw/mwrender/nativeeffects.cpp
+@@ -39,8 +39,6 @@ namespace MWRender
+                 return;
+ 
+             owner->copyFramebuffer(renderInfo);
+-            if (owner->mOriginalPostDrawCallback)
+-                (*owner->mOriginalPostDrawCallback)(renderInfo);
+         }
+ 
+     private:
+@@ -51,7 +49,6 @@ namespace MWRender
+         Shader::ShaderManager& shaderManager)
+         : mMainCamera(mainCamera)
+         , mRootNode(rootNode)
+-        , mOriginalPostDrawCallback(mainCamera ? mainCamera->getPostDrawCallback() : nullptr)
+     {
+         if (!mainCamera || !rootNode)
+         {
+@@ -94,6 +91,11 @@ namespace MWRender
+             return;
+         }
+ 
++        // Capture the completed main framebuffer on a dedicated POST_RENDER camera.
++        // Do not replace the main camera's post-draw callback: the OSG version used
++        // by the Android build reserves it for OcclusionQueryNode query retrieval.
++        mCaptureCamera = createCamera(-11, false);
++
+         // All native passes finish before MyGUI (POST_RENDER order 0), keeping
+         // HUD/menu rendering untouched.
+         mEffectsCamera = createCamera(-10, true);
+@@ -192,6 +194,7 @@ namespace MWRender
+         mFinalState->addUniform(mBloomIntensityUniform);
+         mFinalCamera->addChild(finalPass);
+ 
++        mRootNode->addChild(mCaptureCamera);
+         mRootNode->addChild(mEffectsCamera);
+         mRootNode->addChild(mBloomHorizontalCamera);
+         mRootNode->addChild(mBloomVerticalCamera);
+@@ -200,8 +203,7 @@ namespace MWRender
+         mRootNode->addChild(mFinalCamera);
+ 
+         mFramebufferCopyCallback = new FramebufferCopyCallback(this);
+-        if (mMainCamera.valid())
+-            mMainCamera->setPostDrawCallback(mFramebufferCopyCallback.get());
++        mCaptureCamera->setPreDrawCallback(mFramebufferCopyCallback.get());
+ 
+         mReady = true;
+         reloadSettings();
+@@ -214,11 +216,12 @@ namespace MWRender
+         applyPassVisibility();
+         if (mFramebufferCopyCallback)
+             mFramebufferCopyCallback->detach();
+-        if (mMainCamera.valid() && mMainCamera->getPostDrawCallback() == mFramebufferCopyCallback.get())
+-            mMainCamera->setPostDrawCallback(mOriginalPostDrawCallback.get());
++        if (mCaptureCamera && mCaptureCamera->getPreDrawCallback() == mFramebufferCopyCallback.get())
++            mCaptureCamera->setPreDrawCallback(nullptr);
+ 
+         if (mRootNode.valid())
+         {
++            if (mCaptureCamera) mRootNode->removeChild(mCaptureCamera);
+             if (mEffectsCamera) mRootNode->removeChild(mEffectsCamera);
+             if (mBloomHorizontalCamera) mRootNode->removeChild(mBloomHorizontalCamera);
+             if (mBloomVerticalCamera) mRootNode->removeChild(mBloomVerticalCamera);
+@@ -352,6 +355,8 @@ namespace MWRender
+         const bool visible = mReady && mEnabled && mCaptureReady.load(std::memory_order_acquire);
+         const unsigned int on = Mask_RenderToTexture;
+ 
++        // The capture camera must run before mCaptureReady can become true.
++        if (mCaptureCamera) mCaptureCamera->setNodeMask(mReady && mEnabled ? on : 0u);
+         if (mEffectsCamera) mEffectsCamera->setNodeMask(visible && mSsrEnabled ? on : 0u);
+         if (mBloomHorizontalCamera) mBloomHorizontalCamera->setNodeMask(visible && mBloomEnabled ? on : 0u);
+         if (mBloomVerticalCamera) mBloomVerticalCamera->setNodeMask(visible && mBloomEnabled ? on : 0u);
+diff --git a/apps/openmw/mwrender/nativeeffects.hpp b/apps/openmw/mwrender/nativeeffects.hpp
+index 32bff46..5f78f4f 100644
+--- a/apps/openmw/mwrender/nativeeffects.hpp
++++ b/apps/openmw/mwrender/nativeeffects.hpp
+@@ -52,7 +52,6 @@ namespace MWRender
+ 
+         osg::observer_ptr<osg::Camera> mMainCamera;
+         osg::observer_ptr<osg::Group> mRootNode;
+-        osg::ref_ptr<osg::Camera::DrawCallback> mOriginalPostDrawCallback;
+         osg::ref_ptr<FramebufferCopyCallback> mFramebufferCopyCallback;
+ 
+         bool mReady = false;
+@@ -72,6 +71,7 @@ namespace MWRender
+         osg::ref_ptr<osg::Texture2D> mEdgeTexture;
+         osg::ref_ptr<osg::Texture2D> mWeightTexture;
+ 
++        osg::ref_ptr<osg::Camera> mCaptureCamera;
+         osg::ref_ptr<osg::Camera> mEffectsCamera;
+         osg::ref_ptr<osg::Camera> mBloomHorizontalCamera;
+         osg::ref_ptr<osg::Camera> mBloomVerticalCamera;
+diff --git a/apps/openmw/mwrender/renderingmanager.cpp b/apps/openmw/mwrender/renderingmanager.cpp
+index a2911cb..6f445a5 100644
+--- a/apps/openmw/mwrender/renderingmanager.cpp
++++ b/apps/openmw/mwrender/renderingmanager.cpp
+@@ -302,7 +302,6 @@ namespace MWRender
+         BloomProcessor(osg::Camera* mainCamera, osg::Group* rootNode, Shader::ShaderManager& shaderManager)
+             : mMainCamera(mainCamera)
+             , mRootNode(rootNode)
+-            , mOriginalPostDrawCallback(mainCamera ? mainCamera->getPostDrawCallback() : nullptr)
+             , mEnabled(false)
+             , mSuppressed(false)
+             , mReady(false)
+@@ -343,6 +342,11 @@ namespace MWRender
+                 return;
+             }
+ 
++            // Capture on a dedicated POST_RENDER camera rather than replacing the
++            // main camera post-draw callback. Older OSG OcclusionQueryNode code
++            // requires ownership of that callback for its query retrieval.
++            mCaptureCamera = createCamera(osg::Camera::POST_RENDER, -4, false);
++
+             // The MyGUI camera uses POST_RENDER order 0. Bloom finishes at -1,
+             // so menus, HUD and chat remain sharp and are never blurred.
+             mExtractCamera = createCamera(osg::Camera::POST_RENDER, -3, true);
+@@ -391,16 +395,15 @@ namespace MWRender
+                 new osg::BlendFunc(GL_ONE, GL_ONE), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+             mCompositeCamera->addChild(compositePass);
+ 
++            mRootNode->addChild(mCaptureCamera);
+             mRootNode->addChild(mExtractCamera);
+             mRootNode->addChild(mVerticalCamera);
+             mRootNode->addChild(mCompositeCamera);
+ 
+-            // Install the callback once. Replacing a Camera DrawCallback while
+-            // CullDrawThreadPerContext is active can leave a RenderStage holding
+-            // the previous callback and race its osg::Referenced ref-count.
++            // The copy callback belongs to the dedicated capture camera. This keeps
++            // the main camera callback available to OSG occlusion-query bookkeeping.
+             mFramebufferCopyCallback = new FramebufferCopyCallback(this);
+-            if (mMainCamera.valid())
+-                mMainCamera->setPostDrawCallback(mFramebufferCopyCallback.get());
++            mCaptureCamera->setPreDrawCallback(mFramebufferCopyCallback.get());
+ 
+             setPassesVisible(false);
+             mReady = true;
+@@ -414,14 +417,13 @@ namespace MWRender
+             if (mFramebufferCopyCallback)
+                 mFramebufferCopyCallback->detach();
+ 
+-            if (mMainCamera.valid()
+-                && mMainCamera->getPostDrawCallback() == mFramebufferCopyCallback.get())
+-            {
+-                mMainCamera->setPostDrawCallback(mOriginalPostDrawCallback.get());
+-            }
++            if (mCaptureCamera && mCaptureCamera->getPreDrawCallback() == mFramebufferCopyCallback.get())
++                mCaptureCamera->setPreDrawCallback(nullptr);
+ 
+             if (mRootNode.valid())
+             {
++                if (mCaptureCamera)
++                    mRootNode->removeChild(mCaptureCamera);
+                 if (mExtractCamera)
+                     mRootNode->removeChild(mExtractCamera);
+                 if (mVerticalCamera)
+@@ -510,8 +512,6 @@ namespace MWRender
+                     return;
+ 
+                 owner->copyFramebuffer(renderInfo);
+-                if (owner->mOriginalPostDrawCallback)
+-                    (*owner->mOriginalPostDrawCallback)(renderInfo);
+             }
+ 
+         private:
+@@ -602,6 +602,8 @@ namespace MWRender
+         void setPassesVisible(bool visible)
+         {
+             const unsigned int mask = visible ? Mask_RenderToTexture : 0u;
++            if (mCaptureCamera)
++                mCaptureCamera->setNodeMask(mask);
+             if (mExtractCamera)
+                 mExtractCamera->setNodeMask(mask);
+             if (mVerticalCamera)
+@@ -631,7 +633,6 @@ namespace MWRender
+ 
+         osg::observer_ptr<osg::Camera> mMainCamera;
+         osg::observer_ptr<osg::Group> mRootNode;
+-        osg::ref_ptr<osg::Camera::DrawCallback> mOriginalPostDrawCallback;
+         bool mEnabled;
+         bool mSuppressed;
+         bool mReady;
+@@ -645,6 +646,7 @@ namespace MWRender
+         osg::ref_ptr<osg::Program> mExtractProgram;
+         osg::ref_ptr<osg::Program> mVerticalProgram;
+         osg::ref_ptr<osg::Program> mCompositeProgram;
++        osg::ref_ptr<osg::Camera> mCaptureCamera;
+         osg::ref_ptr<osg::Camera> mExtractCamera;
+         osg::ref_ptr<osg::Camera> mVerticalCamera;
+         osg::ref_ptr<osg::Camera> mCompositeCamera;

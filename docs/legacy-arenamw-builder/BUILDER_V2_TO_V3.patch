@@ -1,0 +1,60 @@
+--- /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_SAFE_RENDER_V2/buildscripts/CMakeLists.txt	2026-08-12 23:37:02.913900787 +0000
++++ /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_COMPLEX_WATER_V3/buildscripts/CMakeLists.txt	2026-08-12 23:44:57.971175363 +0000
+@@ -503,8 +503,8 @@
+ 	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw/03-android-fix-context-being-lost-on-app-minimize.patch &&
+ 	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw/04-settingswindow-save-user-settings-file-when-ok-is-pr.patch &&
+ 	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw/05-components-misc-stringops-use-boost-format-instead-o.patch &&
+-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw/06-android-safe-render-v1.patch &&
+-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw/07-android-safe-render-v2-legacy-water.patch &&
++	git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-android-safe-render-v1.patch &&
++	git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/07-android-complex-water-v3.patch &&
+ 	cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_main.cpp <SOURCE_DIR>/apps/openmw/android_main.cpp &&
+ 	sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR>
+ )
+--- /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_SAFE_RENDER_V2/app/src/main/java/ui/activity/MainActivity.kt	2026-08-12 23:37:02.380422482 +0000
++++ /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_COMPLEX_WATER_V3/app/src/main/java/ui/activity/MainActivity.kt	2026-08-12 23:44:03.713233946 +0000
+@@ -692,11 +692,9 @@
+                     file.Writer.write(Constants.USER_CONFIG + "/settings.cfg", "Terrain", "distant terrain",   if (preset.distantTerrain) "true" else "false")
+                 }
+ 
+-                // Android-safe renderer V2. V1 proved that the fixed-function baseline
+-                // renders correctly. Re-enable the *basic* OpenMW object shader path, but
+-                // keep expensive/fragile desktop features disabled. Water is enabled too,
+-                // while the engine patch selects ArenaMW's legacy water shader on Android
+-                // instead of the much heavier PBR water shader.
++                // Android complex-water V3. Keep the stable object/terrain compatibility
++                // renderer from V2, but deliberately re-enable ArenaMW's complex PBR water
++                // through an Android-specific GLES compatibility fragment shader.
+                 val androidSettings = Constants.USER_CONFIG + "/settings.cfg"
+                 file.Writer.write(androidSettings, "Shaders", "force shaders", "true")
+                 file.Writer.write(androidSettings, "Shaders", "force per pixel lighting", "false")
+@@ -713,10 +711,10 @@
+                 file.Writer.write(androidSettings, "Shaders", "auto use terrain specular maps", "false")
+                 file.Writer.write(androidSettings, "Shaders", "antialias alpha test", "false")
+                 file.Writer.write(androidSettings, "Water", "shader", "true")
+-                file.Writer.write(androidSettings, "Water", "refraction", "false")
+-                file.Writer.write(androidSettings, "Water", "shader water ripples", "false")
+-                file.Writer.write(androidSettings, "Water", "reflection detail", "2")
+-                file.Writer.write(androidSettings, "Water", "rtt size", "256")
++                file.Writer.write(androidSettings, "Water", "refraction", "true")
++                file.Writer.write(androidSettings, "Water", "shader water ripples", "true")
++                file.Writer.write(androidSettings, "Water", "reflection detail", "3")
++                file.Writer.write(androidSettings, "Water", "rtt size", "512")
+                 file.Writer.write(androidSettings, "Shadows", "enable shadows", "false")
+ 
+                 configureDefaultsBin(mapOf(
+--- /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_SAFE_RENDER_V2/app/src/main/java/ui/activity/GameActivity.kt	2026-08-12 23:37:02.380586315 +0000
++++ /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_COMPLEX_WATER_V3/app/src/main/java/ui/activity/GameActivity.kt	2026-08-12 23:44:04.255821816 +0000
+@@ -112,9 +112,9 @@
+             Os.setenv("OSG_SHADER_CACHE_ENABLED", if (preset?.shaderCache != false) "1" else "0", true)
+ 
+             // ── NG-GL4ES специфичные переменные ──────────────────────────────
+-            // Safe compatibility mode for the current ArenaMW/OpenMW 0.47 shader set.
+-            // The forced SPIRV-Cross path (0) caused a purple frame and an early native exit
+-            // on the current Android port, so keep the last known-working converter for now.
++            // Keep the known-working simple converter for the general ArenaMW 0.47 renderer.
++            // Complex water V3 is adapted at shader-source level instead of globally forcing
++            // the unstable advanced converter that previously produced a purple frame/crash.
+             Os.setenv("LIBGL_SIMPLE_SHADERCONV", "1", true)
+             // Instancing через SPIRV
+             Os.setenv("LIBGL_INSTANCING", "1", true)

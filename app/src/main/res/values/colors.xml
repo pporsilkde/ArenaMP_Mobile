@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========================================================= -->
+    <!-- OMW.Net AMOLED palette (Pelagiad-gold).                    -->
+    <!-- Единая палитра для всех флейворов и всех системных тем:   -->
+    <!-- тёмная/светлая тема Android не меняет вид лаунчера.        -->
+    <!-- ========================================================= -->
+
+    <!-- Фоны -->
+    <color name="bgPrimary">#000000</color>          <!-- AMOLED чёрный -->
+    <color name="bgSurface">#0A0907</color>          <!-- карточки, поля, toolbar -->
+    <color name="bgSurfaceAlt">#14120F</color>       <!-- вторичные кнопки ("Отмена") -->
+    <color name="bgDivider">#1F1C18</color>          <!-- обводки, разделители -->
+
+    <!-- Акценты (золото, как на дизайне) -->
+    <color name="accentGold">#E4C487</color>         <!-- основные кнопки, активные элементы -->
+    <color name="accentGoldDark">#B8995F</color>     <!-- pressed / ripple -->
+    <color name="accentGoldMuted">#8A7A5C</color>    <!-- капс-лейблы, вторичный акцент -->
+
+    <!-- Текст -->
+    <color name="textPrimary">#E8E4DB</color>        <!-- основной текст -->
+    <color name="textSecondary">#969088</color>      <!-- подсказки, hint -->
+    <color name="textOnAccent">#1A1410</color>       <!-- текст на золотых кнопках -->
+
+    <!-- ========================================================= -->
+    <!-- Обратная совместимость: старые имена, используемые в темах -->
+    <!-- и в коде. Все ссылаются на новую палитру — layout'ы        -->
+    <!-- поштучно перерисовывать не нужно.                          -->
+    <!-- ========================================================= -->
+    <color name="colorPrimary">@color/accentGold</color>
+    <color name="colorPrimaryDark">@color/bgPrimary</color>
+    <color name="colorAccent">@color/accentGold</color>
+
+    <!-- Используется в nightly/styles.xml как android:statusBarColor.
+         Ранее был не определён — именно этот missing resource
+         ломал сборку APK. -->
+    <color name="statusBarColor">@color/bgPrimary</color>
+
+    <!-- Mod manager (activity_mods.xml, mod_item.xml) -->
+    <color name="modItemBackgroundColor">@color/bgSurface</color>
+    <color name="modItemSelectedColor">@color/bgSurfaceAlt</color>
+
+    <!-- Toolbar / action bar -->
+    <color name="toolbarBackground">@color/bgSurface</color>
+    <color name="toolbarTitle">@color/accentGold</color>
+    <color name="toolbarSubtitle">@color/accentGoldMuted</color>
+
+    <!-- Tabs (верхние вкладки в activity_mods) -->
+    <color name="tabBackground">@color/bgSurface</color>
+    <color name="tabIndicator">@color/accentGold</color>
+    <color name="tabTextSelected">@color/accentGold</color>
+    <color name="tabTextNormal">@color/accentGoldMuted</color>
+
+    <!-- FAB -->
+    <color name="fabBackground">@color/bgSurface</color>
+    <color name="fabRipple">@color/accentGoldDark</color>
+    <color name="fabShadow">#66000000</color>
+</resources>

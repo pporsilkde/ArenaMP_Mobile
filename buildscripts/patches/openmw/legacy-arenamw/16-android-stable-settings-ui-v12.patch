@@ -1,0 +1,273 @@
+--- a/apps/openmw/mwgui/settingswindow.cpp
++++ b/apps/openmw/mwgui/settingswindow.cpp
+@@ -136,9 +136,9 @@
+             box->setIndexSelected(MyGUI::ITEM_NONE);
+     }
+ 
+-    constexpr std::array<int, 5> shadowMapResolutions = { 512, 1024, 2048, 4096, 8192 };
+-    constexpr std::array<const char*, 5> shadowMapQualityNames =
+-        { "value.balanced", "value.high", "value.very_high", "value.detailed", "value.maximum" };
++    constexpr std::array<int, 3> shadowMapResolutions = { 512, 1024, 2048 };
++    constexpr std::array<const char*, 3> shadowMapQualityNames =
++        { "value.balanced", "value.high", "value.very_high" };
+     constexpr std::array<const char*, 6> shadowPresetNames =
+         { "value.disabled", "value.actor", "value.npc", "value.object", "value.terrain", "value.indoor" };
+ 
+@@ -236,26 +236,24 @@
+         return "balanced";
+     }
+ 
+-    constexpr std::array<const char*, 6> terrainPresetNames =
+-        { "value.minimum", "value.low", "value.balanced", "value.medium", "value.high", "value.ultra" };
+-    constexpr std::array<float, 6> terrainLod =
+-        { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
+-    constexpr std::array<int, 6> vertexLod =
+-        { -2, -2, -1, -1, 0, 1 };
+-    constexpr std::array<int, 6> compositeLevel =
+-        { -3, -3, -2, -2, -1, 0 };
+-    constexpr std::array<int, 6> compositeResolution =
+-        { 1024, 1024, 1024, 2048, 2048, 4096 };
+-    constexpr std::array<float, 6> maxCompositeGeometrySize =
+-        { 4.f, 4.f, 6.f, 8.f, 12.f, 16.f };
+-    constexpr std::array<float, 6> objectPagingMergeFactor =
+-        { 100000.f, 75000.f, 50000.f, 30000.f, 15000.f, 8000.f };
+-    constexpr std::array<float, 6> objectPagingMinSize =
+-        { 1.f, 0.85f, 0.65f, 0.50f, 0.35f, 0.25f };
+-
+-    constexpr size_t highTerrainPresetIndex = 4;
+-    constexpr size_t ultraMaterialQualityIndex = 4;
+-    constexpr size_t qualityMaterialQualityIndex = 3;
++    // Mobile-safe terrain selector: High/Ultra were too expensive on tile GPUs.
++    // Medium is now the maximum selectable landscape quality on Android.
++    constexpr std::array<const char*, 4> terrainPresetNames =
++        { "value.minimum", "value.low", "value.balanced", "value.medium" };
++    constexpr std::array<float, 4> terrainLod =
++        { 0.40f, 0.50f, 0.65f, 0.80f };
++    constexpr std::array<int, 4> vertexLod =
++        { -2, -2, -1, -1 };
++    constexpr std::array<int, 4> compositeLevel =
++        { -3, -3, -2, -2 };
++    constexpr std::array<int, 4> compositeResolution =
++        { 1024, 1024, 1024, 2048 };
++    constexpr std::array<float, 4> maxCompositeGeometrySize =
++        { 4.f, 4.f, 6.f, 8.f };
++    constexpr std::array<float, 4> objectPagingMergeFactor =
++        { 100000.f, 75000.f, 50000.f, 30000.f };
++    constexpr std::array<float, 4> objectPagingMinSize =
++        { 1.f, 0.85f, 0.65f, 0.50f };
+ 
+     void applyTerrainPresetSettings(size_t pos)
+     {
+@@ -497,25 +495,28 @@
+         // a PBR TabItem but forgot to add it here, so every section after
+         // Lighting selected the tab to its right and the PBR page was
+         // effectively unreachable from the left navigation list.
+-        const std::array<const char*, 15> sectionKeys = {
+-            "settings.section.interface",
+-            "settings.section.hud",
+-            "settings.section.controls",
+-            "settings.subsection.display",
+-            "settings.subsection.quality",
+-            "settings.subsection.water",
+-            "settings.subsection.lighting",
+-            "settings.subsection.pbr",
+-            "settings.subsection.effects",
+-            "settings.subsection.hdr",
+-            "settings.subsection.bloom",
+-            "settings.subsection.world",
+-            "settings.subsection.shadows",
+-            "settings.section.audio",
+-            "settings.section.advanced",
+-        };
+-        for (const char* key : sectionKeys)
+-            mSectionList->addItem(arenaText(key));
++        // Android stable UI: Effects (SSR/SMAA), HDR and Bloom are removed
++        // from navigation. The TabItems stay in the shared layout so desktop
++        // source structure remains intact, therefore we keep an explicit map.
++        const std::array<std::pair<const char*, size_t>, 12> sections = {{
++            {"settings.section.interface", 0},
++            {"settings.section.hud", 1},
++            {"settings.section.controls", 2},
++            {"settings.subsection.display", 3},
++            {"settings.subsection.quality", 4},
++            {"settings.subsection.water", 5},
++            {"settings.subsection.lighting", 6},
++            {"settings.subsection.pbr", 7},
++            {"settings.subsection.world", 11},
++            {"settings.subsection.shadows", 12},
++            {"settings.section.audio", 13},
++            {"settings.section.advanced", 14},
++        }};
++        for (const auto& section : sections)
++        {
++            mSectionList->addItem(arenaText(section.first));
++            mSectionTabIndices.push_back(section.second);
++        }
+         mSectionList->setIndexSelected(0);
+         mSettingsTab->setIndexSelected(0);
+ 
+@@ -596,10 +597,10 @@
+             mTerrainPreset->addItem(arenaText(name));
+         mTerrainPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTerrainPresetChanged);
+ 
+-        for (const char* name : materialQualityNames)
+-            mMaterialQuality->addItem(arenaText(name));
+-        mMaterialQuality->eventComboChangePosition += MyGUI::newDelegate(
+-            this, &SettingsWindow::onMaterialQualityChanged);
++        // PBR material quality is fixed by the Android launcher profile.
++        // Keep the widget present for layout compatibility, but do not populate
++        // or bind it so changing PBR quality cannot trigger live shader rebuilds.
++        mMaterialQuality->setVisible(false);
+ 
+         for (const char* name : landOptimizationModeNames)
+             mLandOptimizationMode->addItem(arenaText(name));
+@@ -667,7 +668,6 @@
+         updateNpcBarModeCombo();
+         updateQuickLootModeCombo();
+         updateTerrainPresetCombo();
+-        updateMaterialQualityCombo();
+         updateLandOptimizationModeCombo();
+         updateLandDistanceControls();
+         updateShadowCombos();
+@@ -680,16 +680,21 @@
+ 
+     void SettingsWindow::onTabChanged(MyGUI::TabControl* /*_sender*/, size_t index)
+     {
+-        if (index < mSectionList->getItemCount() && mSectionList->getIndexSelected() != index)
+-            mSectionList->setIndexSelected(index);
++        const auto it = std::find(mSectionTabIndices.begin(), mSectionTabIndices.end(), index);
++        if (it != mSectionTabIndices.end())
++        {
++            const size_t visibleIndex = static_cast<size_t>(std::distance(mSectionTabIndices.begin(), it));
++            if (mSectionList->getIndexSelected() != visibleIndex)
++                mSectionList->setIndexSelected(visibleIndex);
++        }
+         configureWidgets(mMainWidget, false);
+         resetScrollbars();
+     }
+     void SettingsWindow::onSectionSelected(MyGUI::ListBox* /*_sender*/, size_t index)
+     {
+-        if (index == MyGUI::ITEM_NONE || index >= mSectionList->getItemCount())
++        if (index == MyGUI::ITEM_NONE || index >= mSectionTabIndices.size())
+             return;
+-        mSettingsTab->setIndexSelected(index);
++        mSettingsTab->setIndexSelected(mSectionTabIndices[index]);
+         configureWidgets(mMainWidget, false);
+         resetScrollbars();
+     }
+@@ -1162,32 +1167,14 @@
+         // their detail/performance balance.
+         applyTerrainPresetSettings(pos);
+ 
+-        // Maximum PBR is intentionally tied to High/Ultra terrain. Lowering the
+-        // terrain preset automatically falls back to the Quality PBR mode.
+-        if (pos < highTerrainPresetIndex && getMaterialQualityMode() == "ultra")
+-        {
+-            applyMaterialQualitySettings(qualityMaterialQualityIndex);
+-            mMaterialQuality->setIndexSelected(qualityMaterialQualityIndex);
+-        }
+         apply();
+     }
+ 
+-    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t pos)
++    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t)
+     {
+-        if (pos == MyGUI::ITEM_NONE)
+-            return;
+-        pos = std::min(pos, materialQualityModes.size() - 1);
+-
+-        // Selecting Maximum PBR automatically raises landscape detail to High.
+-        // This keeps the expensive terrain POM/AO path from running on low-detail land.
+-        if (pos == ultraMaterialQualityIndex && getTerrainPresetPosition() < highTerrainPresetIndex)
+-        {
+-            applyTerrainPresetSettings(highTerrainPresetIndex);
+-            mTerrainPreset->setIndexSelected(highTerrainPresetIndex);
+-        }
+-
+-        applyMaterialQualitySettings(pos);
+-        apply();
++        // Android uses a fixed mobile-safe material profile. The selector is hidden
++        // and unbound; keep this callback as an inert compatibility stub so no
++        // accidental call can trigger a live PBR shader/terrain rebuild.
+     }
+ 
+     void SettingsWindow::onLandOptimizationModeChanged(MyGUI::ComboBox*, size_t pos)
+@@ -1470,7 +1457,6 @@
+         updateNpcBarModeCombo();
+         updateQuickLootModeCombo();
+         updateTerrainPresetCombo();
+-        updateMaterialQualityCombo();
+         updateLandOptimizationModeCombo();
+         updateLandDistanceControls();
+         updateShadowCombos();
+--- a/apps/openmw/mwgui/settingswindow.hpp
++++ b/apps/openmw/mwgui/settingswindow.hpp
+@@ -24,6 +24,10 @@
+     protected:
+             MyGUI::TabControl* mSettingsTab;
+             MyGUI::ListBox* mSectionList;
++            // Android/mobile-safe settings hide unstable post-process tabs while
++            // keeping their TabItems in the shared layout. Map the visible left
++            // navigation rows to the actual TabControl indices.
++            std::vector<size_t> mSectionTabIndices;
+             MyGUI::ScrollView* mInterfaceScroll;
+             MyGUI::ScrollView* mHudScroll;
+             MyGUI::ScrollView* mDisplayScroll;
+--- a/apps/openmw/mwinput/keyboardmanager.cpp
++++ b/apps/openmw/mwinput/keyboardmanager.cpp
+@@ -63,10 +63,12 @@
+         bool consumed = false;
+         if (!arg.repeat && !mBindingsManager->isDetectingBindingState())
+         {
++#ifndef __ANDROID__
+             if (arg.keysym.scancode == SDL_SCANCODE_F3)
+                 consumed = togglePostProcessSetting("hdr lighting", "#{arenamp=hotkey.hdr_on}", "#{arenamp=hotkey.hdr_off}");
+             else if (arg.keysym.scancode == SDL_SCANCODE_F4)
+                 consumed = togglePostProcessSetting("bloom enabled", "#{arenamp=hotkey.bloom_on}", "#{arenamp=hotkey.bloom_off}");
++#endif
+ 
+             // Placement mode owns these literal keys while a prop is grabbed.
+             // Consume them before the binding system so the keys cannot also
+--- a/files/mygui/openmw_settings_window.layout
++++ b/files/mygui/openmw_settings_window.layout
+@@ -476,12 +476,15 @@
+           </Widget>
+           <Widget type="ComboBox" skin="MW_ComboBox" position="8 30 260 24" name="TerrainPreset"/>
+           <Widget type="TextBox" skin="NormalText" position="8 66 462 18">
++            <Property key="Visible" value="false"/>
+             <Property key="Caption" value="#{arenamp=settings.material_quality}"/>
+             <UserString key="ToolTipType" value="Layout"/>
+             <UserString key="ToolTipLayout" value="TextToolTip"/>
+             <UserString key="Caption_Text" value="#{arenamp=settings.tooltip.material_quality}"/>
+           </Widget>
+-          <Widget type="ComboBox" skin="MW_ComboBox" position="8 88 260 24" name="MaterialQuality"/>
++          <Widget type="ComboBox" skin="MW_ComboBox" position="8 88 260 24" name="MaterialQuality">
++            <Property key="Visible" value="false"/>
++          </Widget>
+           <Widget type="TextBox" skin="NormalText" position="8 124 462 18">
+             <Property key="Caption" value="#{arenamp=settings.texture_filtering}"/>
+           </Widget>
+@@ -753,6 +756,7 @@
+ 
+         <Widget type="TabItem" skin="" position="4 32 486 412">
+           <Property key="Caption" value="#{arenamp=settings.subsection.effects}"/>
++          <Property key="Visible" value="false"/>
+           <Widget type="ScrollView" skin="MW_ScrollView" position="4 4 478 400" align="Left Top" name="EffectsScroll">
+             <Property key="CanvasAlign" value="Left Top"/>
+             <Property key="CanvasSize" value="458 300"/>
+@@ -798,6 +802,7 @@
+         </Widget>
+         <Widget type="TabItem" skin="" position="4 32 486 412">
+           <Property key="Caption" value="#{arenamp=settings.subsection.hdr}"/>
++          <Property key="Visible" value="false"/>
+           <Widget type="ScrollView" skin="MW_ScrollView" position="4 4 478 400" align="Left Top" name="HdrScroll">
+             <Property key="CanvasAlign" value="Left Top"/>
+             <Property key="CanvasSize" value="458 468"/>
+@@ -913,6 +918,7 @@
+         </Widget>
+         <Widget type="TabItem" skin="" position="4 32 486 412">
+           <Property key="Caption" value="#{arenamp=settings.subsection.bloom}"/>
++          <Property key="Visible" value="false"/>
+           <Widget type="HBox" skin="" position="8 8 462 24">
+             <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+               <Property key="ExpandDirection" value="Right"/>

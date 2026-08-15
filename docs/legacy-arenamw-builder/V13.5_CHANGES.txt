@@ -1,0 +1,19 @@
+ArenaMW Mobile V13.5
+====================
+Base: V13.4, revalidated on AMW(6) / 731f005.
+
+1. NPC collision behavior restored
+   - Game/NPCs avoid collisions = true
+   - Game/NPCs give way = true
+   - Forced before each game launch so an old settings.cfg cannot keep the accidental Android false values.
+
+2. Unsafe live shadow controls hidden
+   - The in-game Shadows section is omitted from the visible section list.
+   - The underlying shadow widgets/layout stay intact to avoid constructor/widget binding regressions.
+   - Launcher presets remain the safe place to change shadows before engine startup.
+
+3. Touch HUD
+   - Pause button default: upper-left (12,12), new control id so legacy saved coordinates do not pull it back.
+   - FPS counter: X 30 -> 96.
+   - Previous Y button replaced by Wait icon and T key.
+   - PIC/postprocess button: F11 = double tap (350 ms window), F12 = hold (500 ms).

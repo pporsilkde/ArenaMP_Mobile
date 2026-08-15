@@ -1,0 +1,10 @@
+--- /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_COMPLEX_WATER_V3/buildscripts/CMakeLists.txt	2026-08-12 23:44:57.971175363 +0000
++++ /mnt/data/ArenaMW_Android_AMW_INCREMENTAL_COMPLEX_WATER_V4/buildscripts/CMakeLists.txt	2026-08-12 23:58:34.908983760 +0000
+@@ -505,6 +505,7 @@
+ 	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw/05-components-misc-stringops-use-boost-format-instead-o.patch &&
+ 	git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-android-safe-render-v1.patch &&
+ 	git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/07-android-complex-water-v3.patch &&
++	git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/08-android-gles-shader-compat-v4.patch &&
+ 	cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_main.cpp <SOURCE_DIR>/apps/openmw/android_main.cpp &&
+ 	sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR>
+ )

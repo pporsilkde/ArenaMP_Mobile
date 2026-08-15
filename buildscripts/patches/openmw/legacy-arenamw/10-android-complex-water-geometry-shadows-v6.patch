@@ -1,0 +1,330 @@
+diff --git a/apps/openmw/mwrender/characterpreview.cpp b/apps/openmw/mwrender/characterpreview.cpp
+index c4f2229..ba39426 100644
+--- a/apps/openmw/mwrender/characterpreview.cpp
++++ b/apps/openmw/mwrender/characterpreview.cpp
+@@ -208,8 +208,12 @@ namespace MWRender
+         dummyTexture->setInternalFormat(GL_DEPTH_COMPONENT);
+         dummyTexture->setTextureSize(1, 1);
+         // This might clash with a shadow map, so make sure it doesn't cast shadows
++#if defined(__ANDROID__)
++        dummyTexture->setShadowComparison(false);
++#else
+         dummyTexture->setShadowComparison(true);
+         dummyTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+         stateset->setTextureAttributeAndModes(7, dummyTexture, osg::StateAttribute::ON);
+         stateset->setTextureAttribute(7, noBlendAlphaEnv, osg::StateAttribute::ON);
+         stateset->addUniform(new osg::Uniform("noAlpha", true));
+diff --git a/components/sceneutil/mwshadowtechnique.cpp b/components/sceneutil/mwshadowtechnique.cpp
+index 01df3d2..7ee7b94 100644
+--- a/components/sceneutil/mwshadowtechnique.cpp
++++ b/components/sceneutil/mwshadowtechnique.cpp
+@@ -549,17 +549,28 @@ MWShadowTechnique::ShadowData::ShadowData(MWShadowTechnique::ViewDependentData*
+     else
+     {
+         _texture->setInternalFormat(GL_DEPTH_COMPONENT);
++#if defined(__ANDROID__)
++        // GLES V6: expose raw depth to sampler2D and do the comparison/PCF in
++        // shadows_fragment.glsl. This avoids NG-GL4ES shadow2D conversion bugs.
++        _texture->setShadowComparison(false);
++#else
+         _texture->setShadowComparison(true);
+         _texture->setShadowTextureMode(osg::Texture2D::LUMINANCE);
++#endif
+     }
+ 
+     _texture->setFilter(osg::Texture2D::MIN_FILTER,osg::Texture2D::LINEAR);
+     _texture->setFilter(osg::Texture2D::MAG_FILTER,osg::Texture2D::LINEAR);
+ 
+     // the shadow comparison should fail if object is outside the texture
++#if defined(__ANDROID__)
++    _texture->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::CLAMP_TO_EDGE);
++    _texture->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::CLAMP_TO_EDGE);
++#else
+     _texture->setWrap(osg::Texture2D::WRAP_S,osg::Texture2D::CLAMP_TO_BORDER);
+     _texture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::CLAMP_TO_BORDER);
+     _texture->setBorderColor(osg::Vec4(1.0f,1.0f,1.0f,1.0f));
++#endif
+     //_texture->setBorderColor(osg::Vec4(0.0f,0.0f,0.0f,0.0f));
+ 
+     // set up the camera
+@@ -1641,8 +1652,12 @@ void MWShadowTechnique::createShaders()
+         _fallbackShadowMapTexture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::REPEAT);
+         _fallbackShadowMapTexture->setFilter(osg::Texture2D::MIN_FILTER,osg::Texture2D::NEAREST);
+         _fallbackShadowMapTexture->setFilter(osg::Texture2D::MAG_FILTER,osg::Texture2D::NEAREST);
++#if defined(__ANDROID__)
++        _fallbackShadowMapTexture->setShadowComparison(false);
++#else
+         _fallbackShadowMapTexture->setShadowComparison(true);
+         _fallbackShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+ 
+     }
+ 
+diff --git a/components/sceneutil/shadow.cpp b/components/sceneutil/shadow.cpp
+index 5707e6e..3218a1d 100644
+--- a/components/sceneutil/shadow.cpp
++++ b/components/sceneutil/shadow.cpp
+@@ -106,8 +106,12 @@ namespace SceneUtil
+         fakeShadowMapImage->allocateImage(1, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT);
+         *(float*)fakeShadowMapImage->data() = std::numeric_limits<float>::infinity();
+         osg::ref_ptr<osg::Texture> fakeShadowMapTexture = new osg::Texture2D(fakeShadowMapImage);
++#if defined(__ANDROID__)
++        fakeShadowMapTexture->setShadowComparison(false);
++#else
+         fakeShadowMapTexture->setShadowComparison(true);
+         fakeShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+         for (int i = baseShadowTextureUnit; i < baseShadowTextureUnit + numberOfShadowMapsPerLight; ++i)
+         {
+             stateset->setTextureAttributeAndModes(i, fakeShadowMapTexture, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED);
+@@ -143,6 +147,11 @@ namespace SceneUtil
+         Shader::ShaderManager::DefineMap definesWithShadows;
+ 
+         definesWithShadows["shadows_enabled"] = "1";
++#if defined(__ANDROID__)
++        definesWithShadows["androidGLES"] = "1";
++#else
++        definesWithShadows["androidGLES"] = "0";
++#endif
+ 
+         for (unsigned int i = 0; i < mShadowSettings->getNumShadowMapsPerLight(); ++i)
+             definesWithShadows["shadow_texture_unit_list"] += std::to_string(i) + ",";
+@@ -170,6 +179,11 @@ namespace SceneUtil
+         Shader::ShaderManager::DefineMap definesWithoutShadows;
+ 
+         definesWithoutShadows["shadows_enabled"] = "0";
++#if defined(__ANDROID__)
++        definesWithoutShadows["androidGLES"] = "1";
++#else
++        definesWithoutShadows["androidGLES"] = "0";
++#endif
+ 
+         definesWithoutShadows["shadow_texture_unit_list"] = "";
+ 
+diff --git a/files/shaders/shadows_fragment.glsl b/files/shaders/shadows_fragment.glsl
+index 48e855b..db14a76 100644
+--- a/files/shaders/shadows_fragment.glsl
++++ b/files/shaders/shadows_fragment.glsl
+@@ -4,7 +4,11 @@
+     uniform float maximumShadowMapDistance;
+     uniform float shadowFadeStart;
+     @foreach shadow_texture_unit_index @shadow_texture_unit_list
++#if @androidGLES
++        uniform sampler2D shadowTexture@shadow_texture_unit_index;
++#else
+         uniform sampler2DShadow shadowTexture@shadow_texture_unit_index;
++#endif
+         varying vec4 shadowSpaceCoords@shadow_texture_unit_index;
+ 
+ #if @perspectiveShadowMaps
+@@ -22,7 +26,25 @@ uniform float arenaShadowSoftness;
+ uniform float arenaShadowAdaptiveSoftness;
+ uniform float arenaShadowTexelSize;
+ 
+-float sampleShadowLegacy(sampler2DShadow shadowMap, vec4 shadowCoords)
++#if @androidGLES
++    #define ARENA_SHADOW_SAMPLER sampler2D
++
++float sampleShadowTapAndroid(sampler2D shadowMap, vec3 coords)
++{
++    // GLES path samples raw depth and performs LEQUAL manually. Bounds are
++    // checked in shader, so CLAMP_TO_EDGE is sufficient on mobile GPUs.
++    if (coords.x <= 0.0 || coords.x >= 1.0 || coords.y <= 0.0 || coords.y >= 1.0 || coords.z <= 0.0 || coords.z >= 1.0)
++        return 1.0;
++    float storedDepth = texture2D(shadowMap, coords.xy).r;
++    // Small receiver bias compensates for mobile depth precision; the engine's
++    // polygon/normal offsets remain the primary acne control.
++    return step(coords.z - 0.00035, storedDepth);
++}
++#else
++    #define ARENA_SHADOW_SAMPLER sampler2DShadow
++#endif
++
++float sampleShadowLegacy(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords)
+ {
+     float shadow = 0.0;
+     vec3 coords = shadowCoords.xyz / shadowCoords.w;
+@@ -35,13 +57,17 @@ float sampleShadowLegacy(sampler2DShadow shadowMap, vec4 shadowCoords)
+         for(float x = -1.0; x <= 1.0; x += 1.0)
+         {
+             vec2 offset = vec2(x, y) * texelSize;
++#if @androidGLES
++            shadow += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + offset, coords.z));
++#else
+             shadow += shadow2D(shadowMap, vec3(coords.xy + offset, coords.z)).r;
++#endif
+         }
+     }
+     return shadow / 9.0;
+ }
+ 
+-float sampleShadowEnhanced(sampler2DShadow shadowMap, vec4 shadowCoords, float distance)
++float sampleShadowEnhanced(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords, float distance)
+ {
+     vec3 coords = shadowCoords.xyz / shadowCoords.w;
+     float texel = max(arenaShadowTexelSize, 0.000001);
+@@ -62,24 +88,57 @@ float sampleShadowEnhanced(sampler2DShadow shadowMap, vec4 shadowCoords, float d
+     // Eight low-discrepancy taps. Each shadow2D lookup can itself use hardware
+     // bilinear comparison, giving a much smoother penumbra than the old fixed
+     // 3x3 kernel without hard-coding a specific map resolution.
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.3604,  0.2232) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.3604,  0.2232) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.2434, -0.3508) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.2434, -0.3508) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.3766,  0.2692) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.3766,  0.2692) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.3056, -0.3618) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.3056, -0.3618) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.6034, -0.4808) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.6034, -0.4808) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.5266,  0.4492) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.5266,  0.4492) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.1034,  0.6292) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.1034,  0.6292) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.5766, -0.5208) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.5766, -0.5208) * scale, coords.z)).r;
++#endif
+     return sum * 0.125;
+ }
+ 
+-float sampleShadowArena(sampler2DShadow shadowMap, vec4 shadowCoords, float distance)
++float sampleShadowArena(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords, float distance)
+ {
+     if (arenaEnhancedShadowFiltering >= 0.5)
+         return sampleShadowEnhanced(shadowMap, shadowCoords, distance);
+     return sampleShadowLegacy(shadowMap, shadowCoords);
+ }
+ 
++#undef ARENA_SHADOW_SAMPLER
+ #endif // SHADOWS
+ 
+ float unshadowedLightRatio(float distance)
+diff --git a/files/shaders/water_pbr_android_fragment.glsl b/files/shaders/water_pbr_android_fragment.glsl
+index cd1622d..550ab12 100644
+--- a/files/shaders/water_pbr_android_fragment.glsl
++++ b/files/shaders/water_pbr_android_fragment.glsl
+@@ -2,11 +2,11 @@
+ 
+ // Android GLES compatibility profile for ArenaMW complex PBR water.
+ // Keep the complete PBR/refraction/foam/ripple lighting path, but avoid the
+-// desktop FBM raymarch/analytic geometry stage that is especially fragile and
+-// expensive through NG-GL4ES on tiled mobile GPUs. Animated multi-normal waves
+-// below remain enabled.
+-#define RAYMARCH_WAVES 0
+-#define ANDROID_LITE_WAVES 1
++// V6: full geometric water path for Android. The FBM raymarched surface and
++// analytic FBM normal are enabled again, with GLES-safe scalar transcendental
++// helpers below so NG-GL4ES does not need vector exp/sin overloads.
++#define RAYMARCH_WAVES 1
++#define ANDROID_LITE_WAVES 0
+ 
+ // Shore foam toggle. 1 = foam on, 0 = foam off.
+ // Foam also requires the engine's Wobbly Shores setting to be enabled.
+@@ -250,7 +250,8 @@ vec3 GetNoiseWithGradient(vec2 p)
+     vec2 np = vec2(0.0, 1.0);
+     vec4 ix = mod(i.x + np.xyxy, 271.0);
+     vec4 iy = mod(i.y + np.xxyy, 227.0);
+-    vec4 h = fract(sin(ix * 127.1 + iy * 311.7) * 43758.5453);
++    vec4 phase = ix * 127.1 + iy * 311.7;
++    vec4 h = fract(vec4(sin(phase.x), sin(phase.y), sin(phase.z), sin(phase.w)) * 43758.5453);
+     float ba = h.y - h.x;
+     float dc = h.w - h.z;
+     float ab = mix(h.x, h.y, f.x);
+@@ -261,14 +262,19 @@ vec3 GetNoiseWithGradient(vec2 p)
+     return vec3(mix(ab, cd, f.y), grad);
+ }
+ 
++vec3 expVec3GLES(vec3 v)
++{
++    return vec3(exp(v.x), exp(v.y), exp(v.z));
++}
++
+ float CalculateWaveHeight(vec2 pos, float time, float distFromCamera, vec4 waveStrength, float targetH, float4 bounds)
+ {
+     vec2 dir1 = -normalize(vec2(0.83, -0.91));
+     vec2 dir2 = -normalize(vec2(-0.37, 0.88));
+     vec2 dir3 = -normalize(vec2(-0.59, -0.71));
+-    const mat2 rot1 = mat2(cos(0.6), -sin(0.6), sin(0.6), cos(0.6));
+-    const mat2 rot2 = mat2(cos(1.2), -sin(1.2), sin(1.2), cos(1.2));
+-    const mat2 rot3 = mat2(cos(2.1), -sin(2.1), sin(2.1), cos(2.1));
++    mat2 rot1 = mat2(cos(0.6), -sin(0.6), sin(0.6), cos(0.6));
++    mat2 rot2 = mat2(cos(1.2), -sin(1.2), sin(1.2), cos(1.2));
++    mat2 rot3 = mat2(cos(2.1), -sin(2.1), sin(2.1), cos(2.1));
+     pos = rot1 * pos * 0.003;
+     pos.x *= 1.17;
+     float h = 0.0;
+@@ -292,7 +298,7 @@ float CalculateWaveHeight(vec2 pos, float time, float distFromCamera, vec4 waveS
+             pos.xy = pos.yx;
+             fbm *= float4(2.17, 1.6141, 0.46, 1.3);
+             r = GetNoiseWithGradient(rot2 * (pos * fbm.x + dir3 * time * fbm.y));
+-            r = lod * fbm.z * mix(r * 0.7, exp(r * 2.0 - 1.9), waveStrength.w);
++            r = lod * fbm.z * mix(r * 0.7, expVec3GLES(r * 2.0 - 1.9), waveStrength.w);
+             h = r.x * waveStrength.y + h;
+             pos = -r.yz * fbm.w + pos;
+ 
+@@ -300,7 +306,7 @@ float CalculateWaveHeight(vec2 pos, float time, float distFromCamera, vec4 waveS
+             {
+                 fbm *= float4(1.618, 1.346321, 0.45, 1.3);
+                 r = GetNoiseWithGradient(rot2 * (pos * fbm.x + dir1 * time * fbm.y));
+-                r = lod * fbm.z * mix(r * 0.7, exp(r * 2.0 - 1.7), waveStrength.w);
++                r = lod * fbm.z * mix(r * 0.7, expVec3GLES(r * 2.0 - 1.7), waveStrength.w);
+                 h = r.x * waveStrength.y + h;
+                 pos = -r.yz * fbm.w + pos;
+ 
+@@ -308,7 +314,8 @@ float CalculateWaveHeight(vec2 pos, float time, float distFromCamera, vec4 waveS
+                 if (lod > 0.0 && !(doEarlyOut && (h + bounds.w < targetH || h - bounds.w > targetH)))
+                 {
+                     fbm *= float4(1.618, 1.346321, 0.45, 1.3);
+-                    r = lod * fbm.z * exp(GetNoiseWithGradient(rot1 * (pos * fbm.x + dir3 * time * fbm.y)) * 2.0 - 1.5 - waveStrength.x * 0.7);
++                    vec3 waveExp = GetNoiseWithGradient(rot1 * (pos * fbm.x + dir3 * time * fbm.y)) * 2.0 - 1.5 - waveStrength.x * 0.7;
++                    r = lod * fbm.z * expVec3GLES(waveExp);
+                     h = r.x * waveStrength.z + h;
+                 }
+             }
+@@ -340,8 +347,8 @@ vec3 RaymarchWater(vec3 eyePos, vec3 direction, float t0, float t1, float time,
+     if (tEnter >= tExit)
+         return direction * t1 + eyePos;
+ 
+-    int raySteps = 12; // marching steps through the wave envelope
+-    float rayStep = (tExit - tEnter) / float(raySteps);
++    const int raySteps = 12; // fixed bound keeps GLES compilers happy
++    float rayStep = (tExit - tEnter) / 12.0;
+ 
+     float invDirZ = 1.0 / max(abs(direction.z), 0.2);
+     float4 bounds = float4(1.37 * waveStrength.z);
+@@ -352,8 +359,10 @@ vec3 RaymarchWater(vec3 eyePos, vec3 direction, float t0, float t1, float time,
+     vec3 p = eyePos;
+     float dynamicStep = rayStep;
+ 
+-    for (int i = 0; i < raySteps && t < tExit; i++)
++    for (int i = 0; i < 12; i++)
+     {
++        if (t >= tExit)
++            break;
+         t += dynamicStep;
+         p = direction * t + eyePos;
+         float distanceDamping = smoothstep(80.0, 500.0, t);

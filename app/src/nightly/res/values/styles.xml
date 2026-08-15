@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Nightly раньше переопределял MyTheme.Base на Theme.AppCompat.DayNight,
+    из-за чего тёмная/светлая тема Android меняла вид лаунчера.
+    Теперь флейвор ничего не переопределяет — всё берётся из main.
+    Единая AMOLED-тема для обоих флейворов.
+-->
+<resources>
+</resources>

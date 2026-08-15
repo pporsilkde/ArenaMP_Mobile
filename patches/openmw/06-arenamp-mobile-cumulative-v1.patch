@@ -1,0 +1,1880 @@
+diff --git a/apps/openmw/engine.cpp b/apps/openmw/engine.cpp
+index 9d8d15b..4c2d7a8 100644
+--- a/apps/openmw/engine.cpp
++++ b/apps/openmw/engine.cpp
+@@ -858,6 +858,9 @@ std::string OMW::Engine::loadSettings (Settings::Manager & settings)
+     return settingspath;
+ }
+ 
++// To share the viewer with Android interfaces
++osg::ref_ptr<osgViewer::Viewer> g_viewer;
++
+ void OMW::Engine::createWindow(Settings::Manager& settings)
+ {
+     int screen = settings.getInt("screen", "Video");
+@@ -983,6 +986,9 @@ void OMW::Engine::createWindow(Settings::Manager& settings)
+     mViewer->realize();
+ 
+     mViewer->getEventQueue()->getCurrentEventState()->setWindowRectangle(0, 0, graphicsWindow->getTraits()->width, graphicsWindow->getTraits()->height);
++
++    // To share the viewer with Android interfaces
++    g_viewer = mViewer;
+ }
+ 
+ void OMW::Engine::setWindowIcon()
+@@ -1389,6 +1395,8 @@ void OMW::Engine::go()
+         frameRateLimiter.limit();
+     }
+ 
++    g_viewer.release();
++
+     // Save user settings
+     settings.saveUser(settingspath);
+ 
+diff --git a/apps/openmw/main.cpp b/apps/openmw/main.cpp
+index bec4996..1bd0bd0 100644
+--- a/apps/openmw/main.cpp
++++ b/apps/openmw/main.cpp
+@@ -367,6 +367,8 @@ namespace
+     };
+ }
+ 
++Files::ConfigurationManager *g_cfgMgr;
++
+ int runApplication(int argc, char *argv[])
+ {
+ #ifdef __APPLE__
+@@ -379,6 +381,7 @@ int runApplication(int argc, char *argv[])
+ 
+     osg::setNotifyHandler(new OSGLogHandler());
+     Files::ConfigurationManager cfgMgr;
++    g_cfgMgr = &cfgMgr;
+     std::unique_ptr<OMW::Engine> engine;
+     engine.reset(new OMW::Engine(cfgMgr));
+ 
+diff --git a/apps/openmw/mwgui/loadingscreen.cpp b/apps/openmw/mwgui/loadingscreen.cpp
+index 61fcacc..5a45082 100644
+--- a/apps/openmw/mwgui/loadingscreen.cpp
++++ b/apps/openmw/mwgui/loadingscreen.cpp
+@@ -310,6 +310,8 @@ namespace MWGui
+ 
+     void LoadingScreen::setupCopyFramebufferToTextureCallback()
+     {
++        return;
++
+         // Copy the current framebuffer onto a texture and display that texture as the background image
+         // Note, we could also set the camera to disable clearing and have the background image transparent,
+         // but then we get shaking effects on buffer swaps.
+diff --git a/apps/openmw/mwgui/settingswindow.cpp b/apps/openmw/mwgui/settingswindow.cpp
+index 3186b52..0d87e99 100644
+--- a/apps/openmw/mwgui/settingswindow.cpp
++++ b/apps/openmw/mwgui/settingswindow.cpp
+@@ -26,6 +26,7 @@
+ #include <components/resource/resourcesystem.hpp>
+ #include <components/resource/scenemanager.hpp>
+ #include <components/sceneutil/lightmanager.hpp>
++#include <components/files/configurationmanager.hpp>
+ 
+ #include "../mwbase/environment.hpp"
+ #include "../mwbase/world.hpp"
+@@ -136,9 +137,9 @@ namespace
+             box->setIndexSelected(MyGUI::ITEM_NONE);
+     }
+ 
+-    constexpr std::array<int, 5> shadowMapResolutions = { 512, 1024, 2048, 4096, 8192 };
+-    constexpr std::array<const char*, 5> shadowMapQualityNames =
+-        { "value.balanced", "value.high", "value.very_high", "value.detailed", "value.maximum" };
++    constexpr std::array<int, 2> shadowMapResolutions = { 512, 1024 };
++    constexpr std::array<const char*, 2> shadowMapQualityNames =
++        { "value.balanced", "value.high" };
+     constexpr std::array<const char*, 6> shadowPresetNames =
+         { "value.disabled", "value.actor", "value.npc", "value.object", "value.terrain", "value.indoor" };
+ 
+@@ -190,7 +191,7 @@ namespace
+         { "off", "balance", "performance", "aggressive" };
+ 
+     constexpr float landOptimizedDistanceMin = 4000.f;
+-    constexpr float landOptimizedDistanceMax = 40000.f;
++    constexpr float landOptimizedDistanceMax = 40960.f;
+     void clampOptimizedLandDistance(float distance)
+     {
+         distance = std::clamp(distance, landOptimizedDistanceMin, landOptimizedDistanceMax);
+@@ -215,10 +216,10 @@ namespace
+         return "balance";
+     }
+ 
+-    constexpr std::array<const char*, 3> waterShaderModeNames =
+-        { "value.off", "value.water_simple", "value.water_new" };
+-    constexpr std::array<const char*, 3> waterShaderModes =
+-        { "off", "simple", "new" };
++    constexpr std::array<const char*, 2> waterShaderModeNames =
++        { "value.off", "value.water_simple" };
++    constexpr std::array<const char*, 2> waterShaderModes =
++        { "off", "simple" };
+ 
+     std::string getWaterShaderMode()
+     {
+@@ -235,9 +236,9 @@ namespace
+             }
+         }
+ 
+-        // Migrate old ArenaMP profiles: shader=false was classic animated water,
+-        // shader=true was the current PBR water.
+-        return Settings::Manager::getBool("shader", "Water") ? "new" : "off";
++        // Migrate old profiles onto the stable mobile water path. Older
++        // shader=true profiles used PBR water; on Android they now map to simple.
++        return Settings::Manager::getBool("shader", "Water") ? "simple" : "off";
+     }
+ 
+     constexpr std::array<const char*, 5> materialQualityNames =
+@@ -267,26 +268,23 @@ namespace
+         return "balanced";
+     }
+ 
+-    constexpr std::array<const char*, 6> terrainPresetNames =
+-        { "value.minimum", "value.low", "value.balanced", "value.medium", "value.high", "value.ultra" };
+-    constexpr std::array<float, 6> terrainLod =
+-        { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
+-    constexpr std::array<int, 6> vertexLod =
+-        { -2, -2, -1, -1, 0, 1 };
+-    constexpr std::array<int, 6> compositeLevel =
+-        { -3, -3, -2, -2, -1, 0 };
+-    constexpr std::array<int, 6> compositeResolution =
+-        { 1024, 1024, 1024, 2048, 2048, 4096 };
+-    constexpr std::array<float, 6> maxCompositeGeometrySize =
+-        { 4.f, 4.f, 6.f, 8.f, 12.f, 16.f };
+-    constexpr std::array<float, 6> objectPagingMergeFactor =
+-        { 100000.f, 75000.f, 50000.f, 30000.f, 15000.f, 8000.f };
+-    constexpr std::array<float, 6> objectPagingMinSize =
+-        { 1.f, 0.85f, 0.65f, 0.50f, 0.35f, 0.25f };
+-
+-    constexpr size_t highTerrainPresetIndex = 4;
+-    constexpr size_t ultraMaterialQualityIndex = 4;
+-    constexpr size_t qualityMaterialQualityIndex = 3;
++    // Android/mobile-safe landscape presets. Medium is the upper bound.
++    constexpr std::array<const char*, 4> terrainPresetNames =
++        { "value.minimum", "value.low", "value.balanced", "value.medium" };
++    constexpr std::array<float, 4> terrainLod =
++        { 0.40f, 0.50f, 0.65f, 0.80f };
++    constexpr std::array<int, 4> vertexLod =
++        { -3, -2, -1, -1 };
++    constexpr std::array<int, 4> compositeLevel =
++        { -3, -3, -2, -2 };
++    constexpr std::array<int, 4> compositeResolution =
++        { 512, 1024, 1024, 2048 };
++    constexpr std::array<float, 4> maxCompositeGeometrySize =
++        { 4.f, 4.f, 6.f, 8.f };
++    constexpr std::array<float, 4> objectPagingMergeFactor =
++        { 80000.f, 75000.f, 50000.f, 30000.f };
++    constexpr std::array<float, 4> objectPagingMinSize =
++        { 1.f, 0.85f, 0.65f, 0.50f };
+ 
+     void applyTerrainPresetSettings(size_t pos)
+     {
+@@ -391,6 +389,8 @@ namespace
+     }
+ }
+ 
++extern Files::ConfigurationManager *g_cfgMgr;
++
+ namespace MWGui
+ {
+     void SettingsWindow::configureWidgets(MyGUI::Widget* widget, bool init)
+@@ -486,8 +486,6 @@ namespace MWGui
+         getWidget(mHudScroll, "HUDScroll");
+         getWidget(mDisplayScroll, "DisplayScroll");
+         getWidget(mWaterScroll, "WaterScroll");
+-        getWidget(mPbrScroll, "PbrScroll");
+-        getWidget(mHdrScroll, "HdrScroll");
+         getWidget(mOkButton, "OkButton");
+         getWidget(mResolutionList, "ResolutionList");
+         getWidget(mFullscreenButton, "FullscreenButton");
+@@ -504,9 +502,6 @@ namespace MWGui
+         getWidget(mWaterResetButton, "WaterResetButton");
+         getWidget(mLightingMethodButton, "LightingMethodButton");
+         getWidget(mLightsResetButton, "LightsResetButton");
+-        getWidget(mPbrResetButton, "PbrResetButton");
+-        getWidget(mHdrTonemapper, "HdrTonemapper");
+-        getWidget(mHdrResetButton, "HdrResetButton");
+         getWidget(mMaxLights, "MaxLights");
+         getWidget(mWeaponSpellBoxMode, "WeaponSpellBoxMode");
+         getWidget(mResourceBarMode, "ResourceBarMode");
+@@ -524,26 +519,27 @@ namespace MWGui
+ 
+         mMainWidget->setSize(settingsWindowWidth, settingsWindowHeight);
+ 
+-        // Must match the TabItem order in openmw_settings_window.layout.
+-        const std::array<const char*, 15> sectionKeys = {
+-            "settings.section.interface",
+-            "settings.section.hud",
+-            "settings.section.controls",
+-            "settings.subsection.display",
+-            "settings.subsection.quality",
+-            "settings.subsection.water",
+-            "settings.subsection.lighting",
+-            "settings.subsection.pbr",
+-            "settings.subsection.hdr",
+-            "settings.subsection.bloom",
+-            "settings.subsection.effects",
+-            "settings.subsection.world",
+-            "settings.subsection.shadows",
+-            "settings.section.audio",
+-            "settings.section.advanced",
+-        };
+-        for (const char* key : sectionKeys)
+-            mSectionList->addItem(arenaText(key));
++        // Keep this list in exactly the same order as the Android-visible sections.
++        // PBR, HDR, Bloom, Effects and Advanced are removed from the mobile layout.
++        // Shadows stay instantiated for safe startup wiring, but live shadow
++        // reconfiguration is hidden because it is unsafe on NG-GL4ES.
++        const std::array<std::pair<const char*, size_t>, 9> sections = {{
++            {"settings.section.interface", 0},
++            {"settings.section.hud", 1},
++            {"settings.section.controls", 2},
++            {"settings.subsection.display", 3},
++            {"settings.subsection.quality", 4},
++            {"settings.subsection.water", 5},
++            {"settings.subsection.lighting", 6},
++            {"settings.subsection.world", 7},
++            {"settings.section.audio", 9},
++        }};
++        mSectionTabIndices.clear();
++        for (const auto& section : sections)
++        {
++            mSectionList->addItem(arenaText(section.first));
++            mSectionTabIndices.push_back(section.second);
++        }
+         mSectionList->setIndexSelected(0);
+         mSettingsTab->setIndexSelected(0);
+ 
+@@ -576,16 +572,8 @@ namespace MWGui
+ 
+         mLightingMethodButton->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onLightingMethodButtonChanged);
+         mLightsResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onLightsResetButtonClicked);
+-        mPbrResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onPbrResetButtonClicked);
+         mMaxLights->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMaxLightsChanged);
+ 
+-        for (const char* name : hdrTonemapperNames)
+-            mHdrTonemapper->addItem(arenaText(name));
+-        mHdrTonemapper->eventComboChangePosition += MyGUI::newDelegate(
+-            this, &SettingsWindow::onHdrTonemapperChanged);
+-        mHdrResetButton->eventMouseButtonClick += MyGUI::newDelegate(
+-            this, &SettingsWindow::onHdrResetButtonClicked);
+-
+         mTextureFilteringButton->removeAllItems();
+         mTextureFilteringButton->addItem(arenaText("value.bilinear"));
+         mTextureFilteringButton->addItem(arenaText("value.trilinear"));
+@@ -633,10 +621,9 @@ namespace MWGui
+             mTerrainPreset->addItem(arenaText(name));
+         mTerrainPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTerrainPresetChanged);
+ 
+-        for (const char* name : materialQualityNames)
+-            mMaterialQuality->addItem(arenaText(name));
+-        mMaterialQuality->eventComboChangePosition += MyGUI::newDelegate(
+-            this, &SettingsWindow::onMaterialQualityChanged);
++        // PBR material quality is launcher-managed on Android and intentionally
++        // absent from the in-game Quality page to avoid live shader rebuilds.
++        mMaterialQuality->setVisible(false);
+ 
+         for (const char* name : landOptimizationModeNames)
+             mLandOptimizationMode->addItem(arenaText(name));
+@@ -705,7 +692,6 @@ namespace MWGui
+         updateChatModeCombo();
+         updateQuickLootModeCombo();
+         updateTerrainPresetCombo();
+-        updateMaterialQualityCombo();
+         updateLandOptimizationModeCombo();
+         updateLandDistanceControls();
+         updateShadowCombos();
+@@ -718,22 +704,29 @@ namespace MWGui
+ 
+     void SettingsWindow::onTabChanged(MyGUI::TabControl* /*_sender*/, size_t index)
+     {
+-        if (index < mSectionList->getItemCount() && mSectionList->getIndexSelected() != index)
+-            mSectionList->setIndexSelected(index);
++        const auto it = std::find(mSectionTabIndices.begin(), mSectionTabIndices.end(), index);
++        if (it != mSectionTabIndices.end())
++        {
++            const size_t visibleIndex = static_cast<size_t>(std::distance(mSectionTabIndices.begin(), it));
++            if (mSectionList->getIndexSelected() != visibleIndex)
++                mSectionList->setIndexSelected(visibleIndex);
++        }
+         configureWidgets(mMainWidget, false);
+         resetScrollbars();
+     }
+     void SettingsWindow::onSectionSelected(MyGUI::ListBox* /*_sender*/, size_t index)
+     {
+-        if (index == MyGUI::ITEM_NONE || index >= mSectionList->getItemCount())
++        if (index == MyGUI::ITEM_NONE || index >= mSectionTabIndices.size())
+             return;
+-        mSettingsTab->setIndexSelected(index);
++        mSettingsTab->setIndexSelected(mSectionTabIndices[index]);
+         configureWidgets(mMainWidget, false);
+         resetScrollbars();
+     }
+ 
+     void SettingsWindow::onOkButtonClicked(MyGUI::Widget* _sender)
+     {
++        const std::string settingspath = (g_cfgMgr->getUserConfigPath() / "settings.cfg").string();
++        Settings::Manager::saveUser(settingspath);
+         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Settings);
+     }
+ 
+@@ -978,7 +971,6 @@ namespace MWGui
+         for (const char* setting : settings)
+             Settings::Manager::setString(setting, "Shaders", Settings::Manager::mDefaultSettings[{"Shaders", setting}]);
+ 
+-        updateHdrTonemapperCombo();
+         configureWidgets(mMainWidget, false);
+         apply();
+     }
+@@ -1233,32 +1225,12 @@ namespace MWGui
+         // their detail/performance balance.
+         applyTerrainPresetSettings(pos);
+ 
+-        // Maximum PBR is intentionally tied to High/Ultra terrain. Lowering the
+-        // terrain preset automatically falls back to the Quality PBR mode.
+-        if (pos < highTerrainPresetIndex && getMaterialQualityMode() == "ultra")
+-        {
+-            applyMaterialQualitySettings(qualityMaterialQualityIndex);
+-            mMaterialQuality->setIndexSelected(qualityMaterialQualityIndex);
+-        }
+         apply();
+     }
+ 
+-    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t pos)
++    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t)
+     {
+-        if (pos == MyGUI::ITEM_NONE)
+-            return;
+-        pos = std::min(pos, materialQualityModes.size() - 1);
+-
+-        // Selecting Maximum PBR automatically raises landscape detail to High.
+-        // This keeps the expensive terrain POM/AO path from running on low-detail land.
+-        if (pos == ultraMaterialQualityIndex && getTerrainPresetPosition() < highTerrainPresetIndex)
+-        {
+-            applyTerrainPresetSettings(highTerrainPresetIndex);
+-            mTerrainPreset->setIndexSelected(highTerrainPresetIndex);
+-        }
+-
+-        applyMaterialQualitySettings(pos);
+-        apply();
++        // Intentionally inert on Android: material quality is not exposed here.
+     }
+ 
+     void SettingsWindow::onLandOptimizationModeChanged(MyGUI::ComboBox*, size_t pos)
+@@ -1439,7 +1411,7 @@ namespace MWGui
+                 return;
+             }
+         }
+-        mWaterShaderMode->setIndexSelected(2);
++        mWaterShaderMode->setIndexSelected(1);
+     }
+ 
+     void SettingsWindow::selectLightingMethod(const std::string& value)
+@@ -1550,14 +1522,12 @@ namespace MWGui
+         updateControlsBox();
+         updateWaterShaderModeCombo();
+         updateLightSettings();
+-        updateHdrTonemapperCombo();
+         updateWeaponSpellBoxModeCombo();
+         updateResourceBarModeCombo();
+         updateNpcBarModeCombo();
+         updateChatModeCombo();
+         updateQuickLootModeCombo();
+         updateTerrainPresetCombo();
+-        updateMaterialQualityCombo();
+         updateLandOptimizationModeCombo();
+         updateLandDistanceControls();
+         updateShadowCombos();
+@@ -1583,7 +1553,5 @@ namespace MWGui
+         mHudScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+         mDisplayScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+         mWaterScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+-        mPbrScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+-        mHdrScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+     }
+ }
+diff --git a/apps/openmw/mwgui/settingswindow.hpp b/apps/openmw/mwgui/settingswindow.hpp
+index 55fe09e..364baaa 100644
+--- a/apps/openmw/mwgui/settingswindow.hpp
++++ b/apps/openmw/mwgui/settingswindow.hpp
+@@ -24,6 +24,7 @@ namespace MWGui
+     protected:
+             MyGUI::TabControl* mSettingsTab;
+             MyGUI::ListBox* mSectionList;
++            std::vector<size_t> mSectionTabIndices;
+             MyGUI::ScrollView* mInterfaceScroll;
+             MyGUI::ScrollView* mHudScroll;
+             MyGUI::ScrollView* mDisplayScroll;
+diff --git a/apps/openmw/mwgui/windowmanagerimp.cpp b/apps/openmw/mwgui/windowmanagerimp.cpp
+index 53f4cb1..0733393 100644
+--- a/apps/openmw/mwgui/windowmanagerimp.cpp
++++ b/apps/openmw/mwgui/windowmanagerimp.cpp
+@@ -2000,7 +2000,7 @@ namespace MWGui
+ 
+     bool WindowManager::getCursorVisible()
+     {
+-        return mCursorVisible && mCursorActive;
++        return mCursorVisible;
+     }
+ 
+     void WindowManager::trackWindow(Layout *layout, const std::string &name)
+diff --git a/apps/openmw/mwinput/bindingsmanager.cpp b/apps/openmw/mwinput/bindingsmanager.cpp
+index 3435814..693dd1d 100644
+--- a/apps/openmw/mwinput/bindingsmanager.cpp
++++ b/apps/openmw/mwinput/bindingsmanager.cpp
+@@ -710,6 +710,17 @@ namespace MWInput
+             bool joystickUsed = MWBase::Environment::get().getInputManager()->joystickLastUsed();
+             if (action == A_Use)
+             {
++                // ArenaMW mobile: while QuickLoot is visible, the normal attack/use
++                // button takes the selected row instead of starting an attack/cast.
++                // Release still clears the attack state normally.
++                if (currentValue == 1.0
++                    && MWBase::Environment::get().getWindowManager()->isQuickLootVisible()
++                    && MWBase::Environment::get().getWindowManager()->activateQuickLoot())
++                {
++                    MWBase::Environment::get().getWorld()->getPlayer().setAttackingOrSpell(false);
++                    return;
++                }
++
+                 if (joystickUsed && currentValue == 1.0 && actionIsActive(A_ToggleWeapon))
+                     action = A_CycleWeaponRight;
+ 
+diff --git a/apps/openmw/mwphysics/actorconvexcallback.cpp b/apps/openmw/mwphysics/actorconvexcallback.cpp
+index 25c3e23..1e46c95 100644
+--- a/apps/openmw/mwphysics/actorconvexcallback.cpp
++++ b/apps/openmw/mwphysics/actorconvexcallback.cpp
+@@ -5,118 +5,14 @@
+ #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
+ 
+ #include <components/misc/convert.hpp>
+-#include <components/settings/settings.hpp>
+ 
+-#include "../mwbase/environment.hpp"
+-#include "../mwbase/world.hpp"
+-#include "../mwworld/class.hpp"
+ 
+ #include "actor.hpp"
+ #include "projectile.hpp"
+ 
+-#include <algorithm>
+-#include <cmath>
+ 
+ namespace MWPhysics
+ {
+-    namespace
+-    {
+-        float clampPassScale(float value)
+-        {
+-            // Values below this start to feel like actors can walk through each other,
+-            // while values above 1 would make the passage problem worse.
+-            return std::clamp(value, 0.35f, 1.0f);
+-        }
+-
+-        float getActorPassScale(const Actor* actorA, const Actor* actorB)
+-        {
+-            if (actorA == nullptr || actorB == nullptr)
+-                return 1.f;
+-
+-            const MWWorld::ConstPtr ptrA = actorA->getPtr();
+-            const MWWorld::ConstPtr ptrB = actorB->getPtr();
+-
+-            // Keep creatures and non-NPC actors on the original collision behaviour.
+-            // The compact passage feature is intended specifically for humanoid NPCs.
+-            if (!ptrA.getClass().isNpc() || !ptrB.getClass().isNpc())
+-                return 1.f;
+-
+-            const MWWorld::ConstPtr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+-            const bool involvesPlayer = ptrA == player || ptrB == player;
+-            static const float playerNpcScale
+-                = clampPassScale(Settings::Manager::getFloat("npc pass collision scale", "Game"));
+-            static const float npcNpcScale
+-                = clampPassScale(Settings::Manager::getFloat("npc to npc collision scale", "Game"));
+-            return involvesPlayer ? playerNpcScale : npcNpcScale;
+-        }
+-
+-        bool compactActorSweep(const Actor* actorA, const Actor* actorB, const btCollisionObject* objectA,
+-            const btCollisionObject* objectB, const btVector3& invertedMotion, float scale,
+-            btScalar& hitFraction, btVector3& hitNormal)
+-        {
+-            if (actorA == nullptr || actorB == nullptr || scale >= 0.999f)
+-                return false;
+-
+-            // Actor-vs-actor passage uses a cylinder-like horizontal footprint while
+-            // keeping the original collision boxes registered in Bullet. As a result,
+-            // melee/projectile/raycast hit detection and world collision remain unchanged.
+-            const osg::Vec3f halfA = actorA->getHalfExtents();
+-            const osg::Vec3f halfB = actorB->getHalfExtents();
+-            const btScalar radiusA = std::max(halfA.x(), halfA.y()) * scale;
+-            const btScalar radiusB = std::max(halfB.x(), halfB.y()) * scale;
+-            const btScalar combinedRadius = radiusA + radiusB;
+-
+-            const btVector3 start = objectA->getWorldTransform().getOrigin();
+-            const btVector3 end = start - invertedMotion;
+-            const btVector3 other = objectB->getWorldTransform().getOrigin();
+-
+-            btVector3 relative = start - other;
+-            btVector3 movement = end - start;
+-            relative.setZ(0);
+-            movement.setZ(0);
+-
+-            const btScalar a = movement.length2();
+-            const btScalar c = relative.length2() - combinedRadius * combinedRadius;
+-            btScalar fraction = 0;
+-
+-            if (c > 0)
+-            {
+-                if (a <= SIMD_EPSILON)
+-                    return false;
+-
+-                const btScalar b = 2 * relative.dot(movement);
+-                const btScalar discriminant = b * b - 4 * a * c;
+-                if (discriminant < 0)
+-                    return false;
+-
+-                fraction = (-b - btSqrt(discriminant)) / (2 * a);
+-                if (fraction < 0 || fraction > 1)
+-                    return false;
+-            }
+-
+-            // Do not make actors on different vertical levels block each other.
+-            const btScalar zAtHit = start.z() + (end.z() - start.z()) * fraction;
+-            const btScalar verticalReach = halfA.z() + halfB.z();
+-            if (btFabs(zAtHit - other.z()) > verticalReach)
+-                return false;
+-
+-            btVector3 normal = relative + movement * fraction;
+-            normal.setZ(0);
+-            if (normal.length2() <= SIMD_EPSILON)
+-            {
+-                normal = -movement;
+-                normal.setZ(0);
+-            }
+-            if (normal.length2() <= SIMD_EPSILON)
+-                return false;
+-
+-            normal.normalize();
+-            hitFraction = fraction;
+-            hitNormal = normal;
+-            return true;
+-        }
+-    }
+-
+     class ActorOverlapTester : public btCollisionWorld::ContactResultCallback
+     {
+     public:
+@@ -152,33 +48,7 @@ namespace MWPhysics
+         // For some reason this doesn't work as well as it should when using capsules, but it still helps a lot.
+         if(convexResult.m_hitCollisionObject->getBroadphaseHandle()->m_collisionFilterGroup == CollisionType_Actor)
+         {
+-            const auto* meActor = static_cast<const Actor*>(mMe->getUserPointer());
+-            const auto* hitActor = static_cast<const Actor*>(convexResult.m_hitCollisionObject->getUserPointer());
+-            const float passScale = getActorPassScale(meActor, hitActor);
+-
+-            if (passScale < 0.999f)
+-            {
+-                btScalar compactFraction = 1;
+-                btVector3 compactNormal(0, 0, 0);
+-                if (!compactActorSweep(meActor, hitActor, mMe, convexResult.m_hitCollisionObject, mMotion,
+-                        passScale, compactFraction, compactNormal))
+-                    return btScalar(1);
+-
+-                // If another obstacle is already closer, this actor must not replace it.
+-                if (compactFraction >= m_closestHitFraction)
+-                    return btScalar(1);
+-
+-                // The motion vector is intentionally inverted in ActorTracer.
+-                if (compactNormal.dot(mMotion) > 0.0f)
+-                {
+-                    convexResult.m_hitFraction = compactFraction;
+-                    convexResult.m_hitNormalLocal = compactNormal;
+-                    return ClosestConvexResultCallback::addSingleResult(convexResult, true);
+-                }
+-                return btScalar(1);
+-            }
+-
+-            // Original OpenMW/vanilla-compatible actor collision path.
++            // Stock OpenMW/vanilla-compatible actor collision path.
+             ActorOverlapTester isOverlapping;
+             // FIXME: This is absolutely terrible and bullet should feel terrible for not making contactPairTest const-correct.
+             ContactTestWrapper::contactPairTest(const_cast<btCollisionWorld*>(mWorld), const_cast<btCollisionObject*>(mMe), const_cast<btCollisionObject*>(convexResult.m_hitCollisionObject), isOverlapping);
+diff --git a/apps/openmw/mwrender/characterpreview.cpp b/apps/openmw/mwrender/characterpreview.cpp
+index c4f2229..ba39426 100644
+--- a/apps/openmw/mwrender/characterpreview.cpp
++++ b/apps/openmw/mwrender/characterpreview.cpp
+@@ -208,8 +208,12 @@ namespace MWRender
+         dummyTexture->setInternalFormat(GL_DEPTH_COMPONENT);
+         dummyTexture->setTextureSize(1, 1);
+         // This might clash with a shadow map, so make sure it doesn't cast shadows
++#if defined(__ANDROID__)
++        dummyTexture->setShadowComparison(false);
++#else
+         dummyTexture->setShadowComparison(true);
+         dummyTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+         stateset->setTextureAttributeAndModes(7, dummyTexture, osg::StateAttribute::ON);
+         stateset->setTextureAttribute(7, noBlendAlphaEnv, osg::StateAttribute::ON);
+         stateset->addUniform(new osg::Uniform("noAlpha", true));
+diff --git a/apps/openmw/mwrender/nativeeffects.cpp b/apps/openmw/mwrender/nativeeffects.cpp
+index b645084..f5158ab 100644
+--- a/apps/openmw/mwrender/nativeeffects.cpp
++++ b/apps/openmw/mwrender/nativeeffects.cpp
+@@ -371,9 +371,9 @@ namespace MWRender
+ 
+     void NativeEffectsProcessor::captureWorldDepthBeforeFirstPersonClear(osg::RenderInfo& renderInfo)
+     {
+-        NativeEffectsProcessor* processor = sActiveProcessor.load(std::memory_order_acquire);
+-        if (processor)
+-            processor->captureWorldDepth(renderInfo);
++        // Disabled on the Android compatibility renderer. Copying world depth
++        // before the first-person clear can produce a black frame on GLES/gl4es.
++        (void)renderInfo;
+     }
+ 
+     void NativeEffectsProcessor::reloadSettings()
+@@ -383,8 +383,10 @@ namespace MWRender
+ 
+         mSmaaEnabled = Settings::Manager::getBool("smaa enabled", "Shaders");
+         mBloomEnabled = Settings::Manager::getBool("bloom enabled", "Shaders");
+-        mAtmosphericFogEnabled = Settings::Manager::getBool("atmospheric fog enabled", "Shaders");
+-        mGodRaysEnabled = Settings::Manager::getBool("god rays enabled", "Shaders");
++        // Hard-disable the native depth-dependent effects on Android builder
++        // profiles. Stale settings.cfg values must never reactivate them.
++        mAtmosphericFogEnabled = false;
++        mGodRaysEnabled = false;
+         mSharpeningEnabled = Settings::Manager::getBool("sharpening enabled", "Shaders");
+         mDitheringEnabled = Settings::Manager::getBool("dithering enabled", "Shaders");
+ 
+@@ -420,7 +422,7 @@ namespace MWRender
+ 
+         Log(Debug::Info) << "ArenaMP native effects: fog=" << (mAtmosphericFogEnabled ? "on" : "off")
+                          << ", godRays=" << (mGodRaysEnabled ? "on" : "off")
+-                         << ", firstPersonWorldDepthBridge=on";
++                         << ", firstPersonWorldDepthBridge=off";
+     }
+ 
+     void NativeEffectsProcessor::setEnvironment(const osg::Vec4f& fogColor, float fogStart, float fogEnd,
+diff --git a/apps/openmw/mwrender/renderingmanager.cpp b/apps/openmw/mwrender/renderingmanager.cpp
+index 2db91a1..6ab3bc4 100644
+--- a/apps/openmw/mwrender/renderingmanager.cpp
++++ b/apps/openmw/mwrender/renderingmanager.cpp
+@@ -102,7 +102,6 @@ namespace
+     constexpr float sLandOptimizationDistanceResponse = 4.f;
+     constexpr float sLandOptimizationSmoothingMaxFrameTime = 0.1f;
+     constexpr float sLandOptimizationMinimumScale = 0.5f;
+-    constexpr float sLandOptimizationShadowDistanceRatio = 0.25f;
+     constexpr float sLandOptimizationGroundcoverDistanceRatio = 0.40f;
+ 
+     int getMaterialQualityLevel()
+@@ -237,7 +236,8 @@ namespace MWRender
+                 uniform->set(Settings::Manager::getBool("adaptive softness", "Shadows") ? 1.0f : 0.0f);
+             if (osg::Uniform* uniform = stateset->getUniform("arenaShadowTexelSize"))
+             {
+-                const int shadowMapResolution = std::max(1, Settings::Manager::getInt("shadow map resolution", "Shadows"));
++                const int shadowMapResolution
++                    = std::clamp(Settings::Manager::getInt("shadow map resolution", "Shadows"), 1, 1024);
+                 uniform->set(1.0f / static_cast<float>(shadowMapResolution));
+             }
+         }
+@@ -954,7 +954,7 @@ namespace MWRender
+         Nif::NIFFile::setLoadUnsupportedFiles(Settings::Manager::getBool("load unsupported nif files", "Models"));
+ 
+         mNearClip = Settings::Manager::getFloat("near clip", "Camera");
+-        mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
++        mConfiguredViewDistance = std::clamp(Settings::Manager::getFloat("viewing distance", "Camera"), 2500.f, 40960.f);
+         mViewDistance = mConfiguredViewDistance;
+         mLandOptimizationDistance = mConfiguredViewDistance;
+         updateLandOptimizationProfile();
+@@ -1774,10 +1774,13 @@ namespace MWRender
+ 
+         if (mShadowManager)
+         {
+-            const float shadowDistance = mLandOptimizationEnabled
+-                ? mConfiguredViewDistance * sLandOptimizationShadowDistanceRatio
+-                : std::max(0.f, Settings::Manager::getFloat("maximum shadow map distance", "Shadows"));
+-            mShadowManager->setMaximumShadowMapDistance(shadowDistance * adaptiveDistanceScale);
++            // Shadow distance is an explicit user setting. Land optimization must not
++            // replace 8192 with 25% of world distance or apply adaptive scaling again.
++            // Keep this independent from dynamic terrain distance; the mobile hard cap
++            // is already 8192, so the selected value remains predictable and safe.
++            const float configuredShadowDistance = std::clamp(
++                Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
++            mShadowManager->setMaximumShadowMapDistance(configuredShadowDistance);
+         }
+     }
+ 
+@@ -2012,7 +2015,7 @@ namespace MWRender
+             }
+             else if (setting.first == "Camera" && setting.second == "viewing distance")
+             {
+-                mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
++                mConfiguredViewDistance = std::clamp(Settings::Manager::getFloat("viewing distance", "Camera"), 2500.f, 40960.f);
+                 updateLandOptimizationProfile();
+                 mLandOptimizationDistance = mConfiguredViewDistance;
+                 resetLandOptimization(false);
+diff --git a/apps/openmw/mwrender/sky.cpp b/apps/openmw/mwrender/sky.cpp
+index 39e569c..7c029ec 100644
+--- a/apps/openmw/mwrender/sky.cpp
++++ b/apps/openmw/mwrender/sky.cpp
+@@ -548,7 +548,15 @@ private:
+     osg::ref_ptr<osg::OcclusionQueryNode> createOcclusionQueryNode(osg::Group* parent, bool queryVisible)
+     {
+         osg::ref_ptr<osg::OcclusionQueryNode> oqn = new osg::OcclusionQueryNode;
++#if defined(__ANDROID__)
++        // OSG OcclusionQueryNode takes ownership of the main camera pre/post draw callbacks.
++        // ArenaMW also uses those callbacks for its render pipeline, which makes OSG emit
++        // "osgOQ: QG: Invalid RQCB" on Android/GL4ES. Keep the sun itself but disable
++        // only its visibility queries on Android; sun glare/flash simply stay hidden.
++        oqn->setQueriesEnabled(false);
++#else
+         oqn->setQueriesEnabled(true);
++#endif
+ 
+ #if OSG_VERSION_GREATER_OR_EQUAL(3, 6, 5)
+         // With OSG 3.6.5, the method of providing user defined query geometry has been completely replaced
+diff --git a/apps/openmw/mwrender/water.cpp b/apps/openmw/mwrender/water.cpp
+index 1c56dcf..a538164 100644
+--- a/apps/openmw/mwrender/water.cpp
++++ b/apps/openmw/mwrender/water.cpp
+@@ -627,11 +627,16 @@ void Water::updateWaterMaterial()
+     if (modeIt != Settings::Manager::mUserSettings.end())
+         shaderWaterMode = modeIt->second;
+     else
+-        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "new" : "off";
++        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "simple" : "off";
+ 
+     Misc::StringUtils::lowerCaseInPlace(shaderWaterMode);
+     if (shaderWaterMode != "off" && shaderWaterMode != "simple" && shaderWaterMode != "new")
+-        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "new" : "off";
++        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "simple" : "off";
++#if defined(__ANDROID__)
++    // Keep the PBR code available in source, but never select it in the Android build.
++    if (shaderWaterMode == "new")
++        shaderWaterMode = "simple";
++#endif
+ 
+     const bool shaderWaterEnabled = shaderWaterMode != "off";
+     const bool pbrWaterEnabled = shaderWaterMode == "new";
+@@ -749,12 +754,13 @@ void Water::createShaderWaterStateSet(osg::Node* node, Reflection* reflection, R
+     if (pbr)
+     {
+         vertexShader = shaderMgr.getShader("water_pbr_vertex.glsl", defineMap, osg::Shader::VERTEX);
++#if defined(__ANDROID__)
++        fragmentShader = shaderMgr.getShader("water_pbr_android_fragment.glsl", defineMap, osg::Shader::FRAGMENT);
++#else
+         fragmentShader = shaderMgr.getShader("water_pbr_fragment.glsl", defineMap, osg::Shader::FRAGMENT);
+-
+-        // Keep the previous ArenaMP water shader as a parse-time fallback. This
+-        // protects old GPUs/configurations from a missing PBR resource.
++#endif
+         if (!vertexShader || !fragmentShader)
+-            Log(Debug::Error) << "PBR water shader template failed to load, falling back to ArenaMP simple water shader";
++            Log(Debug::Warning) << "Failed to load PBR water shaders, falling back to legacy water";
+     }
+ 
+     if (!pbr || !vertexShader || !fragmentShader)
+diff --git a/components/debug/debugging.cpp b/components/debug/debugging.cpp
+index 9ba32d0..0f893b0 100644
+--- a/components/debug/debugging.cpp
++++ b/components/debug/debugging.cpp
+@@ -13,6 +13,8 @@
+ #   include <windows.h>
+ #endif
+ 
++#include <osgViewer/Viewer>
++
+ namespace Debug
+ {
+ #ifdef _WIN32
+@@ -161,6 +163,8 @@ std::ostream& getRawStdout()
+     return rawStdout ? *rawStdout : std::cout;
+ }
+ 
++extern osg::ref_ptr<osgViewer::Viewer> g_viewer;
++
+ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, char *argv[], const std::string& appName)
+ {
+ #if defined _WIN32
+@@ -224,6 +228,7 @@ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, c
+     }
+     catch (const std::exception& e)
+     {
++        g_viewer.release();
+ #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
+         if (!isatty(fileno(stdin)))
+ #endif
+diff --git a/components/misc/stringops.hpp b/components/misc/stringops.hpp
+index 48deaa9..3c2fe68 100644
+--- a/components/misc/stringops.hpp
++++ b/components/misc/stringops.hpp
+@@ -4,6 +4,7 @@
+ #include <cctype>
+ #include <string>
+ #include <algorithm>
++#include <boost/format.hpp>
+ 
+ #include "utf8stream.hpp"
+ 
+@@ -232,13 +233,7 @@ public:
+     template <typename ... Args>
+     static std::string format(const char* fmt, Args const & ... args)
+     {
+-        auto size = std::snprintf(nullptr, 0, fmt, argument(args) ...);
+-        // Note: sprintf also writes a trailing null character. We should remove it.
+-        std::string ret(size+1, '\0');
+-        std::sprintf(&ret[0], fmt, argument(args) ...);
+-        ret.erase(size);
+-
+-        return ret;
++        return boost::str((boost::format(fmt) % ... % args));
+     }
+ 
+     template <typename ... Args>
+diff --git a/components/sceneutil/mwshadowtechnique.cpp b/components/sceneutil/mwshadowtechnique.cpp
+index 01df3d2..c87d09d 100644
+--- a/components/sceneutil/mwshadowtechnique.cpp
++++ b/components/sceneutil/mwshadowtechnique.cpp
+@@ -549,17 +549,28 @@ MWShadowTechnique::ShadowData::ShadowData(MWShadowTechnique::ViewDependentData*
+     else
+     {
+         _texture->setInternalFormat(GL_DEPTH_COMPONENT);
++#if defined(__ANDROID__)
++        // GLES V6: expose raw depth to sampler2D and do the comparison/PCF in
++        // shadows_fragment.glsl. This avoids NG-GL4ES shadow2D conversion bugs.
++        _texture->setShadowComparison(false);
++#else
+         _texture->setShadowComparison(true);
+         _texture->setShadowTextureMode(osg::Texture2D::LUMINANCE);
++#endif
+     }
+ 
+     _texture->setFilter(osg::Texture2D::MIN_FILTER,osg::Texture2D::LINEAR);
+     _texture->setFilter(osg::Texture2D::MAG_FILTER,osg::Texture2D::LINEAR);
+ 
+     // the shadow comparison should fail if object is outside the texture
++#if defined(__ANDROID__)
++    _texture->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::CLAMP_TO_EDGE);
++    _texture->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::CLAMP_TO_EDGE);
++#else
+     _texture->setWrap(osg::Texture2D::WRAP_S,osg::Texture2D::CLAMP_TO_BORDER);
+     _texture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::CLAMP_TO_BORDER);
+     _texture->setBorderColor(osg::Vec4(1.0f,1.0f,1.0f,1.0f));
++#endif
+     //_texture->setBorderColor(osg::Vec4(0.0f,0.0f,0.0f,0.0f));
+ 
+     // set up the camera
+@@ -1436,9 +1447,42 @@ void MWShadowTechnique::cull(osgUtil::CullVisitor& cv)
+                 }
+             }
+ 
+-            // 4.4 compute main scene graph TexGen + uniform settings + setup state
++            // 4.4 compute main scene graph shadow-coordinate state.
+             //
++#if defined(__ANDROID__)
++            // OpenGL ES has no fixed-function TexGen/gl_EyePlane* state.  Build
++            // the same transform explicitly and upload it to the receiving
++            // shaders.  validRegionMatrix already uses the same main-eye ->
++            // light-space convention above; the extra bias maps clip space
++            // from [-1,1] to shadow texture coordinates [0,1].
++            osg::Matrix shadowTextureMatrix = cv.getCurrentCamera()->getInverseViewMatrix()
++                * camera->getViewMatrix()
++                * camera->getProjectionMatrix()
++                * osg::Matrix::translate(1.0, 1.0, 1.0)
++                * osg::Matrix::scale(0.5, 0.5, 0.5);
++
++            const std::string shadowMatrixUniformName = "shadowTextureMatrix" + std::to_string(sm_i);
++            osg::ref_ptr<osg::Uniform> shadowMatrixUniform;
++            for (auto uniform : _uniforms[cv.getTraversalNumber() % 2])
++            {
++                if (uniform->getName() == shadowMatrixUniformName)
++                {
++                    shadowMatrixUniform = uniform;
++                    break;
++                }
++            }
++
++            if (!shadowMatrixUniform)
++            {
++                shadowMatrixUniform = new osg::Uniform(osg::Uniform::FLOAT_MAT4, shadowMatrixUniformName);
++                _uniforms[cv.getTraversalNumber() % 2].push_back(shadowMatrixUniform);
++            }
++            shadowMatrixUniform->set(shadowTextureMatrix);
++#else
++            // Desktop compatibility path keeps OSG's fixed-function EYE_LINEAR
++            // TexGen and the legacy gl_EyePlane* shader built-ins.
+             assignTexGenSettings(&cv, camera.get(), textureUnit, sd->_texgen.get());
++#endif
+ 
+             // mark the light as one that has active shadows and requires shaders
+             pl.textureUnits.push_back(textureUnit);
+@@ -1641,8 +1685,12 @@ void MWShadowTechnique::createShaders()
+         _fallbackShadowMapTexture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::REPEAT);
+         _fallbackShadowMapTexture->setFilter(osg::Texture2D::MIN_FILTER,osg::Texture2D::NEAREST);
+         _fallbackShadowMapTexture->setFilter(osg::Texture2D::MAG_FILTER,osg::Texture2D::NEAREST);
++#if defined(__ANDROID__)
++        _fallbackShadowMapTexture->setShadowComparison(false);
++#else
+         _fallbackShadowMapTexture->setShadowComparison(true);
+         _fallbackShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+ 
+     }
+ 
+@@ -3108,10 +3156,14 @@ osg::StateSet* MWShadowTechnique::prepareStateSetForRenderingShadow(ViewDependen
+ 
+         stateset->setTextureAttributeAndModes(sd._textureUnit, sd._texture.get(), shadowMapModeValue);
+ 
++#if !defined(__ANDROID__)
++        // Fixed-function texture coordinate generation is not part of GLES.
++        // Android receiving shaders use shadowTextureMatrixN uniforms instead.
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_S,osg::StateAttribute::ON);
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_T,osg::StateAttribute::ON);
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_R,osg::StateAttribute::ON);
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_Q,osg::StateAttribute::ON);
++#endif
+     }
+ 
+     return stateset;
+diff --git a/components/sceneutil/shadow.cpp b/components/sceneutil/shadow.cpp
+index 5707e6e..e8fabb1 100644
+--- a/components/sceneutil/shadow.cpp
++++ b/components/sceneutil/shadow.cpp
+@@ -32,7 +32,8 @@ namespace SceneUtil
+         mShadowSettings->setNumShadowMapsPerLight(numberOfShadowMapsPerLight);
+         mShadowSettings->setBaseShadowTextureUnit(8 - numberOfShadowMapsPerLight);
+ 
+-        const float maximumShadowMapDistance = Settings::Manager::getFloat("maximum shadow map distance", "Shadows");
++        const float maximumShadowMapDistance
++            = std::clamp(Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
+         if (maximumShadowMapDistance > 0)
+         {
+             const float shadowFadeStart = std::min(std::max(0.f, Settings::Manager::getFloat("shadow fade start", "Shadows")), 1.f);
+@@ -48,7 +49,7 @@ namespace SceneUtil
+         else if (Misc::StringUtils::lowerCase(computeSceneBounds) == "bounds")
+             mShadowSettings->setComputeNearFarModeOverride(osg::CullSettings::COMPUTE_NEAR_FAR_USING_BOUNDING_VOLUMES);
+ 
+-        int mapres = Settings::Manager::getInt("shadow map resolution", "Shadows");
++        const int mapres = std::clamp(Settings::Manager::getInt("shadow map resolution", "Shadows"), 1, 1024);
+         mShadowSettings->setTextureSize(osg::Vec2s(mapres, mapres));
+ 
+         mShadowTechnique->setSplitPointUniformLogarithmicRatio(Settings::Manager::getFloat("split point uniform logarithmic ratio", "Shadows"));
+@@ -106,8 +107,12 @@ namespace SceneUtil
+         fakeShadowMapImage->allocateImage(1, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT);
+         *(float*)fakeShadowMapImage->data() = std::numeric_limits<float>::infinity();
+         osg::ref_ptr<osg::Texture> fakeShadowMapTexture = new osg::Texture2D(fakeShadowMapImage);
++#if defined(__ANDROID__)
++        fakeShadowMapTexture->setShadowComparison(false);
++#else
+         fakeShadowMapTexture->setShadowComparison(true);
+         fakeShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+         for (int i = baseShadowTextureUnit; i < baseShadowTextureUnit + numberOfShadowMapsPerLight; ++i)
+         {
+             stateset->setTextureAttributeAndModes(i, fakeShadowMapTexture, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED);
+@@ -143,6 +148,11 @@ namespace SceneUtil
+         Shader::ShaderManager::DefineMap definesWithShadows;
+ 
+         definesWithShadows["shadows_enabled"] = "1";
++#if defined(__ANDROID__)
++        definesWithShadows["androidGLES"] = "1";
++#else
++        definesWithShadows["androidGLES"] = "0";
++#endif
+ 
+         for (unsigned int i = 0; i < mShadowSettings->getNumShadowMapsPerLight(); ++i)
+             definesWithShadows["shadow_texture_unit_list"] += std::to_string(i) + ",";
+@@ -170,6 +180,11 @@ namespace SceneUtil
+         Shader::ShaderManager::DefineMap definesWithoutShadows;
+ 
+         definesWithoutShadows["shadows_enabled"] = "0";
++#if defined(__ANDROID__)
++        definesWithoutShadows["androidGLES"] = "1";
++#else
++        definesWithoutShadows["androidGLES"] = "0";
++#endif
+ 
+         definesWithoutShadows["shadow_texture_unit_list"] = "";
+ 
+diff --git a/components/settings/settings.hpp b/components/settings/settings.hpp
+index e5165a2..828e072 100644
+--- a/components/settings/settings.hpp
++++ b/components/settings/settings.hpp
+@@ -41,7 +41,7 @@ namespace Settings
+         void loadUser (const std::string& file);
+         ///< load file as user settings
+ 
+-        void saveUser (const std::string& file);
++        static void saveUser (const std::string& file);
+         ///< save user settings to file
+ 
+         static void setUserSettingsPath(const std::string& file);
+diff --git a/files/mygui/openmw_hud.layout b/files/mygui/openmw_hud.layout
+index 5c9970c..e34568b 100644
+--- a/files/mygui/openmw_hud.layout
++++ b/files/mygui/openmw_hud.layout
+@@ -6,7 +6,7 @@
+         <Widget type="Widget" position="0 0 300 200" name="GameplayHud" align="Stretch">
+             <Property key="NeedMouse" value="false"/>
+ 	
+-        <Widget type="TextBox" skin="SandBrightText" position="8 6 72 22" name="FpsText" align="Left Top">
++        <Widget type="TextBox" skin="SandBrightText" position="96 6 72 22" name="FpsText" align="Left Top">
+             <Property key="NeedMouse" value="false"/>
+             <Property key="TextAlign" value="Left"/>
+             <Property key="TextShadow" value="true"/>
+diff --git a/files/mygui/openmw_settings_window.layout b/files/mygui/openmw_settings_window.layout
+index 2dc625b..788672c 100644
+--- a/files/mygui/openmw_settings_window.layout
++++ b/files/mygui/openmw_settings_window.layout
+@@ -391,32 +391,6 @@
+                 <Property key="Caption" value="#{arenamp=settings.window_border}"/>
+               </Widget>
+             </Widget>
+-            <Widget type="HBox" skin="" position="244 100 206 24">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" name="SmaaButton">
+-                <Property key="ExpandDirection" value="Right"/>
+-                <UserString key="SettingCategory" value="Shaders"/>
+-                <UserString key="SettingName" value="smaa enabled"/>
+-                <UserString key="SettingType" value="CheckButton"/>
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="30 4 170 18">
+-                <Property key="Caption" value="#{arenamp=settings.display.smaa_enabled}"/>
+-              </Widget>
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="244 132 206 18" name="SmaaThresholdLabel">
+-              <Property key="Caption" value="#{arenamp=settings.display.smaa_threshold}"/>
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="244 152 206 16">
+-              <Property key="Range" value="101"/>
+-              <Property key="Page" value="1"/>
+-              <UserString key="SettingType" value="Slider"/>
+-              <UserString key="SettingCategory" value="Shaders"/>
+-              <UserString key="SettingName" value="smaa threshold"/>
+-              <UserString key="SettingValueType" value="Float"/>
+-              <UserString key="SettingMin" value="0.03"/>
+-              <UserString key="SettingMax" value="0.30"/>
+-              <UserString key="SettingLabelWidget" value="SmaaThresholdLabel"/>
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.display.smaa_threshold}"/>
+-            </Widget>
+             <Widget type="TextBox" skin="NormalText" position="8 236 442 18" name="FovText">
+               <Property key="Caption" value="#{arenamp=settings.fov}"/>
+             </Widget>
+@@ -565,14 +539,14 @@
+               <Property key="Caption" value="#{sRender_Distance}" />
+             </Widget>
+             <Widget type="ScrollBar" skin="MW_HScroll" position="0 28 462 16" name="LargeRenderingDistanceSlider">
+-              <Property key="Range" value="79421" />
+-              <Property key="Page" value="2048" />
++              <Property key="Range" value="38461" />
++              <Property key="Page" value="512" />
+               <UserString key="SettingType" value="Slider" />
+               <UserString key="SettingCategory" value="Camera" />
+               <UserString key="SettingName" value="viewing distance" />
+               <UserString key="SettingValueType" value="Cell" />
+               <UserString key="SettingMin" value="2500" />
+-              <UserString key="SettingMax" value="81920" />
++              <UserString key="SettingMax" value="40960" />
+               <UserString key="SettingLabelWidget" value="RenderDistanceLabel" />
+               <UserString key="SettingLabelCaption" value="#{sRender_Distance} (x%s)" />
+             </Widget>
+@@ -592,14 +566,14 @@
+               <UserString key="Caption_Text" value="#{arenamp=settings.tooltip.optimized_distance}" />
+             </Widget>
+             <Widget type="ScrollBar" skin="MW_HScroll" position="0 28 462 16" name="OptimizedRenderingDistanceSlider">
+-              <Property key="Range" value="36001" />
++              <Property key="Range" value="36961" />
+               <Property key="Page" value="100" />
+               <UserString key="SettingType" value="Slider" />
+               <UserString key="SettingCategory" value="Camera" />
+               <UserString key="SettingName" value="viewing distance" />
+               <UserString key="SettingValueType" value="Integer" />
+               <UserString key="SettingMin" value="4000" />
+-              <UserString key="SettingMax" value="40000" />
++              <UserString key="SettingMax" value="40960" />
+               <UserString key="SettingLabelWidget" value="OptimizedRenderDistanceLabel" />
+               <UserString key="SettingLabelCaption" value="#{arenamp=settings.optimized_distance_value}" />
+             </Widget>
+@@ -607,7 +581,7 @@
+               <Property key="Caption" value="4 000" />
+             </Widget>
+             <Widget type="TextBox" skin="SandText" position="362 46 100 16">
+-              <Property key="Caption" value="40 000" />
++              <Property key="Caption" value="40 960" />
+               <Property key="TextAlign" value="Right" />
+             </Widget>
+           </Widget>
+@@ -842,334 +816,6 @@
+             <Property key="Caption" value="#{arenamp=settings.reset_defaults}" />
+           </Widget>
+         </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.pbr}" />
+-          <Widget type="ScrollView" skin="MW_ScrollView" position="4 4 478 400" align="Left Top" name="PbrScroll">
+-            <Property key="CanvasAlign" value="Left Top" />
+-            <Property key="CanvasSize" value="458 404" />
+-            <Widget type="HBox" skin="" position="8 8 442 24">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-                <Property key="ExpandDirection" value="Right" />
+-                <UserString key="SettingCategory" value="Shaders" />
+-                <UserString key="SettingName" value="enhanced pbr lighting" />
+-                <UserString key="SettingType" value="CheckButton" />
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 370 18">
+-                <Property key="Caption" value="#{arenamp=settings.pbr_enabled}" />
+-              </Widget>
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 44 442 18" name="PbrDiffuseLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_diffuse_response}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 64 442 16">
+-              <Property key="Range" value="101" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr diffuse response" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="1.0" />
+-              <UserString key="SettingLabelWidget" value="PbrDiffuseLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_diffuse_response}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 96 442 18" name="PbrObjectRoughnessLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_object_roughness}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 116 442 16">
+-              <Property key="Range" value="93" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr object roughness" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.08" />
+-              <UserString key="SettingMax" value="1.0" />
+-              <UserString key="SettingLabelWidget" value="PbrObjectRoughnessLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_object_roughness}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 148 442 18" name="PbrTerrainRoughnessLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_terrain_roughness}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 168 442 16">
+-              <Property key="Range" value="93" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr terrain roughness" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.08" />
+-              <UserString key="SettingMax" value="1.0" />
+-              <UserString key="SettingLabelWidget" value="PbrTerrainRoughnessLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_terrain_roughness}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 200 442 18" name="PbrSpecularLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_specular_strength}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 220 442 16">
+-              <Property key="Range" value="251" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr specular strength" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="2.5" />
+-              <UserString key="SettingLabelWidget" value="PbrSpecularLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_specular_strength}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 252 442 18" name="PbrAmbientLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_ambient_strength}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 272 442 16">
+-              <Property key="Range" value="151" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr ambient strength" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="1.5" />
+-              <UserString key="SettingLabelWidget" value="PbrAmbientLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_ambient_strength}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 304 442 18" name="PbrSubsurfaceLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_subsurface_strength}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 324 442 16">
+-              <Property key="Range" value="151" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr subsurface strength" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="1.5" />
+-              <UserString key="SettingLabelWidget" value="PbrSubsurfaceLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_subsurface_strength}" />
+-            </Widget>
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="8 356 160 24" name="PbrResetButton">
+-              <Property key="Caption" value="#{arenamp=settings.reset_defaults}" />
+-            </Widget>
+-          </Widget>
+-        </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.hdr}" />
+-          <Widget type="ScrollView" skin="MW_ScrollView" position="4 4 478 400" align="Left Top" name="HdrScroll">
+-            <Property key="CanvasAlign" value="Left Top" />
+-            <Property key="CanvasSize" value="458 468" />
+-            <Widget type="HBox" skin="" position="8 8 442 24">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-                <Property key="ExpandDirection" value="Right" />
+-                <UserString key="SettingCategory" value="Shaders" />
+-                <UserString key="SettingName" value="hdr lighting" />
+-                <UserString key="SettingType" value="CheckButton" />
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 370 18">
+-                <Property key="Caption" value="#{arenamp=settings.hdr_enabled}" />
+-              </Widget>
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 44 442 18">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_tonemapper}" />
+-            </Widget>
+-            <Widget type="ComboBox" skin="MW_ComboBox" position="8 66 260 24" name="HdrTonemapper" />
+-            <Widget type="TextBox" skin="NormalText" position="8 104 442 18" name="HdrExposureLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_exposure}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 126 442 16">
+-              <Property key="Range" value="276" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr exposure" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.25" />
+-              <UserString key="SettingMax" value="3.0" />
+-              <UserString key="SettingLabelWidget" value="HdrExposureLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_exposure}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 156 442 18" name="HdrInteriorExposureLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_interior_exposure}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 178 442 16">
+-              <Property key="Range" value="301" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr interior exposure" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="-1.0" />
+-              <UserString key="SettingMax" value="2.0" />
+-              <UserString key="SettingLabelWidget" value="HdrInteriorExposureLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_interior_exposure}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 208 442 18" name="HdrNightExposureLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_night_exposure}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 230 442 16">
+-              <Property key="Range" value="301" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr night exposure" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="-1.0" />
+-              <UserString key="SettingMax" value="2.0" />
+-              <UserString key="SettingLabelWidget" value="HdrNightExposureLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_night_exposure}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 260 442 18" name="HdrGammaLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_gamma}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 282 442 16">
+-              <Property key="Range" value="201" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr gamma" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="1.0" />
+-              <UserString key="SettingMax" value="3.0" />
+-              <UserString key="SettingLabelWidget" value="HdrGammaLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_gamma}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 312 442 18" name="HdrBrightnessLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_brightness}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 334 442 16">
+-              <Property key="Range" value="151" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr brightness" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.5" />
+-              <UserString key="SettingMax" value="2.0" />
+-              <UserString key="SettingLabelWidget" value="HdrBrightnessLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_brightness}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 364 442 18" name="HdrSaturationLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_saturation}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 386 442 16">
+-              <Property key="Range" value="251" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr saturation" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="2.5" />
+-              <UserString key="SettingLabelWidget" value="HdrSaturationLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_saturation}" />
+-            </Widget>
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="8 430 180 24" name="HdrResetButton">
+-              <Property key="Caption" value="#{arenamp=settings.reset_hdr}" />
+-            </Widget>
+-          </Widget>
+-        </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.bloom}" />
+-          <Widget type="HBox" skin="" position="8 8 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="bloom enabled" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18">
+-              <Property key="Caption" value="#{arenamp=settings.bloom_enabled}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 48 462 18" name="BloomIntensityLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_intensity}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 70 462 16">
+-            <Property key="Range" value="301" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom intensity" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.0" />
+-            <UserString key="SettingMax" value="3.0" />
+-            <UserString key="SettingLabelWidget" value="BloomIntensityLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_intensity}" />
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 108 462 18" name="BloomThresholdLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_threshold}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 130 462 16">
+-            <Property key="Range" value="201" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom threshold" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.0" />
+-            <UserString key="SettingMax" value="2.0" />
+-            <UserString key="SettingLabelWidget" value="BloomThresholdLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_threshold}" />
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 168 462 18" name="BloomSoftKneeLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_soft_knee}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 190 462 16">
+-            <Property key="Range" value="101" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom soft knee" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.0" />
+-            <UserString key="SettingMax" value="1.0" />
+-            <UserString key="SettingLabelWidget" value="BloomSoftKneeLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_soft_knee}" />
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 228 462 18" name="BloomRadiusLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_radius}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 250 462 16">
+-            <Property key="Range" value="156" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom radius" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.5" />
+-            <UserString key="SettingMax" value="8.0" />
+-            <UserString key="SettingLabelWidget" value="BloomRadiusLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_radius}" />
+-          </Widget>
+-        </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.effects}"/>
+-          <Widget type="HBox" skin="" position="8 8 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="atmospheric fog enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.atmospheric_fog_enabled}"/></Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 42 462 18" name="AtmosFogStrengthLabel"><Property key="Caption" value="#{arenamp=settings.atmospheric_fog_strength}"/></Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 62 462 16"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="atmospheric fog strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="AtmosFogStrengthLabel"/><UserString key="SettingLabelCaption" value="#{arenamp=settings.atmospheric_fog_strength}"/></Widget>
+-
+-          <Widget type="HBox" skin="" position="8 94 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="god rays enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.god_rays_enabled}"/></Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 128 462 18" name="GodRaysStrengthLabel"><Property key="Caption" value="#{arenamp=settings.god_rays_strength}"/></Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 148 462 16"><Property key="Range" value="151"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="god rays strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.5"/><UserString key="SettingLabelWidget" value="GodRaysStrengthLabel"/><UserString key="SettingLabelCaption" value="#{arenamp=settings.god_rays_strength}"/></Widget>
+-
+-          <Widget type="HBox" skin="" position="8 180 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="sharpening enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.sharpening_enabled}"/></Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 214 462 18" name="SharpeningStrengthLabel"><Property key="Caption" value="#{arenamp=settings.sharpening_strength}"/></Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 234 462 16"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="sharpening strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="SharpeningStrengthLabel"/><UserString key="SettingLabelCaption" value="#{arenamp=settings.sharpening_strength}"/></Widget>
+-
+-          <Widget type="HBox" skin="" position="8 274 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="dithering enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.dithering_enabled}"/></Widget>
+-          </Widget>
+-        </Widget>
+         <Widget type="TabItem" skin="" position="4 32 486 412">
+           <Property key="Caption" value="#{arenamp=settings.subsection.world}" />
+           <Widget type="HBox" skin="" position="8 8 462 24">
+@@ -1355,83 +1001,6 @@
+             <UserString key="SettingValueType" value="Float" />
+           </Widget>
+         </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.section.advanced}" />
+-          <Widget type="TextBox" skin="NormalText" position="8 8 462 18">
+-            <Property key="Caption" value="#{arenamp=settings.subsection.preload}" />
+-          </Widget>
+-          <Widget type="ImageBox" skin="MW_HLine" position="8 28 462 2" />
+-          <Widget type="HBox" skin="" position="8 40 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload enabled" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_enabled}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 70 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload exterior grid" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_exterior}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 100 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload instances" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_instances}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 130 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload doors" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_doors}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 160 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload fast travel" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_travel}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 202 462 18" name="PreloadDistanceLabel">
+-            <Property key="Caption" value="#{arenamp=settings.preload_distance}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 224 462 16">
+-            <Property key="Range" value="129" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Cells" />
+-            <UserString key="SettingName" value="preload distance" />
+-            <UserString key="SettingValueType" value="Integer" />
+-            <UserString key="SettingMin" value="0" />
+-            <UserString key="SettingMax" value="8192" />
+-            <UserString key="SettingLabelWidget" value="PreloadDistanceLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.preload_distance}" />
+-          </Widget>
+-        </Widget>
+       </Widget>
+     </Widget>
+     <Widget type="AutoSizedButton" skin="MW_Button" position="526 462 96 24" align="Left Top" name="OkButton">
+diff --git a/files/settings-default.cfg b/files/settings-default.cfg
+index 85b32e6..3eea6c5 100644
+--- a/files/settings-default.cfg
++++ b/files/settings-default.cfg
+@@ -254,11 +254,10 @@ smooth movement player turning delay = 0.333
+ NPCs avoid collisions = true
+ NPCs give way = true
+ 
+-# Movement-only spacing between humanoid actors. These values do not shrink
+-# weapon/projectile hit detection or collision with world geometry.
+-# 1.0 = original spacing, 0.75/0.88 = compact recommended defaults.
+-npc pass collision scale = 0.75
+-npc to npc collision scale = 0.88
++# Stock OpenMW actor-to-actor collision spacing.
++# Keep these at 1.0 on Android; the compact sweep path is disabled.
++npc pass collision scale = 1.0
++npc to npc collision scale = 1.0
+ 
+ swim upward correction = true
+ 
+@@ -563,14 +562,14 @@ object vbo = true
+ object display lists = true
+ 
+ [Water]
+-# Water rendering mode: off, simple, new.
+-# "simple" uses ArenaMP legacy water shaders; "new" uses the current PBR water.
+-shader mode = new
++# Android/mobile default: stable simple shader-water path.
++# The PBR/new path remains in source for future work but is not selected on Android.
++shader mode = simple
+ # Legacy compatibility key kept in sync by the in-game selector.
+ shader = true
+-rtt size = 512
+-refraction = true
+-reflection detail = 3
++rtt size = 256
++refraction = false
++reflection detail = 2
+ 
+ # Runtime caustics multiplier. Valid UI range: 0.0 to 3.0.
+ caustics intensity = 1.0
+diff --git a/files/shaders/CMakeLists.txt b/files/shaders/CMakeLists.txt
+index f54be80..607c658 100644
+--- a/files/shaders/CMakeLists.txt
++++ b/files/shaders/CMakeLists.txt
+@@ -24,6 +24,8 @@ set(SHADER_FILES
+     water_fragment.glsl
+     water_pbr_vertex.glsl
+     water_pbr_fragment.glsl
++    water_pbr_android_fragment.glsl
++    water_pbr_android_data.glsl
+     water_pbr_compat.glsl
+     water_pbr_rain_ripples.glsl
+     water_pbr_data.glsl
+diff --git a/files/shaders/shadowcasting_vertex.glsl b/files/shaders/shadowcasting_vertex.glsl
+index e36f21a..ab7d787 100644
+--- a/files/shaders/shadowcasting_vertex.glsl
++++ b/files/shaders/shadowcasting_vertex.glsl
+@@ -5,8 +5,8 @@ varying vec2 diffuseMapUV;
+ varying float alphaPassthrough;
+ 
+ uniform int colorMode;
+-uniform bool useDiffuseMapForShadowAlpha = true;
+-uniform bool alphaTestShadows = true;
++uniform bool useDiffuseMapForShadowAlpha;
++uniform bool alphaTestShadows;
+ 
+ void main(void)
+ {
+diff --git a/files/shaders/shadows_fragment.glsl b/files/shaders/shadows_fragment.glsl
+index 1f6c12c..e2aa989 100644
+--- a/files/shaders/shadows_fragment.glsl
++++ b/files/shaders/shadows_fragment.glsl
+@@ -4,7 +4,11 @@
+     uniform float maximumShadowMapDistance;
+     uniform float shadowFadeStart;
+     @foreach shadow_texture_unit_index @shadow_texture_unit_list
++#if @androidGLES
++        uniform sampler2D shadowTexture@shadow_texture_unit_index;
++#else
+         uniform sampler2DShadow shadowTexture@shadow_texture_unit_index;
++#endif
+         varying vec4 shadowSpaceCoords@shadow_texture_unit_index;
+ 
+ #if @perspectiveShadowMaps
+@@ -13,6 +17,7 @@
+     @endforeach
+ #endif // SHADOWS
+ 
++#if SHADOWS
+ // Runtime shadow filtering. The enhanced path is adapted from the optimized
+ // PCF ideas in Enhanced Shadows, but keeps ArenaMP's existing cascade selection,
+ // normal/polygon offsets and arbitrary shadow-map resolution.
+@@ -21,7 +26,25 @@ uniform float arenaShadowSoftness;
+ uniform float arenaShadowAdaptiveSoftness;
+ uniform float arenaShadowTexelSize;
+ 
+-float sampleShadowLegacy(sampler2DShadow shadowMap, vec4 shadowCoords)
++#if @androidGLES
++    #define ARENA_SHADOW_SAMPLER sampler2D
++
++float sampleShadowTapAndroid(sampler2D shadowMap, vec3 coords)
++{
++    // GLES path samples raw depth and performs LEQUAL manually. Bounds are
++    // checked in shader, so CLAMP_TO_EDGE is sufficient on mobile GPUs.
++    if (coords.x <= 0.0 || coords.x >= 1.0 || coords.y <= 0.0 || coords.y >= 1.0 || coords.z <= 0.0 || coords.z >= 1.0)
++        return 1.0;
++    float storedDepth = texture2D(shadowMap, coords.xy).r;
++    // Small receiver bias compensates for mobile depth precision; the engine's
++    // polygon/normal offsets remain the primary acne control.
++    return step(coords.z - 0.00035, storedDepth);
++}
++#else
++    #define ARENA_SHADOW_SAMPLER sampler2DShadow
++#endif
++
++float sampleShadowLegacy(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords)
+ {
+     float shadow = 0.0;
+     vec3 coords = shadowCoords.xyz / shadowCoords.w;
+@@ -34,13 +57,17 @@ float sampleShadowLegacy(sampler2DShadow shadowMap, vec4 shadowCoords)
+         for(float x = -1.0; x <= 1.0; x += 1.0)
+         {
+             vec2 offset = vec2(x, y) * texelSize;
++#if @androidGLES
++            shadow += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + offset, coords.z));
++#else
+             shadow += shadow2D(shadowMap, vec3(coords.xy + offset, coords.z)).r;
++#endif
+         }
+     }
+     return shadow / 9.0;
+ }
+ 
+-float sampleShadowEnhanced(sampler2DShadow shadowMap, vec4 shadowCoords, float distance)
++float sampleShadowEnhanced(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords, float distance)
+ {
+     vec3 coords = shadowCoords.xyz / shadowCoords.w;
+     float texel = max(arenaShadowTexelSize, 0.000001);
+@@ -61,24 +88,59 @@ float sampleShadowEnhanced(sampler2DShadow shadowMap, vec4 shadowCoords, float d
+     // Eight low-discrepancy taps. Each shadow2D lookup can itself use hardware
+     // bilinear comparison, giving a much smoother penumbra than the old fixed
+     // 3x3 kernel without hard-coding a specific map resolution.
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.3604,  0.2232) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.3604,  0.2232) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.2434, -0.3508) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.2434, -0.3508) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.3766,  0.2692) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.3766,  0.2692) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.3056, -0.3618) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.3056, -0.3618) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.6034, -0.4808) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.6034, -0.4808) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.5266,  0.4492) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.5266,  0.4492) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.1034,  0.6292) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.1034,  0.6292) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.5766, -0.5208) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.5766, -0.5208) * scale, coords.z)).r;
++#endif
+     return sum * 0.125;
+ }
+ 
+-float sampleShadowArena(sampler2DShadow shadowMap, vec4 shadowCoords, float distance)
++float sampleShadowArena(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords, float distance)
+ {
+     if (arenaEnhancedShadowFiltering >= 0.5)
+         return sampleShadowEnhanced(shadowMap, shadowCoords, distance);
+     return sampleShadowLegacy(shadowMap, shadowCoords);
+ }
+ 
++#undef ARENA_SHADOW_SAMPLER
++#endif // SHADOWS
++
+ float unshadowedLightRatio(float distance)
+ {
+     float shadowing = 1.0;
+diff --git a/files/shaders/shadows_vertex.glsl b/files/shaders/shadows_vertex.glsl
+index f96e1a6..1c8c135 100644
+--- a/files/shaders/shadows_vertex.glsl
++++ b/files/shaders/shadows_vertex.glsl
+@@ -2,7 +2,14 @@
+ 
+ #if SHADOWS
+     @foreach shadow_texture_unit_index @shadow_texture_unit_list
++#if @androidGLES
++        // OSG 3.6.x TexGen is fixed-function only and is unavailable in GLES.
++        // ArenaMW supplies this eye-space -> shadow-texture matrix from the
++        // shadow technique on Android instead of reading gl_EyePlane*.
++        uniform mat4 shadowTextureMatrix@shadow_texture_unit_index;
++#else
+         uniform int shadowTextureUnit@shadow_texture_unit_index;
++#endif
+         varying vec4 shadowSpaceCoords@shadow_texture_unit_index;
+ 
+ #if @perspectiveShadowMaps
+@@ -18,19 +25,45 @@
+ void setupShadowCoords(vec4 viewPos, vec3 viewNormal)
+ {
+ #if SHADOWS
+-    // This matrix has the opposite handedness to the others used here, so multiplication must have the vector to the left. Alternatively it could be transposed after construction, but that's extra work for the GPU just to make the code look a tiny bit cleaner.
+-    mat4 eyePlaneMat;
+     vec4 shadowOffset;
+-    @foreach shadow_texture_unit_index @shadow_texture_unit_list
+-        eyePlaneMat = mat4(gl_EyePlaneS[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneT[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneR[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneQ[shadowTextureUnit@shadow_texture_unit_index]);
++#if !@androidGLES
++    // Desktop compatibility path: OSG/OpenGL fixed-function TexGen exposes
++    // the generated eye planes through the legacy GLSL built-ins.
++    mat4 eyePlaneMat;
++#endif
+ 
++    @foreach shadow_texture_unit_index @shadow_texture_unit_list
+ #if @perspectiveShadowMaps
+         shadowRegionCoords@shadow_texture_unit_index = validRegionMatrix@shadow_texture_unit_index * viewPos;
+ #endif
+-        
+-#if @disableNormalOffsetShadows
+-        shadowSpaceCoords@shadow_texture_unit_index = viewPos * eyePlaneMat;
++
++#if @androidGLES
++        // Native GLES has no gl_EyePlaneS/T/R/Q.  The CPU provides the exact
++        // main-eye -> light-view -> light-projection -> [0,1] texture matrix.
++    #if @disableNormalOffsetShadows
++        shadowSpaceCoords@shadow_texture_unit_index = shadowTextureMatrix@shadow_texture_unit_index * viewPos;
++    #else
++        shadowOffset = vec4(viewNormal * @shadowNormalOffset, 0.0);
++
++        if (onlyNormalOffsetUV)
++        {
++            shadowSpaceCoords@shadow_texture_unit_index = shadowTextureMatrix@shadow_texture_unit_index * viewPos;
++
++            vec4 lightSpaceXY = shadowTextureMatrix@shadow_texture_unit_index * (viewPos + shadowOffset);
++            shadowSpaceCoords@shadow_texture_unit_index.xy = lightSpaceXY.xy;
++        }
++        else
++        {
++            shadowSpaceCoords@shadow_texture_unit_index = shadowTextureMatrix@shadow_texture_unit_index * (viewPos + shadowOffset);
++        }
++    #endif
+ #else
++        // Desktop path retained bit-for-bit in behaviour.
++        eyePlaneMat = mat4(gl_EyePlaneS[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneT[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneR[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneQ[shadowTextureUnit@shadow_texture_unit_index]);
++
++    #if @disableNormalOffsetShadows
++        shadowSpaceCoords@shadow_texture_unit_index = viewPos * eyePlaneMat;
++    #else
+         shadowOffset = vec4(viewNormal * @shadowNormalOffset, 0.0);
+ 
+         if (onlyNormalOffsetUV)
+@@ -47,7 +80,8 @@ void setupShadowCoords(vec4 viewPos, vec3 viewNormal)
+             vec4 offsetViewPosition = viewPos + shadowOffset;
+             shadowSpaceCoords@shadow_texture_unit_index = offsetViewPosition * eyePlaneMat;
+         }
++    #endif
+ #endif
+     @endforeach
+ #endif // SHADOWS
+-}
+\ No newline at end of file
++}
+diff --git a/files/shaders/water_fragment.glsl b/files/shaders/water_fragment.glsl
+index 8911fce..c7978d4 100644
+--- a/files/shaders/water_fragment.glsl
++++ b/files/shaders/water_fragment.glsl
+@@ -232,16 +232,15 @@ vec4 rainCombined(vec2 uv, float time, float intensity)
+ // ========================================================================
+ 
+ float fresnelDielectric(vec3 I, vec3 N, float eta) {
+-    float c = abs(dot(I, N));
+-    float g = eta * eta - 1.0 + c * c;
+-    
+-    if (g > 0.0) {
+-        g = sqrt(g);
+-        float A = (g - c) / (g + c);
+-        float B = (c * (g + c) - 1.0) / (c * (g - c) + 1.0);
+-        return 0.5 * A * A * (1.0 + B * B);
+-    }
+-    return 1.0;
++    // Schlick is a very close fit for water and avoids sqrt + several divisions
++    // in the exact dielectric equation on every fragment.
++    float c = clamp(abs(dot(I, N)), 0.0, 1.0);
++    float r = (1.0 - eta) / (1.0 + eta);
++    float r0 = r * r;
++    float x = 1.0 - c;
++    float x2 = x * x;
++    float x5 = x2 * x2 * x;
++    return r0 + (1.0 - r0) * x5;
+ }
+ 
+ // ========================================================================
+@@ -487,8 +486,9 @@ void main(void) {
+     vec3 n2 = texture2D(normalMap, waveCoords(UV, 0.25, 0.035, wTime,
+              vec2(-0.02, -0.015), n1.xy)).rgb * 2.0 - 1.0;
+ 
+-    vec3 n3 = texture2D(normalMap, waveCoords(UV, 0.5, 0.045, wTime,
+-             vec2(0.015, 0.02), n2.xy)).rgb * 2.0 - 1.0;
++    // Mobile fast path: reuse the mid-frequency sample as the fine layer.
++    // This removes one dependent normal-map fetch for every visible water pixel.
++    vec3 n3 = n2;
+     
+     // ========================================================================
+     // ДОЖДЬ (только вблизи) - НОВАЯ АСИНХРОННАЯ СИСТЕМА
+diff --git a/files/shaders/water_waves.glsl b/files/shaders/water_waves.glsl
+index 886f4d9..9379625 100644
+--- a/files/shaders/water_waves.glsl
++++ b/files/shaders/water_waves.glsl
+@@ -44,7 +44,11 @@ float znoise(float p) {
+ float znoise2(vec2 n) {
+     const vec2 d = vec2(0.0, 1.0);
+     vec2 b = floor(n);
+-    vec2 f = smoothstep(vec2(0.0), vec2(1.0), fract(n));
++    // NG-GL4ES simple shader converter on Android generates only a scalar
++    // smoothstep helper for this call and then fails to assign it to vec2.
++    // This is exactly smoothstep(0,1,x) written explicitly per component.
++    vec2 f = fract(n);
++    f = f * f * (3.0 - 2.0 * f);
+     return mix(
+         mix(zrand2(b), zrand2(b + d.yx), f.x),
+         mix(zrand2(b + d.xy), zrand2(b + d.yy), f.x),
+diff --git a/files/ui/graphicspage.ui b/files/ui/graphicspage.ui
+index df7cdbb..66816fc 100644
+--- a/files/ui/graphicspage.ui
++++ b/files/ui/graphicspage.ui
+@@ -516,7 +516,7 @@
+              <number>512</number>
+             </property>
+             <property name="maximum">
+-             <number>81920</number>
++             <number>40960</number>
+             </property>
+             <property name="value">
+              <number>8192</number>
