@@ -1,0 +1,3547 @@
+diff --git a/apps/openmw/engine.cpp b/apps/openmw/engine.cpp
+index 9d8d15b..4c2d7a8 100644
+--- a/apps/openmw/engine.cpp
++++ b/apps/openmw/engine.cpp
+@@ -858,6 +858,9 @@ std::string OMW::Engine::loadSettings (Settings::Manager & settings)
+     return settingspath;
+ }
+ 
++// To share the viewer with Android interfaces
++osg::ref_ptr<osgViewer::Viewer> g_viewer;
++
+ void OMW::Engine::createWindow(Settings::Manager& settings)
+ {
+     int screen = settings.getInt("screen", "Video");
+@@ -983,6 +986,9 @@ void OMW::Engine::createWindow(Settings::Manager& settings)
+     mViewer->realize();
+ 
+     mViewer->getEventQueue()->getCurrentEventState()->setWindowRectangle(0, 0, graphicsWindow->getTraits()->width, graphicsWindow->getTraits()->height);
++
++    // To share the viewer with Android interfaces
++    g_viewer = mViewer;
+ }
+ 
+ void OMW::Engine::setWindowIcon()
+@@ -1389,6 +1395,8 @@ void OMW::Engine::go()
+         frameRateLimiter.limit();
+     }
+ 
++    g_viewer.release();
++
+     // Save user settings
+     settings.saveUser(settingspath);
+ 
+diff --git a/apps/openmw/main.cpp b/apps/openmw/main.cpp
+index bec4996..1bd0bd0 100644
+--- a/apps/openmw/main.cpp
++++ b/apps/openmw/main.cpp
+@@ -367,6 +367,8 @@ namespace
+     };
+ }
+ 
++Files::ConfigurationManager *g_cfgMgr;
++
+ int runApplication(int argc, char *argv[])
+ {
+ #ifdef __APPLE__
+@@ -379,6 +381,7 @@ int runApplication(int argc, char *argv[])
+ 
+     osg::setNotifyHandler(new OSGLogHandler());
+     Files::ConfigurationManager cfgMgr;
++    g_cfgMgr = &cfgMgr;
+     std::unique_ptr<OMW::Engine> engine;
+     engine.reset(new OMW::Engine(cfgMgr));
+ 
+diff --git a/apps/openmw/mwgui/loadingscreen.cpp b/apps/openmw/mwgui/loadingscreen.cpp
+index 61fcacc..5a45082 100644
+--- a/apps/openmw/mwgui/loadingscreen.cpp
++++ b/apps/openmw/mwgui/loadingscreen.cpp
+@@ -310,6 +310,8 @@ namespace MWGui
+ 
+     void LoadingScreen::setupCopyFramebufferToTextureCallback()
+     {
++        return;
++
+         // Copy the current framebuffer onto a texture and display that texture as the background image
+         // Note, we could also set the camera to disable clearing and have the background image transparent,
+         // but then we get shaking effects on buffer swaps.
+diff --git a/apps/openmw/mwgui/settingswindow.cpp b/apps/openmw/mwgui/settingswindow.cpp
+index 3186b52..0d87e99 100644
+--- a/apps/openmw/mwgui/settingswindow.cpp
++++ b/apps/openmw/mwgui/settingswindow.cpp
+@@ -26,6 +26,7 @@
+ #include <components/resource/resourcesystem.hpp>
+ #include <components/resource/scenemanager.hpp>
+ #include <components/sceneutil/lightmanager.hpp>
++#include <components/files/configurationmanager.hpp>
+ 
+ #include "../mwbase/environment.hpp"
+ #include "../mwbase/world.hpp"
+@@ -136,9 +137,9 @@ namespace
+             box->setIndexSelected(MyGUI::ITEM_NONE);
+     }
+ 
+-    constexpr std::array<int, 5> shadowMapResolutions = { 512, 1024, 2048, 4096, 8192 };
+-    constexpr std::array<const char*, 5> shadowMapQualityNames =
+-        { "value.balanced", "value.high", "value.very_high", "value.detailed", "value.maximum" };
++    constexpr std::array<int, 2> shadowMapResolutions = { 512, 1024 };
++    constexpr std::array<const char*, 2> shadowMapQualityNames =
++        { "value.balanced", "value.high" };
+     constexpr std::array<const char*, 6> shadowPresetNames =
+         { "value.disabled", "value.actor", "value.npc", "value.object", "value.terrain", "value.indoor" };
+ 
+@@ -190,7 +191,7 @@ namespace
+         { "off", "balance", "performance", "aggressive" };
+ 
+     constexpr float landOptimizedDistanceMin = 4000.f;
+-    constexpr float landOptimizedDistanceMax = 40000.f;
++    constexpr float landOptimizedDistanceMax = 40960.f;
+     void clampOptimizedLandDistance(float distance)
+     {
+         distance = std::clamp(distance, landOptimizedDistanceMin, landOptimizedDistanceMax);
+@@ -215,10 +216,10 @@ namespace
+         return "balance";
+     }
+ 
+-    constexpr std::array<const char*, 3> waterShaderModeNames =
+-        { "value.off", "value.water_simple", "value.water_new" };
+-    constexpr std::array<const char*, 3> waterShaderModes =
+-        { "off", "simple", "new" };
++    constexpr std::array<const char*, 2> waterShaderModeNames =
++        { "value.off", "value.water_simple" };
++    constexpr std::array<const char*, 2> waterShaderModes =
++        { "off", "simple" };
+ 
+     std::string getWaterShaderMode()
+     {
+@@ -235,9 +236,9 @@ namespace
+             }
+         }
+ 
+-        // Migrate old ArenaMP profiles: shader=false was classic animated water,
+-        // shader=true was the current PBR water.
+-        return Settings::Manager::getBool("shader", "Water") ? "new" : "off";
++        // Migrate old profiles onto the stable mobile water path. Older
++        // shader=true profiles used PBR water; on Android they now map to simple.
++        return Settings::Manager::getBool("shader", "Water") ? "simple" : "off";
+     }
+ 
+     constexpr std::array<const char*, 5> materialQualityNames =
+@@ -267,26 +268,23 @@ namespace
+         return "balanced";
+     }
+ 
+-    constexpr std::array<const char*, 6> terrainPresetNames =
+-        { "value.minimum", "value.low", "value.balanced", "value.medium", "value.high", "value.ultra" };
+-    constexpr std::array<float, 6> terrainLod =
+-        { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
+-    constexpr std::array<int, 6> vertexLod =
+-        { -2, -2, -1, -1, 0, 1 };
+-    constexpr std::array<int, 6> compositeLevel =
+-        { -3, -3, -2, -2, -1, 0 };
+-    constexpr std::array<int, 6> compositeResolution =
+-        { 1024, 1024, 1024, 2048, 2048, 4096 };
+-    constexpr std::array<float, 6> maxCompositeGeometrySize =
+-        { 4.f, 4.f, 6.f, 8.f, 12.f, 16.f };
+-    constexpr std::array<float, 6> objectPagingMergeFactor =
+-        { 100000.f, 75000.f, 50000.f, 30000.f, 15000.f, 8000.f };
+-    constexpr std::array<float, 6> objectPagingMinSize =
+-        { 1.f, 0.85f, 0.65f, 0.50f, 0.35f, 0.25f };
+-
+-    constexpr size_t highTerrainPresetIndex = 4;
+-    constexpr size_t ultraMaterialQualityIndex = 4;
+-    constexpr size_t qualityMaterialQualityIndex = 3;
++    // Android/mobile-safe landscape presets. Medium is the upper bound.
++    constexpr std::array<const char*, 4> terrainPresetNames =
++        { "value.minimum", "value.low", "value.balanced", "value.medium" };
++    constexpr std::array<float, 4> terrainLod =
++        { 0.40f, 0.50f, 0.65f, 0.80f };
++    constexpr std::array<int, 4> vertexLod =
++        { -3, -2, -1, -1 };
++    constexpr std::array<int, 4> compositeLevel =
++        { -3, -3, -2, -2 };
++    constexpr std::array<int, 4> compositeResolution =
++        { 512, 1024, 1024, 2048 };
++    constexpr std::array<float, 4> maxCompositeGeometrySize =
++        { 4.f, 4.f, 6.f, 8.f };
++    constexpr std::array<float, 4> objectPagingMergeFactor =
++        { 80000.f, 75000.f, 50000.f, 30000.f };
++    constexpr std::array<float, 4> objectPagingMinSize =
++        { 1.f, 0.85f, 0.65f, 0.50f };
+ 
+     void applyTerrainPresetSettings(size_t pos)
+     {
+@@ -391,6 +389,8 @@ namespace
+     }
+ }
+ 
++extern Files::ConfigurationManager *g_cfgMgr;
++
+ namespace MWGui
+ {
+     void SettingsWindow::configureWidgets(MyGUI::Widget* widget, bool init)
+@@ -486,8 +486,6 @@ namespace MWGui
+         getWidget(mHudScroll, "HUDScroll");
+         getWidget(mDisplayScroll, "DisplayScroll");
+         getWidget(mWaterScroll, "WaterScroll");
+-        getWidget(mPbrScroll, "PbrScroll");
+-        getWidget(mHdrScroll, "HdrScroll");
+         getWidget(mOkButton, "OkButton");
+         getWidget(mResolutionList, "ResolutionList");
+         getWidget(mFullscreenButton, "FullscreenButton");
+@@ -504,9 +502,6 @@ namespace MWGui
+         getWidget(mWaterResetButton, "WaterResetButton");
+         getWidget(mLightingMethodButton, "LightingMethodButton");
+         getWidget(mLightsResetButton, "LightsResetButton");
+-        getWidget(mPbrResetButton, "PbrResetButton");
+-        getWidget(mHdrTonemapper, "HdrTonemapper");
+-        getWidget(mHdrResetButton, "HdrResetButton");
+         getWidget(mMaxLights, "MaxLights");
+         getWidget(mWeaponSpellBoxMode, "WeaponSpellBoxMode");
+         getWidget(mResourceBarMode, "ResourceBarMode");
+@@ -524,26 +519,27 @@ namespace MWGui
+ 
+         mMainWidget->setSize(settingsWindowWidth, settingsWindowHeight);
+ 
+-        // Must match the TabItem order in openmw_settings_window.layout.
+-        const std::array<const char*, 15> sectionKeys = {
+-            "settings.section.interface",
+-            "settings.section.hud",
+-            "settings.section.controls",
+-            "settings.subsection.display",
+-            "settings.subsection.quality",
+-            "settings.subsection.water",
+-            "settings.subsection.lighting",
+-            "settings.subsection.pbr",
+-            "settings.subsection.hdr",
+-            "settings.subsection.bloom",
+-            "settings.subsection.effects",
+-            "settings.subsection.world",
+-            "settings.subsection.shadows",
+-            "settings.section.audio",
+-            "settings.section.advanced",
+-        };
+-        for (const char* key : sectionKeys)
+-            mSectionList->addItem(arenaText(key));
++        // Keep this list in exactly the same order as the Android-visible sections.
++        // PBR, HDR, Bloom, Effects and Advanced are removed from the mobile layout.
++        // Shadows stay instantiated for safe startup wiring, but live shadow
++        // reconfiguration is hidden because it is unsafe on NG-GL4ES.
++        const std::array<std::pair<const char*, size_t>, 9> sections = {{
++            {"settings.section.interface", 0},
++            {"settings.section.hud", 1},
++            {"settings.section.controls", 2},
++            {"settings.subsection.display", 3},
++            {"settings.subsection.quality", 4},
++            {"settings.subsection.water", 5},
++            {"settings.subsection.lighting", 6},
++            {"settings.subsection.world", 7},
++            {"settings.section.audio", 9},
++        }};
++        mSectionTabIndices.clear();
++        for (const auto& section : sections)
++        {
++            mSectionList->addItem(arenaText(section.first));
++            mSectionTabIndices.push_back(section.second);
++        }
+         mSectionList->setIndexSelected(0);
+         mSettingsTab->setIndexSelected(0);
+ 
+@@ -576,16 +572,8 @@ namespace MWGui
+ 
+         mLightingMethodButton->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onLightingMethodButtonChanged);
+         mLightsResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onLightsResetButtonClicked);
+-        mPbrResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onPbrResetButtonClicked);
+         mMaxLights->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMaxLightsChanged);
+ 
+-        for (const char* name : hdrTonemapperNames)
+-            mHdrTonemapper->addItem(arenaText(name));
+-        mHdrTonemapper->eventComboChangePosition += MyGUI::newDelegate(
+-            this, &SettingsWindow::onHdrTonemapperChanged);
+-        mHdrResetButton->eventMouseButtonClick += MyGUI::newDelegate(
+-            this, &SettingsWindow::onHdrResetButtonClicked);
+-
+         mTextureFilteringButton->removeAllItems();
+         mTextureFilteringButton->addItem(arenaText("value.bilinear"));
+         mTextureFilteringButton->addItem(arenaText("value.trilinear"));
+@@ -633,10 +621,9 @@ namespace MWGui
+             mTerrainPreset->addItem(arenaText(name));
+         mTerrainPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTerrainPresetChanged);
+ 
+-        for (const char* name : materialQualityNames)
+-            mMaterialQuality->addItem(arenaText(name));
+-        mMaterialQuality->eventComboChangePosition += MyGUI::newDelegate(
+-            this, &SettingsWindow::onMaterialQualityChanged);
++        // PBR material quality is launcher-managed on Android and intentionally
++        // absent from the in-game Quality page to avoid live shader rebuilds.
++        mMaterialQuality->setVisible(false);
+ 
+         for (const char* name : landOptimizationModeNames)
+             mLandOptimizationMode->addItem(arenaText(name));
+@@ -705,7 +692,6 @@ namespace MWGui
+         updateChatModeCombo();
+         updateQuickLootModeCombo();
+         updateTerrainPresetCombo();
+-        updateMaterialQualityCombo();
+         updateLandOptimizationModeCombo();
+         updateLandDistanceControls();
+         updateShadowCombos();
+@@ -718,22 +704,29 @@ namespace MWGui
+ 
+     void SettingsWindow::onTabChanged(MyGUI::TabControl* /*_sender*/, size_t index)
+     {
+-        if (index < mSectionList->getItemCount() && mSectionList->getIndexSelected() != index)
+-            mSectionList->setIndexSelected(index);
++        const auto it = std::find(mSectionTabIndices.begin(), mSectionTabIndices.end(), index);
++        if (it != mSectionTabIndices.end())
++        {
++            const size_t visibleIndex = static_cast<size_t>(std::distance(mSectionTabIndices.begin(), it));
++            if (mSectionList->getIndexSelected() != visibleIndex)
++                mSectionList->setIndexSelected(visibleIndex);
++        }
+         configureWidgets(mMainWidget, false);
+         resetScrollbars();
+     }
+     void SettingsWindow::onSectionSelected(MyGUI::ListBox* /*_sender*/, size_t index)
+     {
+-        if (index == MyGUI::ITEM_NONE || index >= mSectionList->getItemCount())
++        if (index == MyGUI::ITEM_NONE || index >= mSectionTabIndices.size())
+             return;
+-        mSettingsTab->setIndexSelected(index);
++        mSettingsTab->setIndexSelected(mSectionTabIndices[index]);
+         configureWidgets(mMainWidget, false);
+         resetScrollbars();
+     }
+ 
+     void SettingsWindow::onOkButtonClicked(MyGUI::Widget* _sender)
+     {
++        const std::string settingspath = (g_cfgMgr->getUserConfigPath() / "settings.cfg").string();
++        Settings::Manager::saveUser(settingspath);
+         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Settings);
+     }
+ 
+@@ -978,7 +971,6 @@ namespace MWGui
+         for (const char* setting : settings)
+             Settings::Manager::setString(setting, "Shaders", Settings::Manager::mDefaultSettings[{"Shaders", setting}]);
+ 
+-        updateHdrTonemapperCombo();
+         configureWidgets(mMainWidget, false);
+         apply();
+     }
+@@ -1233,32 +1225,12 @@ namespace MWGui
+         // their detail/performance balance.
+         applyTerrainPresetSettings(pos);
+ 
+-        // Maximum PBR is intentionally tied to High/Ultra terrain. Lowering the
+-        // terrain preset automatically falls back to the Quality PBR mode.
+-        if (pos < highTerrainPresetIndex && getMaterialQualityMode() == "ultra")
+-        {
+-            applyMaterialQualitySettings(qualityMaterialQualityIndex);
+-            mMaterialQuality->setIndexSelected(qualityMaterialQualityIndex);
+-        }
+         apply();
+     }
+ 
+-    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t pos)
++    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t)
+     {
+-        if (pos == MyGUI::ITEM_NONE)
+-            return;
+-        pos = std::min(pos, materialQualityModes.size() - 1);
+-
+-        // Selecting Maximum PBR automatically raises landscape detail to High.
+-        // This keeps the expensive terrain POM/AO path from running on low-detail land.
+-        if (pos == ultraMaterialQualityIndex && getTerrainPresetPosition() < highTerrainPresetIndex)
+-        {
+-            applyTerrainPresetSettings(highTerrainPresetIndex);
+-            mTerrainPreset->setIndexSelected(highTerrainPresetIndex);
+-        }
+-
+-        applyMaterialQualitySettings(pos);
+-        apply();
++        // Intentionally inert on Android: material quality is not exposed here.
+     }
+ 
+     void SettingsWindow::onLandOptimizationModeChanged(MyGUI::ComboBox*, size_t pos)
+@@ -1439,7 +1411,7 @@ namespace MWGui
+                 return;
+             }
+         }
+-        mWaterShaderMode->setIndexSelected(2);
++        mWaterShaderMode->setIndexSelected(1);
+     }
+ 
+     void SettingsWindow::selectLightingMethod(const std::string& value)
+@@ -1550,14 +1522,12 @@ namespace MWGui
+         updateControlsBox();
+         updateWaterShaderModeCombo();
+         updateLightSettings();
+-        updateHdrTonemapperCombo();
+         updateWeaponSpellBoxModeCombo();
+         updateResourceBarModeCombo();
+         updateNpcBarModeCombo();
+         updateChatModeCombo();
+         updateQuickLootModeCombo();
+         updateTerrainPresetCombo();
+-        updateMaterialQualityCombo();
+         updateLandOptimizationModeCombo();
+         updateLandDistanceControls();
+         updateShadowCombos();
+@@ -1583,7 +1553,5 @@ namespace MWGui
+         mHudScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+         mDisplayScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+         mWaterScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+-        mPbrScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+-        mHdrScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+     }
+ }
+diff --git a/apps/openmw/mwgui/settingswindow.hpp b/apps/openmw/mwgui/settingswindow.hpp
+index 55fe09e..364baaa 100644
+--- a/apps/openmw/mwgui/settingswindow.hpp
++++ b/apps/openmw/mwgui/settingswindow.hpp
+@@ -24,6 +24,7 @@ namespace MWGui
+     protected:
+             MyGUI::TabControl* mSettingsTab;
+             MyGUI::ListBox* mSectionList;
++            std::vector<size_t> mSectionTabIndices;
+             MyGUI::ScrollView* mInterfaceScroll;
+             MyGUI::ScrollView* mHudScroll;
+             MyGUI::ScrollView* mDisplayScroll;
+diff --git a/apps/openmw/mwgui/windowmanagerimp.cpp b/apps/openmw/mwgui/windowmanagerimp.cpp
+index 53f4cb1..0733393 100644
+--- a/apps/openmw/mwgui/windowmanagerimp.cpp
++++ b/apps/openmw/mwgui/windowmanagerimp.cpp
+@@ -2000,7 +2000,7 @@ namespace MWGui
+ 
+     bool WindowManager::getCursorVisible()
+     {
+-        return mCursorVisible && mCursorActive;
++        return mCursorVisible;
+     }
+ 
+     void WindowManager::trackWindow(Layout *layout, const std::string &name)
+diff --git a/apps/openmw/mwinput/bindingsmanager.cpp b/apps/openmw/mwinput/bindingsmanager.cpp
+index 3435814..693dd1d 100644
+--- a/apps/openmw/mwinput/bindingsmanager.cpp
++++ b/apps/openmw/mwinput/bindingsmanager.cpp
+@@ -710,6 +710,17 @@ namespace MWInput
+             bool joystickUsed = MWBase::Environment::get().getInputManager()->joystickLastUsed();
+             if (action == A_Use)
+             {
++                // ArenaMW mobile: while QuickLoot is visible, the normal attack/use
++                // button takes the selected row instead of starting an attack/cast.
++                // Release still clears the attack state normally.
++                if (currentValue == 1.0
++                    && MWBase::Environment::get().getWindowManager()->isQuickLootVisible()
++                    && MWBase::Environment::get().getWindowManager()->activateQuickLoot())
++                {
++                    MWBase::Environment::get().getWorld()->getPlayer().setAttackingOrSpell(false);
++                    return;
++                }
++
+                 if (joystickUsed && currentValue == 1.0 && actionIsActive(A_ToggleWeapon))
+                     action = A_CycleWeaponRight;
+ 
+diff --git a/apps/openmw/mwphysics/actorconvexcallback.cpp b/apps/openmw/mwphysics/actorconvexcallback.cpp
+index 25c3e23..1e46c95 100644
+--- a/apps/openmw/mwphysics/actorconvexcallback.cpp
++++ b/apps/openmw/mwphysics/actorconvexcallback.cpp
+@@ -5,118 +5,14 @@
+ #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
+ 
+ #include <components/misc/convert.hpp>
+-#include <components/settings/settings.hpp>
+ 
+-#include "../mwbase/environment.hpp"
+-#include "../mwbase/world.hpp"
+-#include "../mwworld/class.hpp"
+ 
+ #include "actor.hpp"
+ #include "projectile.hpp"
+ 
+-#include <algorithm>
+-#include <cmath>
+ 
+ namespace MWPhysics
+ {
+-    namespace
+-    {
+-        float clampPassScale(float value)
+-        {
+-            // Values below this start to feel like actors can walk through each other,
+-            // while values above 1 would make the passage problem worse.
+-            return std::clamp(value, 0.35f, 1.0f);
+-        }
+-
+-        float getActorPassScale(const Actor* actorA, const Actor* actorB)
+-        {
+-            if (actorA == nullptr || actorB == nullptr)
+-                return 1.f;
+-
+-            const MWWorld::ConstPtr ptrA = actorA->getPtr();
+-            const MWWorld::ConstPtr ptrB = actorB->getPtr();
+-
+-            // Keep creatures and non-NPC actors on the original collision behaviour.
+-            // The compact passage feature is intended specifically for humanoid NPCs.
+-            if (!ptrA.getClass().isNpc() || !ptrB.getClass().isNpc())
+-                return 1.f;
+-
+-            const MWWorld::ConstPtr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+-            const bool involvesPlayer = ptrA == player || ptrB == player;
+-            static const float playerNpcScale
+-                = clampPassScale(Settings::Manager::getFloat("npc pass collision scale", "Game"));
+-            static const float npcNpcScale
+-                = clampPassScale(Settings::Manager::getFloat("npc to npc collision scale", "Game"));
+-            return involvesPlayer ? playerNpcScale : npcNpcScale;
+-        }
+-
+-        bool compactActorSweep(const Actor* actorA, const Actor* actorB, const btCollisionObject* objectA,
+-            const btCollisionObject* objectB, const btVector3& invertedMotion, float scale,
+-            btScalar& hitFraction, btVector3& hitNormal)
+-        {
+-            if (actorA == nullptr || actorB == nullptr || scale >= 0.999f)
+-                return false;
+-
+-            // Actor-vs-actor passage uses a cylinder-like horizontal footprint while
+-            // keeping the original collision boxes registered in Bullet. As a result,
+-            // melee/projectile/raycast hit detection and world collision remain unchanged.
+-            const osg::Vec3f halfA = actorA->getHalfExtents();
+-            const osg::Vec3f halfB = actorB->getHalfExtents();
+-            const btScalar radiusA = std::max(halfA.x(), halfA.y()) * scale;
+-            const btScalar radiusB = std::max(halfB.x(), halfB.y()) * scale;
+-            const btScalar combinedRadius = radiusA + radiusB;
+-
+-            const btVector3 start = objectA->getWorldTransform().getOrigin();
+-            const btVector3 end = start - invertedMotion;
+-            const btVector3 other = objectB->getWorldTransform().getOrigin();
+-
+-            btVector3 relative = start - other;
+-            btVector3 movement = end - start;
+-            relative.setZ(0);
+-            movement.setZ(0);
+-
+-            const btScalar a = movement.length2();
+-            const btScalar c = relative.length2() - combinedRadius * combinedRadius;
+-            btScalar fraction = 0;
+-
+-            if (c > 0)
+-            {
+-                if (a <= SIMD_EPSILON)
+-                    return false;
+-
+-                const btScalar b = 2 * relative.dot(movement);
+-                const btScalar discriminant = b * b - 4 * a * c;
+-                if (discriminant < 0)
+-                    return false;
+-
+-                fraction = (-b - btSqrt(discriminant)) / (2 * a);
+-                if (fraction < 0 || fraction > 1)
+-                    return false;
+-            }
+-
+-            // Do not make actors on different vertical levels block each other.
+-            const btScalar zAtHit = start.z() + (end.z() - start.z()) * fraction;
+-            const btScalar verticalReach = halfA.z() + halfB.z();
+-            if (btFabs(zAtHit - other.z()) > verticalReach)
+-                return false;
+-
+-            btVector3 normal = relative + movement * fraction;
+-            normal.setZ(0);
+-            if (normal.length2() <= SIMD_EPSILON)
+-            {
+-                normal = -movement;
+-                normal.setZ(0);
+-            }
+-            if (normal.length2() <= SIMD_EPSILON)
+-                return false;
+-
+-            normal.normalize();
+-            hitFraction = fraction;
+-            hitNormal = normal;
+-            return true;
+-        }
+-    }
+-
+     class ActorOverlapTester : public btCollisionWorld::ContactResultCallback
+     {
+     public:
+@@ -152,33 +48,7 @@ namespace MWPhysics
+         // For some reason this doesn't work as well as it should when using capsules, but it still helps a lot.
+         if(convexResult.m_hitCollisionObject->getBroadphaseHandle()->m_collisionFilterGroup == CollisionType_Actor)
+         {
+-            const auto* meActor = static_cast<const Actor*>(mMe->getUserPointer());
+-            const auto* hitActor = static_cast<const Actor*>(convexResult.m_hitCollisionObject->getUserPointer());
+-            const float passScale = getActorPassScale(meActor, hitActor);
+-
+-            if (passScale < 0.999f)
+-            {
+-                btScalar compactFraction = 1;
+-                btVector3 compactNormal(0, 0, 0);
+-                if (!compactActorSweep(meActor, hitActor, mMe, convexResult.m_hitCollisionObject, mMotion,
+-                        passScale, compactFraction, compactNormal))
+-                    return btScalar(1);
+-
+-                // If another obstacle is already closer, this actor must not replace it.
+-                if (compactFraction >= m_closestHitFraction)
+-                    return btScalar(1);
+-
+-                // The motion vector is intentionally inverted in ActorTracer.
+-                if (compactNormal.dot(mMotion) > 0.0f)
+-                {
+-                    convexResult.m_hitFraction = compactFraction;
+-                    convexResult.m_hitNormalLocal = compactNormal;
+-                    return ClosestConvexResultCallback::addSingleResult(convexResult, true);
+-                }
+-                return btScalar(1);
+-            }
+-
+-            // Original OpenMW/vanilla-compatible actor collision path.
++            // Stock OpenMW/vanilla-compatible actor collision path.
+             ActorOverlapTester isOverlapping;
+             // FIXME: This is absolutely terrible and bullet should feel terrible for not making contactPairTest const-correct.
+             ContactTestWrapper::contactPairTest(const_cast<btCollisionWorld*>(mWorld), const_cast<btCollisionObject*>(mMe), const_cast<btCollisionObject*>(convexResult.m_hitCollisionObject), isOverlapping);
+diff --git a/apps/openmw/mwrender/characterpreview.cpp b/apps/openmw/mwrender/characterpreview.cpp
+index c4f2229..ba39426 100644
+--- a/apps/openmw/mwrender/characterpreview.cpp
++++ b/apps/openmw/mwrender/characterpreview.cpp
+@@ -208,8 +208,12 @@ namespace MWRender
+         dummyTexture->setInternalFormat(GL_DEPTH_COMPONENT);
+         dummyTexture->setTextureSize(1, 1);
+         // This might clash with a shadow map, so make sure it doesn't cast shadows
++#if defined(__ANDROID__)
++        dummyTexture->setShadowComparison(false);
++#else
+         dummyTexture->setShadowComparison(true);
+         dummyTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+         stateset->setTextureAttributeAndModes(7, dummyTexture, osg::StateAttribute::ON);
+         stateset->setTextureAttribute(7, noBlendAlphaEnv, osg::StateAttribute::ON);
+         stateset->addUniform(new osg::Uniform("noAlpha", true));
+diff --git a/apps/openmw/mwrender/nativeeffects.cpp b/apps/openmw/mwrender/nativeeffects.cpp
+index b645084..f5158ab 100644
+--- a/apps/openmw/mwrender/nativeeffects.cpp
++++ b/apps/openmw/mwrender/nativeeffects.cpp
+@@ -371,9 +371,9 @@ namespace MWRender
+ 
+     void NativeEffectsProcessor::captureWorldDepthBeforeFirstPersonClear(osg::RenderInfo& renderInfo)
+     {
+-        NativeEffectsProcessor* processor = sActiveProcessor.load(std::memory_order_acquire);
+-        if (processor)
+-            processor->captureWorldDepth(renderInfo);
++        // Disabled on the Android compatibility renderer. Copying world depth
++        // before the first-person clear can produce a black frame on GLES/gl4es.
++        (void)renderInfo;
+     }
+ 
+     void NativeEffectsProcessor::reloadSettings()
+@@ -383,8 +383,10 @@ namespace MWRender
+ 
+         mSmaaEnabled = Settings::Manager::getBool("smaa enabled", "Shaders");
+         mBloomEnabled = Settings::Manager::getBool("bloom enabled", "Shaders");
+-        mAtmosphericFogEnabled = Settings::Manager::getBool("atmospheric fog enabled", "Shaders");
+-        mGodRaysEnabled = Settings::Manager::getBool("god rays enabled", "Shaders");
++        // Hard-disable the native depth-dependent effects on Android builder
++        // profiles. Stale settings.cfg values must never reactivate them.
++        mAtmosphericFogEnabled = false;
++        mGodRaysEnabled = false;
+         mSharpeningEnabled = Settings::Manager::getBool("sharpening enabled", "Shaders");
+         mDitheringEnabled = Settings::Manager::getBool("dithering enabled", "Shaders");
+ 
+@@ -420,7 +422,7 @@ namespace MWRender
+ 
+         Log(Debug::Info) << "ArenaMP native effects: fog=" << (mAtmosphericFogEnabled ? "on" : "off")
+                          << ", godRays=" << (mGodRaysEnabled ? "on" : "off")
+-                         << ", firstPersonWorldDepthBridge=on";
++                         << ", firstPersonWorldDepthBridge=off";
+     }
+ 
+     void NativeEffectsProcessor::setEnvironment(const osg::Vec4f& fogColor, float fogStart, float fogEnd,
+diff --git a/apps/openmw/mwrender/renderingmanager.cpp b/apps/openmw/mwrender/renderingmanager.cpp
+index 2db91a1..6ab3bc4 100644
+--- a/apps/openmw/mwrender/renderingmanager.cpp
++++ b/apps/openmw/mwrender/renderingmanager.cpp
+@@ -102,7 +102,6 @@ namespace
+     constexpr float sLandOptimizationDistanceResponse = 4.f;
+     constexpr float sLandOptimizationSmoothingMaxFrameTime = 0.1f;
+     constexpr float sLandOptimizationMinimumScale = 0.5f;
+-    constexpr float sLandOptimizationShadowDistanceRatio = 0.25f;
+     constexpr float sLandOptimizationGroundcoverDistanceRatio = 0.40f;
+ 
+     int getMaterialQualityLevel()
+@@ -237,7 +236,8 @@ namespace MWRender
+                 uniform->set(Settings::Manager::getBool("adaptive softness", "Shadows") ? 1.0f : 0.0f);
+             if (osg::Uniform* uniform = stateset->getUniform("arenaShadowTexelSize"))
+             {
+-                const int shadowMapResolution = std::max(1, Settings::Manager::getInt("shadow map resolution", "Shadows"));
++                const int shadowMapResolution
++                    = std::clamp(Settings::Manager::getInt("shadow map resolution", "Shadows"), 1, 1024);
+                 uniform->set(1.0f / static_cast<float>(shadowMapResolution));
+             }
+         }
+@@ -954,7 +954,7 @@ namespace MWRender
+         Nif::NIFFile::setLoadUnsupportedFiles(Settings::Manager::getBool("load unsupported nif files", "Models"));
+ 
+         mNearClip = Settings::Manager::getFloat("near clip", "Camera");
+-        mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
++        mConfiguredViewDistance = std::clamp(Settings::Manager::getFloat("viewing distance", "Camera"), 2500.f, 40960.f);
+         mViewDistance = mConfiguredViewDistance;
+         mLandOptimizationDistance = mConfiguredViewDistance;
+         updateLandOptimizationProfile();
+@@ -1774,10 +1774,13 @@ namespace MWRender
+ 
+         if (mShadowManager)
+         {
+-            const float shadowDistance = mLandOptimizationEnabled
+-                ? mConfiguredViewDistance * sLandOptimizationShadowDistanceRatio
+-                : std::max(0.f, Settings::Manager::getFloat("maximum shadow map distance", "Shadows"));
+-            mShadowManager->setMaximumShadowMapDistance(shadowDistance * adaptiveDistanceScale);
++            // Shadow distance is an explicit user setting. Land optimization must not
++            // replace 8192 with 25% of world distance or apply adaptive scaling again.
++            // Keep this independent from dynamic terrain distance; the mobile hard cap
++            // is already 8192, so the selected value remains predictable and safe.
++            const float configuredShadowDistance = std::clamp(
++                Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
++            mShadowManager->setMaximumShadowMapDistance(configuredShadowDistance);
+         }
+     }
+ 
+@@ -2012,7 +2015,7 @@ namespace MWRender
+             }
+             else if (setting.first == "Camera" && setting.second == "viewing distance")
+             {
+-                mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
++                mConfiguredViewDistance = std::clamp(Settings::Manager::getFloat("viewing distance", "Camera"), 2500.f, 40960.f);
+                 updateLandOptimizationProfile();
+                 mLandOptimizationDistance = mConfiguredViewDistance;
+                 resetLandOptimization(false);
+diff --git a/apps/openmw/mwrender/sky.cpp b/apps/openmw/mwrender/sky.cpp
+index 39e569c..7c029ec 100644
+--- a/apps/openmw/mwrender/sky.cpp
++++ b/apps/openmw/mwrender/sky.cpp
+@@ -548,7 +548,15 @@ private:
+     osg::ref_ptr<osg::OcclusionQueryNode> createOcclusionQueryNode(osg::Group* parent, bool queryVisible)
+     {
+         osg::ref_ptr<osg::OcclusionQueryNode> oqn = new osg::OcclusionQueryNode;
++#if defined(__ANDROID__)
++        // OSG OcclusionQueryNode takes ownership of the main camera pre/post draw callbacks.
++        // ArenaMW also uses those callbacks for its render pipeline, which makes OSG emit
++        // "osgOQ: QG: Invalid RQCB" on Android/GL4ES. Keep the sun itself but disable
++        // only its visibility queries on Android; sun glare/flash simply stay hidden.
++        oqn->setQueriesEnabled(false);
++#else
+         oqn->setQueriesEnabled(true);
++#endif
+ 
+ #if OSG_VERSION_GREATER_OR_EQUAL(3, 6, 5)
+         // With OSG 3.6.5, the method of providing user defined query geometry has been completely replaced
+diff --git a/apps/openmw/mwrender/water.cpp b/apps/openmw/mwrender/water.cpp
+index 1c56dcf..a538164 100644
+--- a/apps/openmw/mwrender/water.cpp
++++ b/apps/openmw/mwrender/water.cpp
+@@ -627,11 +627,16 @@ void Water::updateWaterMaterial()
+     if (modeIt != Settings::Manager::mUserSettings.end())
+         shaderWaterMode = modeIt->second;
+     else
+-        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "new" : "off";
++        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "simple" : "off";
+ 
+     Misc::StringUtils::lowerCaseInPlace(shaderWaterMode);
+     if (shaderWaterMode != "off" && shaderWaterMode != "simple" && shaderWaterMode != "new")
+-        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "new" : "off";
++        shaderWaterMode = Settings::Manager::getBool("shader", "Water") ? "simple" : "off";
++#if defined(__ANDROID__)
++    // Keep the PBR code available in source, but never select it in the Android build.
++    if (shaderWaterMode == "new")
++        shaderWaterMode = "simple";
++#endif
+ 
+     const bool shaderWaterEnabled = shaderWaterMode != "off";
+     const bool pbrWaterEnabled = shaderWaterMode == "new";
+@@ -749,12 +754,13 @@ void Water::createShaderWaterStateSet(osg::Node* node, Reflection* reflection, R
+     if (pbr)
+     {
+         vertexShader = shaderMgr.getShader("water_pbr_vertex.glsl", defineMap, osg::Shader::VERTEX);
++#if defined(__ANDROID__)
++        fragmentShader = shaderMgr.getShader("water_pbr_android_fragment.glsl", defineMap, osg::Shader::FRAGMENT);
++#else
+         fragmentShader = shaderMgr.getShader("water_pbr_fragment.glsl", defineMap, osg::Shader::FRAGMENT);
+-
+-        // Keep the previous ArenaMP water shader as a parse-time fallback. This
+-        // protects old GPUs/configurations from a missing PBR resource.
++#endif
+         if (!vertexShader || !fragmentShader)
+-            Log(Debug::Error) << "PBR water shader template failed to load, falling back to ArenaMP simple water shader";
++            Log(Debug::Warning) << "Failed to load PBR water shaders, falling back to legacy water";
+     }
+ 
+     if (!pbr || !vertexShader || !fragmentShader)
+diff --git a/components/debug/debugging.cpp b/components/debug/debugging.cpp
+index 9ba32d0..0f893b0 100644
+--- a/components/debug/debugging.cpp
++++ b/components/debug/debugging.cpp
+@@ -13,6 +13,8 @@
+ #   include <windows.h>
+ #endif
+ 
++#include <osgViewer/Viewer>
++
+ namespace Debug
+ {
+ #ifdef _WIN32
+@@ -161,6 +163,8 @@ std::ostream& getRawStdout()
+     return rawStdout ? *rawStdout : std::cout;
+ }
+ 
++extern osg::ref_ptr<osgViewer::Viewer> g_viewer;
++
+ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, char *argv[], const std::string& appName)
+ {
+ #if defined _WIN32
+@@ -224,6 +228,7 @@ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, c
+     }
+     catch (const std::exception& e)
+     {
++        g_viewer.release();
+ #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
+         if (!isatty(fileno(stdin)))
+ #endif
+diff --git a/components/misc/stringops.hpp b/components/misc/stringops.hpp
+index 48deaa9..3c2fe68 100644
+--- a/components/misc/stringops.hpp
++++ b/components/misc/stringops.hpp
+@@ -4,6 +4,7 @@
+ #include <cctype>
+ #include <string>
+ #include <algorithm>
++#include <boost/format.hpp>
+ 
+ #include "utf8stream.hpp"
+ 
+@@ -232,13 +233,7 @@ public:
+     template <typename ... Args>
+     static std::string format(const char* fmt, Args const & ... args)
+     {
+-        auto size = std::snprintf(nullptr, 0, fmt, argument(args) ...);
+-        // Note: sprintf also writes a trailing null character. We should remove it.
+-        std::string ret(size+1, '\0');
+-        std::sprintf(&ret[0], fmt, argument(args) ...);
+-        ret.erase(size);
+-
+-        return ret;
++        return boost::str((boost::format(fmt) % ... % args));
+     }
+ 
+     template <typename ... Args>
+diff --git a/components/sceneutil/mwshadowtechnique.cpp b/components/sceneutil/mwshadowtechnique.cpp
+index 01df3d2..c87d09d 100644
+--- a/components/sceneutil/mwshadowtechnique.cpp
++++ b/components/sceneutil/mwshadowtechnique.cpp
+@@ -549,17 +549,28 @@ MWShadowTechnique::ShadowData::ShadowData(MWShadowTechnique::ViewDependentData*
+     else
+     {
+         _texture->setInternalFormat(GL_DEPTH_COMPONENT);
++#if defined(__ANDROID__)
++        // GLES V6: expose raw depth to sampler2D and do the comparison/PCF in
++        // shadows_fragment.glsl. This avoids NG-GL4ES shadow2D conversion bugs.
++        _texture->setShadowComparison(false);
++#else
+         _texture->setShadowComparison(true);
+         _texture->setShadowTextureMode(osg::Texture2D::LUMINANCE);
++#endif
+     }
+ 
+     _texture->setFilter(osg::Texture2D::MIN_FILTER,osg::Texture2D::LINEAR);
+     _texture->setFilter(osg::Texture2D::MAG_FILTER,osg::Texture2D::LINEAR);
+ 
+     // the shadow comparison should fail if object is outside the texture
++#if defined(__ANDROID__)
++    _texture->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::CLAMP_TO_EDGE);
++    _texture->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::CLAMP_TO_EDGE);
++#else
+     _texture->setWrap(osg::Texture2D::WRAP_S,osg::Texture2D::CLAMP_TO_BORDER);
+     _texture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::CLAMP_TO_BORDER);
+     _texture->setBorderColor(osg::Vec4(1.0f,1.0f,1.0f,1.0f));
++#endif
+     //_texture->setBorderColor(osg::Vec4(0.0f,0.0f,0.0f,0.0f));
+ 
+     // set up the camera
+@@ -1436,9 +1447,42 @@ void MWShadowTechnique::cull(osgUtil::CullVisitor& cv)
+                 }
+             }
+ 
+-            // 4.4 compute main scene graph TexGen + uniform settings + setup state
++            // 4.4 compute main scene graph shadow-coordinate state.
+             //
++#if defined(__ANDROID__)
++            // OpenGL ES has no fixed-function TexGen/gl_EyePlane* state.  Build
++            // the same transform explicitly and upload it to the receiving
++            // shaders.  validRegionMatrix already uses the same main-eye ->
++            // light-space convention above; the extra bias maps clip space
++            // from [-1,1] to shadow texture coordinates [0,1].
++            osg::Matrix shadowTextureMatrix = cv.getCurrentCamera()->getInverseViewMatrix()
++                * camera->getViewMatrix()
++                * camera->getProjectionMatrix()
++                * osg::Matrix::translate(1.0, 1.0, 1.0)
++                * osg::Matrix::scale(0.5, 0.5, 0.5);
++
++            const std::string shadowMatrixUniformName = "shadowTextureMatrix" + std::to_string(sm_i);
++            osg::ref_ptr<osg::Uniform> shadowMatrixUniform;
++            for (auto uniform : _uniforms[cv.getTraversalNumber() % 2])
++            {
++                if (uniform->getName() == shadowMatrixUniformName)
++                {
++                    shadowMatrixUniform = uniform;
++                    break;
++                }
++            }
++
++            if (!shadowMatrixUniform)
++            {
++                shadowMatrixUniform = new osg::Uniform(osg::Uniform::FLOAT_MAT4, shadowMatrixUniformName);
++                _uniforms[cv.getTraversalNumber() % 2].push_back(shadowMatrixUniform);
++            }
++            shadowMatrixUniform->set(shadowTextureMatrix);
++#else
++            // Desktop compatibility path keeps OSG's fixed-function EYE_LINEAR
++            // TexGen and the legacy gl_EyePlane* shader built-ins.
+             assignTexGenSettings(&cv, camera.get(), textureUnit, sd->_texgen.get());
++#endif
+ 
+             // mark the light as one that has active shadows and requires shaders
+             pl.textureUnits.push_back(textureUnit);
+@@ -1641,8 +1685,12 @@ void MWShadowTechnique::createShaders()
+         _fallbackShadowMapTexture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::REPEAT);
+         _fallbackShadowMapTexture->setFilter(osg::Texture2D::MIN_FILTER,osg::Texture2D::NEAREST);
+         _fallbackShadowMapTexture->setFilter(osg::Texture2D::MAG_FILTER,osg::Texture2D::NEAREST);
++#if defined(__ANDROID__)
++        _fallbackShadowMapTexture->setShadowComparison(false);
++#else
+         _fallbackShadowMapTexture->setShadowComparison(true);
+         _fallbackShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+ 
+     }
+ 
+@@ -3108,10 +3156,14 @@ osg::StateSet* MWShadowTechnique::prepareStateSetForRenderingShadow(ViewDependen
+ 
+         stateset->setTextureAttributeAndModes(sd._textureUnit, sd._texture.get(), shadowMapModeValue);
+ 
++#if !defined(__ANDROID__)
++        // Fixed-function texture coordinate generation is not part of GLES.
++        // Android receiving shaders use shadowTextureMatrixN uniforms instead.
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_S,osg::StateAttribute::ON);
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_T,osg::StateAttribute::ON);
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_R,osg::StateAttribute::ON);
+         stateset->setTextureMode(sd._textureUnit,GL_TEXTURE_GEN_Q,osg::StateAttribute::ON);
++#endif
+     }
+ 
+     return stateset;
+diff --git a/components/sceneutil/shadow.cpp b/components/sceneutil/shadow.cpp
+index 5707e6e..e8fabb1 100644
+--- a/components/sceneutil/shadow.cpp
++++ b/components/sceneutil/shadow.cpp
+@@ -32,7 +32,8 @@ namespace SceneUtil
+         mShadowSettings->setNumShadowMapsPerLight(numberOfShadowMapsPerLight);
+         mShadowSettings->setBaseShadowTextureUnit(8 - numberOfShadowMapsPerLight);
+ 
+-        const float maximumShadowMapDistance = Settings::Manager::getFloat("maximum shadow map distance", "Shadows");
++        const float maximumShadowMapDistance
++            = std::clamp(Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
+         if (maximumShadowMapDistance > 0)
+         {
+             const float shadowFadeStart = std::min(std::max(0.f, Settings::Manager::getFloat("shadow fade start", "Shadows")), 1.f);
+@@ -48,7 +49,7 @@ namespace SceneUtil
+         else if (Misc::StringUtils::lowerCase(computeSceneBounds) == "bounds")
+             mShadowSettings->setComputeNearFarModeOverride(osg::CullSettings::COMPUTE_NEAR_FAR_USING_BOUNDING_VOLUMES);
+ 
+-        int mapres = Settings::Manager::getInt("shadow map resolution", "Shadows");
++        const int mapres = std::clamp(Settings::Manager::getInt("shadow map resolution", "Shadows"), 1, 1024);
+         mShadowSettings->setTextureSize(osg::Vec2s(mapres, mapres));
+ 
+         mShadowTechnique->setSplitPointUniformLogarithmicRatio(Settings::Manager::getFloat("split point uniform logarithmic ratio", "Shadows"));
+@@ -106,8 +107,12 @@ namespace SceneUtil
+         fakeShadowMapImage->allocateImage(1, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT);
+         *(float*)fakeShadowMapImage->data() = std::numeric_limits<float>::infinity();
+         osg::ref_ptr<osg::Texture> fakeShadowMapTexture = new osg::Texture2D(fakeShadowMapImage);
++#if defined(__ANDROID__)
++        fakeShadowMapTexture->setShadowComparison(false);
++#else
+         fakeShadowMapTexture->setShadowComparison(true);
+         fakeShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
++#endif
+         for (int i = baseShadowTextureUnit; i < baseShadowTextureUnit + numberOfShadowMapsPerLight; ++i)
+         {
+             stateset->setTextureAttributeAndModes(i, fakeShadowMapTexture, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED);
+@@ -143,6 +148,11 @@ namespace SceneUtil
+         Shader::ShaderManager::DefineMap definesWithShadows;
+ 
+         definesWithShadows["shadows_enabled"] = "1";
++#if defined(__ANDROID__)
++        definesWithShadows["androidGLES"] = "1";
++#else
++        definesWithShadows["androidGLES"] = "0";
++#endif
+ 
+         for (unsigned int i = 0; i < mShadowSettings->getNumShadowMapsPerLight(); ++i)
+             definesWithShadows["shadow_texture_unit_list"] += std::to_string(i) + ",";
+@@ -170,6 +180,11 @@ namespace SceneUtil
+         Shader::ShaderManager::DefineMap definesWithoutShadows;
+ 
+         definesWithoutShadows["shadows_enabled"] = "0";
++#if defined(__ANDROID__)
++        definesWithoutShadows["androidGLES"] = "1";
++#else
++        definesWithoutShadows["androidGLES"] = "0";
++#endif
+ 
+         definesWithoutShadows["shadow_texture_unit_list"] = "";
+ 
+diff --git a/components/settings/settings.hpp b/components/settings/settings.hpp
+index e5165a2..828e072 100644
+--- a/components/settings/settings.hpp
++++ b/components/settings/settings.hpp
+@@ -41,7 +41,7 @@ namespace Settings
+         void loadUser (const std::string& file);
+         ///< load file as user settings
+ 
+-        void saveUser (const std::string& file);
++        static void saveUser (const std::string& file);
+         ///< save user settings to file
+ 
+         static void setUserSettingsPath(const std::string& file);
+diff --git a/files/mygui/openmw_hud.layout b/files/mygui/openmw_hud.layout
+index 5c9970c..e34568b 100644
+--- a/files/mygui/openmw_hud.layout
++++ b/files/mygui/openmw_hud.layout
+@@ -6,7 +6,7 @@
+         <Widget type="Widget" position="0 0 300 200" name="GameplayHud" align="Stretch">
+             <Property key="NeedMouse" value="false"/>
+ 	
+-        <Widget type="TextBox" skin="SandBrightText" position="8 6 72 22" name="FpsText" align="Left Top">
++        <Widget type="TextBox" skin="SandBrightText" position="96 6 72 22" name="FpsText" align="Left Top">
+             <Property key="NeedMouse" value="false"/>
+             <Property key="TextAlign" value="Left"/>
+             <Property key="TextShadow" value="true"/>
+diff --git a/files/mygui/openmw_settings_window.layout b/files/mygui/openmw_settings_window.layout
+index 2dc625b..788672c 100644
+--- a/files/mygui/openmw_settings_window.layout
++++ b/files/mygui/openmw_settings_window.layout
+@@ -391,32 +391,6 @@
+                 <Property key="Caption" value="#{arenamp=settings.window_border}"/>
+               </Widget>
+             </Widget>
+-            <Widget type="HBox" skin="" position="244 100 206 24">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" name="SmaaButton">
+-                <Property key="ExpandDirection" value="Right"/>
+-                <UserString key="SettingCategory" value="Shaders"/>
+-                <UserString key="SettingName" value="smaa enabled"/>
+-                <UserString key="SettingType" value="CheckButton"/>
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="30 4 170 18">
+-                <Property key="Caption" value="#{arenamp=settings.display.smaa_enabled}"/>
+-              </Widget>
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="244 132 206 18" name="SmaaThresholdLabel">
+-              <Property key="Caption" value="#{arenamp=settings.display.smaa_threshold}"/>
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="244 152 206 16">
+-              <Property key="Range" value="101"/>
+-              <Property key="Page" value="1"/>
+-              <UserString key="SettingType" value="Slider"/>
+-              <UserString key="SettingCategory" value="Shaders"/>
+-              <UserString key="SettingName" value="smaa threshold"/>
+-              <UserString key="SettingValueType" value="Float"/>
+-              <UserString key="SettingMin" value="0.03"/>
+-              <UserString key="SettingMax" value="0.30"/>
+-              <UserString key="SettingLabelWidget" value="SmaaThresholdLabel"/>
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.display.smaa_threshold}"/>
+-            </Widget>
+             <Widget type="TextBox" skin="NormalText" position="8 236 442 18" name="FovText">
+               <Property key="Caption" value="#{arenamp=settings.fov}"/>
+             </Widget>
+@@ -565,14 +539,14 @@
+               <Property key="Caption" value="#{sRender_Distance}" />
+             </Widget>
+             <Widget type="ScrollBar" skin="MW_HScroll" position="0 28 462 16" name="LargeRenderingDistanceSlider">
+-              <Property key="Range" value="79421" />
+-              <Property key="Page" value="2048" />
++              <Property key="Range" value="38461" />
++              <Property key="Page" value="512" />
+               <UserString key="SettingType" value="Slider" />
+               <UserString key="SettingCategory" value="Camera" />
+               <UserString key="SettingName" value="viewing distance" />
+               <UserString key="SettingValueType" value="Cell" />
+               <UserString key="SettingMin" value="2500" />
+-              <UserString key="SettingMax" value="81920" />
++              <UserString key="SettingMax" value="40960" />
+               <UserString key="SettingLabelWidget" value="RenderDistanceLabel" />
+               <UserString key="SettingLabelCaption" value="#{sRender_Distance} (x%s)" />
+             </Widget>
+@@ -592,14 +566,14 @@
+               <UserString key="Caption_Text" value="#{arenamp=settings.tooltip.optimized_distance}" />
+             </Widget>
+             <Widget type="ScrollBar" skin="MW_HScroll" position="0 28 462 16" name="OptimizedRenderingDistanceSlider">
+-              <Property key="Range" value="36001" />
++              <Property key="Range" value="36961" />
+               <Property key="Page" value="100" />
+               <UserString key="SettingType" value="Slider" />
+               <UserString key="SettingCategory" value="Camera" />
+               <UserString key="SettingName" value="viewing distance" />
+               <UserString key="SettingValueType" value="Integer" />
+               <UserString key="SettingMin" value="4000" />
+-              <UserString key="SettingMax" value="40000" />
++              <UserString key="SettingMax" value="40960" />
+               <UserString key="SettingLabelWidget" value="OptimizedRenderDistanceLabel" />
+               <UserString key="SettingLabelCaption" value="#{arenamp=settings.optimized_distance_value}" />
+             </Widget>
+@@ -607,7 +581,7 @@
+               <Property key="Caption" value="4 000" />
+             </Widget>
+             <Widget type="TextBox" skin="SandText" position="362 46 100 16">
+-              <Property key="Caption" value="40 000" />
++              <Property key="Caption" value="40 960" />
+               <Property key="TextAlign" value="Right" />
+             </Widget>
+           </Widget>
+@@ -842,334 +816,6 @@
+             <Property key="Caption" value="#{arenamp=settings.reset_defaults}" />
+           </Widget>
+         </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.pbr}" />
+-          <Widget type="ScrollView" skin="MW_ScrollView" position="4 4 478 400" align="Left Top" name="PbrScroll">
+-            <Property key="CanvasAlign" value="Left Top" />
+-            <Property key="CanvasSize" value="458 404" />
+-            <Widget type="HBox" skin="" position="8 8 442 24">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-                <Property key="ExpandDirection" value="Right" />
+-                <UserString key="SettingCategory" value="Shaders" />
+-                <UserString key="SettingName" value="enhanced pbr lighting" />
+-                <UserString key="SettingType" value="CheckButton" />
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 370 18">
+-                <Property key="Caption" value="#{arenamp=settings.pbr_enabled}" />
+-              </Widget>
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 44 442 18" name="PbrDiffuseLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_diffuse_response}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 64 442 16">
+-              <Property key="Range" value="101" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr diffuse response" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="1.0" />
+-              <UserString key="SettingLabelWidget" value="PbrDiffuseLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_diffuse_response}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 96 442 18" name="PbrObjectRoughnessLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_object_roughness}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 116 442 16">
+-              <Property key="Range" value="93" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr object roughness" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.08" />
+-              <UserString key="SettingMax" value="1.0" />
+-              <UserString key="SettingLabelWidget" value="PbrObjectRoughnessLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_object_roughness}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 148 442 18" name="PbrTerrainRoughnessLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_terrain_roughness}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 168 442 16">
+-              <Property key="Range" value="93" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr terrain roughness" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.08" />
+-              <UserString key="SettingMax" value="1.0" />
+-              <UserString key="SettingLabelWidget" value="PbrTerrainRoughnessLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_terrain_roughness}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 200 442 18" name="PbrSpecularLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_specular_strength}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 220 442 16">
+-              <Property key="Range" value="251" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr specular strength" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="2.5" />
+-              <UserString key="SettingLabelWidget" value="PbrSpecularLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_specular_strength}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 252 442 18" name="PbrAmbientLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_ambient_strength}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 272 442 16">
+-              <Property key="Range" value="151" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr ambient strength" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="1.5" />
+-              <UserString key="SettingLabelWidget" value="PbrAmbientLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_ambient_strength}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 304 442 18" name="PbrSubsurfaceLabel">
+-              <Property key="Caption" value="#{arenamp=settings.pbr_subsurface_strength}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 324 442 16">
+-              <Property key="Range" value="151" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="pbr subsurface strength" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="1.5" />
+-              <UserString key="SettingLabelWidget" value="PbrSubsurfaceLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.pbr_subsurface_strength}" />
+-            </Widget>
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="8 356 160 24" name="PbrResetButton">
+-              <Property key="Caption" value="#{arenamp=settings.reset_defaults}" />
+-            </Widget>
+-          </Widget>
+-        </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.hdr}" />
+-          <Widget type="ScrollView" skin="MW_ScrollView" position="4 4 478 400" align="Left Top" name="HdrScroll">
+-            <Property key="CanvasAlign" value="Left Top" />
+-            <Property key="CanvasSize" value="458 468" />
+-            <Widget type="HBox" skin="" position="8 8 442 24">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-                <Property key="ExpandDirection" value="Right" />
+-                <UserString key="SettingCategory" value="Shaders" />
+-                <UserString key="SettingName" value="hdr lighting" />
+-                <UserString key="SettingType" value="CheckButton" />
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 370 18">
+-                <Property key="Caption" value="#{arenamp=settings.hdr_enabled}" />
+-              </Widget>
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 44 442 18">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_tonemapper}" />
+-            </Widget>
+-            <Widget type="ComboBox" skin="MW_ComboBox" position="8 66 260 24" name="HdrTonemapper" />
+-            <Widget type="TextBox" skin="NormalText" position="8 104 442 18" name="HdrExposureLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_exposure}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 126 442 16">
+-              <Property key="Range" value="276" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr exposure" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.25" />
+-              <UserString key="SettingMax" value="3.0" />
+-              <UserString key="SettingLabelWidget" value="HdrExposureLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_exposure}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 156 442 18" name="HdrInteriorExposureLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_interior_exposure}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 178 442 16">
+-              <Property key="Range" value="301" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr interior exposure" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="-1.0" />
+-              <UserString key="SettingMax" value="2.0" />
+-              <UserString key="SettingLabelWidget" value="HdrInteriorExposureLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_interior_exposure}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 208 442 18" name="HdrNightExposureLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_night_exposure}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 230 442 16">
+-              <Property key="Range" value="301" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr night exposure" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="-1.0" />
+-              <UserString key="SettingMax" value="2.0" />
+-              <UserString key="SettingLabelWidget" value="HdrNightExposureLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_night_exposure}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 260 442 18" name="HdrGammaLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_gamma}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 282 442 16">
+-              <Property key="Range" value="201" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr gamma" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="1.0" />
+-              <UserString key="SettingMax" value="3.0" />
+-              <UserString key="SettingLabelWidget" value="HdrGammaLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_gamma}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 312 442 18" name="HdrBrightnessLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_brightness}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 334 442 16">
+-              <Property key="Range" value="151" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr brightness" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.5" />
+-              <UserString key="SettingMax" value="2.0" />
+-              <UserString key="SettingLabelWidget" value="HdrBrightnessLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_brightness}" />
+-            </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="8 364 442 18" name="HdrSaturationLabel">
+-              <Property key="Caption" value="#{arenamp=settings.hdr_saturation}" />
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 386 442 16">
+-              <Property key="Range" value="251" />
+-              <Property key="Page" value="1" />
+-              <UserString key="SettingType" value="Slider" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="hdr saturation" />
+-              <UserString key="SettingValueType" value="Float" />
+-              <UserString key="SettingMin" value="0.0" />
+-              <UserString key="SettingMax" value="2.5" />
+-              <UserString key="SettingLabelWidget" value="HdrSaturationLabel" />
+-              <UserString key="SettingLabelCaption" value="#{arenamp=settings.hdr_saturation}" />
+-            </Widget>
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="8 430 180 24" name="HdrResetButton">
+-              <Property key="Caption" value="#{arenamp=settings.reset_hdr}" />
+-            </Widget>
+-          </Widget>
+-        </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.bloom}" />
+-          <Widget type="HBox" skin="" position="8 8 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Shaders" />
+-              <UserString key="SettingName" value="bloom enabled" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18">
+-              <Property key="Caption" value="#{arenamp=settings.bloom_enabled}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 48 462 18" name="BloomIntensityLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_intensity}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 70 462 16">
+-            <Property key="Range" value="301" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom intensity" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.0" />
+-            <UserString key="SettingMax" value="3.0" />
+-            <UserString key="SettingLabelWidget" value="BloomIntensityLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_intensity}" />
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 108 462 18" name="BloomThresholdLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_threshold}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 130 462 16">
+-            <Property key="Range" value="201" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom threshold" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.0" />
+-            <UserString key="SettingMax" value="2.0" />
+-            <UserString key="SettingLabelWidget" value="BloomThresholdLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_threshold}" />
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 168 462 18" name="BloomSoftKneeLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_soft_knee}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 190 462 16">
+-            <Property key="Range" value="101" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom soft knee" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.0" />
+-            <UserString key="SettingMax" value="1.0" />
+-            <UserString key="SettingLabelWidget" value="BloomSoftKneeLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_soft_knee}" />
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 228 462 18" name="BloomRadiusLabel">
+-            <Property key="Caption" value="#{arenamp=settings.bloom_radius}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 250 462 16">
+-            <Property key="Range" value="156" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Shaders" />
+-            <UserString key="SettingName" value="bloom radius" />
+-            <UserString key="SettingValueType" value="Float" />
+-            <UserString key="SettingMin" value="0.5" />
+-            <UserString key="SettingMax" value="8.0" />
+-            <UserString key="SettingLabelWidget" value="BloomRadiusLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.bloom_radius}" />
+-          </Widget>
+-        </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.subsection.effects}"/>
+-          <Widget type="HBox" skin="" position="8 8 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="atmospheric fog enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.atmospheric_fog_enabled}"/></Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 42 462 18" name="AtmosFogStrengthLabel"><Property key="Caption" value="#{arenamp=settings.atmospheric_fog_strength}"/></Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 62 462 16"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="atmospheric fog strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="AtmosFogStrengthLabel"/><UserString key="SettingLabelCaption" value="#{arenamp=settings.atmospheric_fog_strength}"/></Widget>
+-
+-          <Widget type="HBox" skin="" position="8 94 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="god rays enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.god_rays_enabled}"/></Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 128 462 18" name="GodRaysStrengthLabel"><Property key="Caption" value="#{arenamp=settings.god_rays_strength}"/></Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 148 462 16"><Property key="Range" value="151"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="god rays strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.5"/><UserString key="SettingLabelWidget" value="GodRaysStrengthLabel"/><UserString key="SettingLabelCaption" value="#{arenamp=settings.god_rays_strength}"/></Widget>
+-
+-          <Widget type="HBox" skin="" position="8 180 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="sharpening enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.sharpening_enabled}"/></Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 214 462 18" name="SharpeningStrengthLabel"><Property key="Caption" value="#{arenamp=settings.sharpening_strength}"/></Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 234 462 16"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="sharpening strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="SharpeningStrengthLabel"/><UserString key="SettingLabelCaption" value="#{arenamp=settings.sharpening_strength}"/></Widget>
+-
+-          <Widget type="HBox" skin="" position="8 274 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="dithering enabled"/><UserString key="SettingType" value="CheckButton"/></Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 390 18"><Property key="Caption" value="#{arenamp=settings.dithering_enabled}"/></Widget>
+-          </Widget>
+-        </Widget>
+         <Widget type="TabItem" skin="" position="4 32 486 412">
+           <Property key="Caption" value="#{arenamp=settings.subsection.world}" />
+           <Widget type="HBox" skin="" position="8 8 462 24">
+@@ -1355,83 +1001,6 @@
+             <UserString key="SettingValueType" value="Float" />
+           </Widget>
+         </Widget>
+-        <Widget type="TabItem" skin="" position="4 32 486 412">
+-          <Property key="Caption" value="#{arenamp=settings.section.advanced}" />
+-          <Widget type="TextBox" skin="NormalText" position="8 8 462 18">
+-            <Property key="Caption" value="#{arenamp=settings.subsection.preload}" />
+-          </Widget>
+-          <Widget type="ImageBox" skin="MW_HLine" position="8 28 462 2" />
+-          <Widget type="HBox" skin="" position="8 40 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload enabled" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_enabled}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 70 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload exterior grid" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_exterior}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 100 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload instances" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_instances}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 130 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload doors" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_doors}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="HBox" skin="" position="8 160 462 24">
+-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24">
+-              <Property key="ExpandDirection" value="Right" />
+-              <UserString key="SettingCategory" value="Cells" />
+-              <UserString key="SettingName" value="preload fast travel" />
+-              <UserString key="SettingType" value="CheckButton" />
+-            </Widget>
+-            <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 380 18">
+-              <Property key="Caption" value="#{arenamp=settings.preload_travel}" />
+-            </Widget>
+-          </Widget>
+-          <Widget type="TextBox" skin="NormalText" position="8 202 462 18" name="PreloadDistanceLabel">
+-            <Property key="Caption" value="#{arenamp=settings.preload_distance}" />
+-          </Widget>
+-          <Widget type="ScrollBar" skin="MW_HScroll" position="8 224 462 16">
+-            <Property key="Range" value="129" />
+-            <Property key="Page" value="1" />
+-            <UserString key="SettingType" value="Slider" />
+-            <UserString key="SettingCategory" value="Cells" />
+-            <UserString key="SettingName" value="preload distance" />
+-            <UserString key="SettingValueType" value="Integer" />
+-            <UserString key="SettingMin" value="0" />
+-            <UserString key="SettingMax" value="8192" />
+-            <UserString key="SettingLabelWidget" value="PreloadDistanceLabel" />
+-            <UserString key="SettingLabelCaption" value="#{arenamp=settings.preload_distance}" />
+-          </Widget>
+-        </Widget>
+       </Widget>
+     </Widget>
+     <Widget type="AutoSizedButton" skin="MW_Button" position="526 462 96 24" align="Left Top" name="OkButton">
+diff --git a/files/settings-default.cfg b/files/settings-default.cfg
+index 85b32e6..3eea6c5 100644
+--- a/files/settings-default.cfg
++++ b/files/settings-default.cfg
+@@ -254,11 +254,10 @@ smooth movement player turning delay = 0.333
+ NPCs avoid collisions = true
+ NPCs give way = true
+ 
+-# Movement-only spacing between humanoid actors. These values do not shrink
+-# weapon/projectile hit detection or collision with world geometry.
+-# 1.0 = original spacing, 0.75/0.88 = compact recommended defaults.
+-npc pass collision scale = 0.75
+-npc to npc collision scale = 0.88
++# Stock OpenMW actor-to-actor collision spacing.
++# Keep these at 1.0 on Android; the compact sweep path is disabled.
++npc pass collision scale = 1.0
++npc to npc collision scale = 1.0
+ 
+ swim upward correction = true
+ 
+@@ -563,14 +562,14 @@ object vbo = true
+ object display lists = true
+ 
+ [Water]
+-# Water rendering mode: off, simple, new.
+-# "simple" uses ArenaMP legacy water shaders; "new" uses the current PBR water.
+-shader mode = new
++# Android/mobile default: stable simple shader-water path.
++# The PBR/new path remains in source for future work but is not selected on Android.
++shader mode = simple
+ # Legacy compatibility key kept in sync by the in-game selector.
+ shader = true
+-rtt size = 512
+-refraction = true
+-reflection detail = 3
++rtt size = 256
++refraction = false
++reflection detail = 2
+ 
+ # Runtime caustics multiplier. Valid UI range: 0.0 to 3.0.
+ caustics intensity = 1.0
+diff --git a/files/shaders/CMakeLists.txt b/files/shaders/CMakeLists.txt
+index f54be80..607c658 100644
+--- a/files/shaders/CMakeLists.txt
++++ b/files/shaders/CMakeLists.txt
+@@ -24,6 +24,8 @@ set(SHADER_FILES
+     water_fragment.glsl
+     water_pbr_vertex.glsl
+     water_pbr_fragment.glsl
++    water_pbr_android_fragment.glsl
++    water_pbr_android_data.glsl
+     water_pbr_compat.glsl
+     water_pbr_rain_ripples.glsl
+     water_pbr_data.glsl
+diff --git a/files/shaders/shadowcasting_vertex.glsl b/files/shaders/shadowcasting_vertex.glsl
+index e36f21a..ab7d787 100644
+--- a/files/shaders/shadowcasting_vertex.glsl
++++ b/files/shaders/shadowcasting_vertex.glsl
+@@ -5,8 +5,8 @@ varying vec2 diffuseMapUV;
+ varying float alphaPassthrough;
+ 
+ uniform int colorMode;
+-uniform bool useDiffuseMapForShadowAlpha = true;
+-uniform bool alphaTestShadows = true;
++uniform bool useDiffuseMapForShadowAlpha;
++uniform bool alphaTestShadows;
+ 
+ void main(void)
+ {
+diff --git a/files/shaders/shadows_fragment.glsl b/files/shaders/shadows_fragment.glsl
+index 1f6c12c..e2aa989 100644
+--- a/files/shaders/shadows_fragment.glsl
++++ b/files/shaders/shadows_fragment.glsl
+@@ -4,7 +4,11 @@
+     uniform float maximumShadowMapDistance;
+     uniform float shadowFadeStart;
+     @foreach shadow_texture_unit_index @shadow_texture_unit_list
++#if @androidGLES
++        uniform sampler2D shadowTexture@shadow_texture_unit_index;
++#else
+         uniform sampler2DShadow shadowTexture@shadow_texture_unit_index;
++#endif
+         varying vec4 shadowSpaceCoords@shadow_texture_unit_index;
+ 
+ #if @perspectiveShadowMaps
+@@ -13,6 +17,7 @@
+     @endforeach
+ #endif // SHADOWS
+ 
++#if SHADOWS
+ // Runtime shadow filtering. The enhanced path is adapted from the optimized
+ // PCF ideas in Enhanced Shadows, but keeps ArenaMP's existing cascade selection,
+ // normal/polygon offsets and arbitrary shadow-map resolution.
+@@ -21,7 +26,25 @@ uniform float arenaShadowSoftness;
+ uniform float arenaShadowAdaptiveSoftness;
+ uniform float arenaShadowTexelSize;
+ 
+-float sampleShadowLegacy(sampler2DShadow shadowMap, vec4 shadowCoords)
++#if @androidGLES
++    #define ARENA_SHADOW_SAMPLER sampler2D
++
++float sampleShadowTapAndroid(sampler2D shadowMap, vec3 coords)
++{
++    // GLES path samples raw depth and performs LEQUAL manually. Bounds are
++    // checked in shader, so CLAMP_TO_EDGE is sufficient on mobile GPUs.
++    if (coords.x <= 0.0 || coords.x >= 1.0 || coords.y <= 0.0 || coords.y >= 1.0 || coords.z <= 0.0 || coords.z >= 1.0)
++        return 1.0;
++    float storedDepth = texture2D(shadowMap, coords.xy).r;
++    // Small receiver bias compensates for mobile depth precision; the engine's
++    // polygon/normal offsets remain the primary acne control.
++    return step(coords.z - 0.00035, storedDepth);
++}
++#else
++    #define ARENA_SHADOW_SAMPLER sampler2DShadow
++#endif
++
++float sampleShadowLegacy(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords)
+ {
+     float shadow = 0.0;
+     vec3 coords = shadowCoords.xyz / shadowCoords.w;
+@@ -34,13 +57,17 @@ float sampleShadowLegacy(sampler2DShadow shadowMap, vec4 shadowCoords)
+         for(float x = -1.0; x <= 1.0; x += 1.0)
+         {
+             vec2 offset = vec2(x, y) * texelSize;
++#if @androidGLES
++            shadow += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + offset, coords.z));
++#else
+             shadow += shadow2D(shadowMap, vec3(coords.xy + offset, coords.z)).r;
++#endif
+         }
+     }
+     return shadow / 9.0;
+ }
+ 
+-float sampleShadowEnhanced(sampler2DShadow shadowMap, vec4 shadowCoords, float distance)
++float sampleShadowEnhanced(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords, float distance)
+ {
+     vec3 coords = shadowCoords.xyz / shadowCoords.w;
+     float texel = max(arenaShadowTexelSize, 0.000001);
+@@ -61,24 +88,59 @@ float sampleShadowEnhanced(sampler2DShadow shadowMap, vec4 shadowCoords, float d
+     // Eight low-discrepancy taps. Each shadow2D lookup can itself use hardware
+     // bilinear comparison, giving a much smoother penumbra than the old fixed
+     // 3x3 kernel without hard-coding a specific map resolution.
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.3604,  0.2232) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.3604,  0.2232) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.2434, -0.3508) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.2434, -0.3508) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.3766,  0.2692) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.3766,  0.2692) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.3056, -0.3618) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.3056, -0.3618) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.6034, -0.4808) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.6034, -0.4808) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.5266,  0.4492) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.5266,  0.4492) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2( 0.1034,  0.6292) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2( 0.1034,  0.6292) * scale, coords.z)).r;
++#endif
++#if @androidGLES
++    sum += sampleShadowTapAndroid(shadowMap, vec3(coords.xy + vec2(-0.5766, -0.5208) * scale, coords.z));
++#else
+     sum += shadow2D(shadowMap, vec3(coords.xy + vec2(-0.5766, -0.5208) * scale, coords.z)).r;
++#endif
+     return sum * 0.125;
+ }
+ 
+-float sampleShadowArena(sampler2DShadow shadowMap, vec4 shadowCoords, float distance)
++float sampleShadowArena(ARENA_SHADOW_SAMPLER shadowMap, vec4 shadowCoords, float distance)
+ {
+     if (arenaEnhancedShadowFiltering >= 0.5)
+         return sampleShadowEnhanced(shadowMap, shadowCoords, distance);
+     return sampleShadowLegacy(shadowMap, shadowCoords);
+ }
+ 
++#undef ARENA_SHADOW_SAMPLER
++#endif // SHADOWS
++
+ float unshadowedLightRatio(float distance)
+ {
+     float shadowing = 1.0;
+diff --git a/files/shaders/shadows_vertex.glsl b/files/shaders/shadows_vertex.glsl
+index f96e1a6..1c8c135 100644
+--- a/files/shaders/shadows_vertex.glsl
++++ b/files/shaders/shadows_vertex.glsl
+@@ -2,7 +2,14 @@
+ 
+ #if SHADOWS
+     @foreach shadow_texture_unit_index @shadow_texture_unit_list
++#if @androidGLES
++        // OSG 3.6.x TexGen is fixed-function only and is unavailable in GLES.
++        // ArenaMW supplies this eye-space -> shadow-texture matrix from the
++        // shadow technique on Android instead of reading gl_EyePlane*.
++        uniform mat4 shadowTextureMatrix@shadow_texture_unit_index;
++#else
+         uniform int shadowTextureUnit@shadow_texture_unit_index;
++#endif
+         varying vec4 shadowSpaceCoords@shadow_texture_unit_index;
+ 
+ #if @perspectiveShadowMaps
+@@ -18,19 +25,45 @@
+ void setupShadowCoords(vec4 viewPos, vec3 viewNormal)
+ {
+ #if SHADOWS
+-    // This matrix has the opposite handedness to the others used here, so multiplication must have the vector to the left. Alternatively it could be transposed after construction, but that's extra work for the GPU just to make the code look a tiny bit cleaner.
+-    mat4 eyePlaneMat;
+     vec4 shadowOffset;
+-    @foreach shadow_texture_unit_index @shadow_texture_unit_list
+-        eyePlaneMat = mat4(gl_EyePlaneS[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneT[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneR[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneQ[shadowTextureUnit@shadow_texture_unit_index]);
++#if !@androidGLES
++    // Desktop compatibility path: OSG/OpenGL fixed-function TexGen exposes
++    // the generated eye planes through the legacy GLSL built-ins.
++    mat4 eyePlaneMat;
++#endif
+ 
++    @foreach shadow_texture_unit_index @shadow_texture_unit_list
+ #if @perspectiveShadowMaps
+         shadowRegionCoords@shadow_texture_unit_index = validRegionMatrix@shadow_texture_unit_index * viewPos;
+ #endif
+-        
+-#if @disableNormalOffsetShadows
+-        shadowSpaceCoords@shadow_texture_unit_index = viewPos * eyePlaneMat;
++
++#if @androidGLES
++        // Native GLES has no gl_EyePlaneS/T/R/Q.  The CPU provides the exact
++        // main-eye -> light-view -> light-projection -> [0,1] texture matrix.
++    #if @disableNormalOffsetShadows
++        shadowSpaceCoords@shadow_texture_unit_index = shadowTextureMatrix@shadow_texture_unit_index * viewPos;
++    #else
++        shadowOffset = vec4(viewNormal * @shadowNormalOffset, 0.0);
++
++        if (onlyNormalOffsetUV)
++        {
++            shadowSpaceCoords@shadow_texture_unit_index = shadowTextureMatrix@shadow_texture_unit_index * viewPos;
++
++            vec4 lightSpaceXY = shadowTextureMatrix@shadow_texture_unit_index * (viewPos + shadowOffset);
++            shadowSpaceCoords@shadow_texture_unit_index.xy = lightSpaceXY.xy;
++        }
++        else
++        {
++            shadowSpaceCoords@shadow_texture_unit_index = shadowTextureMatrix@shadow_texture_unit_index * (viewPos + shadowOffset);
++        }
++    #endif
+ #else
++        // Desktop path retained bit-for-bit in behaviour.
++        eyePlaneMat = mat4(gl_EyePlaneS[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneT[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneR[shadowTextureUnit@shadow_texture_unit_index], gl_EyePlaneQ[shadowTextureUnit@shadow_texture_unit_index]);
++
++    #if @disableNormalOffsetShadows
++        shadowSpaceCoords@shadow_texture_unit_index = viewPos * eyePlaneMat;
++    #else
+         shadowOffset = vec4(viewNormal * @shadowNormalOffset, 0.0);
+ 
+         if (onlyNormalOffsetUV)
+@@ -47,7 +80,8 @@ void setupShadowCoords(vec4 viewPos, vec3 viewNormal)
+             vec4 offsetViewPosition = viewPos + shadowOffset;
+             shadowSpaceCoords@shadow_texture_unit_index = offsetViewPosition * eyePlaneMat;
+         }
++    #endif
+ #endif
+     @endforeach
+ #endif // SHADOWS
+-}
+\ No newline at end of file
++}
+diff --git a/files/shaders/water_fragment.glsl b/files/shaders/water_fragment.glsl
+index 8911fce..c7978d4 100644
+--- a/files/shaders/water_fragment.glsl
++++ b/files/shaders/water_fragment.glsl
+@@ -232,16 +232,15 @@ vec4 rainCombined(vec2 uv, float time, float intensity)
+ // ========================================================================
+ 
+ float fresnelDielectric(vec3 I, vec3 N, float eta) {
+-    float c = abs(dot(I, N));
+-    float g = eta * eta - 1.0 + c * c;
+-    
+-    if (g > 0.0) {
+-        g = sqrt(g);
+-        float A = (g - c) / (g + c);
+-        float B = (c * (g + c) - 1.0) / (c * (g - c) + 1.0);
+-        return 0.5 * A * A * (1.0 + B * B);
+-    }
+-    return 1.0;
++    // Schlick is a very close fit for water and avoids sqrt + several divisions
++    // in the exact dielectric equation on every fragment.
++    float c = clamp(abs(dot(I, N)), 0.0, 1.0);
++    float r = (1.0 - eta) / (1.0 + eta);
++    float r0 = r * r;
++    float x = 1.0 - c;
++    float x2 = x * x;
++    float x5 = x2 * x2 * x;
++    return r0 + (1.0 - r0) * x5;
+ }
+ 
+ // ========================================================================
+@@ -487,8 +486,9 @@ void main(void) {
+     vec3 n2 = texture2D(normalMap, waveCoords(UV, 0.25, 0.035, wTime,
+              vec2(-0.02, -0.015), n1.xy)).rgb * 2.0 - 1.0;
+ 
+-    vec3 n3 = texture2D(normalMap, waveCoords(UV, 0.5, 0.045, wTime,
+-             vec2(0.015, 0.02), n2.xy)).rgb * 2.0 - 1.0;
++    // Mobile fast path: reuse the mid-frequency sample as the fine layer.
++    // This removes one dependent normal-map fetch for every visible water pixel.
++    vec3 n3 = n2;
+     
+     // ========================================================================
+     // ДОЖДЬ (только вблизи) - НОВАЯ АСИНХРОННАЯ СИСТЕМА
+diff --git a/files/shaders/water_waves.glsl b/files/shaders/water_waves.glsl
+index 886f4d9..9379625 100644
+--- a/files/shaders/water_waves.glsl
++++ b/files/shaders/water_waves.glsl
+@@ -44,7 +44,11 @@ float znoise(float p) {
+ float znoise2(vec2 n) {
+     const vec2 d = vec2(0.0, 1.0);
+     vec2 b = floor(n);
+-    vec2 f = smoothstep(vec2(0.0), vec2(1.0), fract(n));
++    // NG-GL4ES simple shader converter on Android generates only a scalar
++    // smoothstep helper for this call and then fails to assign it to vec2.
++    // This is exactly smoothstep(0,1,x) written explicitly per component.
++    vec2 f = fract(n);
++    f = f * f * (3.0 - 2.0 * f);
+     return mix(
+         mix(zrand2(b), zrand2(b + d.yx), f.x),
+         mix(zrand2(b + d.xy), zrand2(b + d.yy), f.x),
+diff --git a/files/ui/graphicspage.ui b/files/ui/graphicspage.ui
+index df7cdbb..66816fc 100644
+--- a/files/ui/graphicspage.ui
++++ b/files/ui/graphicspage.ui
+@@ -516,7 +516,7 @@
+              <number>512</number>
+             </property>
+             <property name="maximum">
+-             <number>81920</number>
++             <number>40960</number>
+             </property>
+             <property name="value">
+              <number>8192</number>
+diff --git a/files/shaders/water_pbr_android_data.glsl b/files/shaders/water_pbr_android_data.glsl
+new file mode 100644
+index 0000000..f5f98d7
+--- /dev/null
++++ b/files/shaders/water_pbr_android_data.glsl
+@@ -0,0 +1,452 @@
++// Recommended to set in-game Water Texture Quality to High (if Refraction is disabled then set it to Low), and Water Reflections to Sky and to use Wetworld Water SSR instead for reflections.
++
++// Set to 0 instead of 1 to disable different features
++#define FOAM_ENABLED 1
++#define WATER_SSS_ENABLED 1
++#define MULTIPLE_WATER_TYPES 1
++#define WATER_MULTICOLOR_ENABLED 1
++#define CAUSTICS_ENABLED 0 // works only if in-game refractions are enabled
++#define SUB_SURFACE_ABSORPTION_ENABLED 1 // works only if in-game refractions are enabled
++
++// Can tweak each color channel   (Red,      Green,    Blue, );
++const vec3 WATER_COLOR_1    = vec3(0.0,      0.04,     -0.015); // phytoplankton
++const vec3 WATER_COLOR_2    = vec3(0.03,     0.04,     -0.01 ); // sediment
++const vec3 WATER_SSS_COLOR  = vec3(0.02,     0.23,      0.25 ); // cyan
++
++// For example, for a more stylized look:
++// const vec3 WATER_COLOR_1  = vec3(0.085,    0.09,     -0.05 );
++// const vec3 WATER_COLOR_2  = vec3(-0.07,    0.095,    0.08  );
++
++// Different water types              (Red,     Green,  Blue,   Absorption);
++const vec4 WATER_COLOR_SEA      = vec4(0.031,   0.092,  0.147,  0.00359600);
++const vec4 WATER_COLOR_CALM     = vec4(0.039,   0.113,  0.107,  0.00229600);
++const vec4 WATER_COLOR_SWAMP    = vec4(0.233,   0.211,  0.131,  0.00529600);
++const vec4 WATER_COLOR_SULPHUR  = vec4(0.093,   0.131,  0.181,  0.00229600);
++const vec4 WATER_COLOR_TROPICAL = vec4(0.200,   0.379,  0.424,  0.00269600);
++const vec4 WATER_COLOR_INTERIOR = vec4(0.063,   0.131,  0.171,  0.00219600);
++
++// Additional parameters for others      (  Wave Strength, Multicolor Intensity, Foam Intensity, Refraction Brightness);
++const vec4 WATER_SEA_PARAMS_1 =      vec4(           1.00,                 1.00,           1.00,                  0.85);
++const vec4 WATER_CALM_PARAMS_1 =     vec4(           0.65,                 0.50,           0.65,                  0.85);
++const vec4 WATER_SWAMP_PARAMS_1 =    vec4(           0.65,                 0.00,           0.65,                  0.75);
++const vec4 WATER_SULPHUR_PARAMS_1 =  vec4(           0.40,                 0.50,           0.65,                  0.65);
++const vec4 WATER_TROPICAL_PARAMS_1 = vec4(           0.80,                 1.00,           1.00,                  0.90);
++const vec4 WATER_INTERIOR_PARAMS_1 = vec4(           0.50,                 0.50,           0.00,                  0.85);
++
++// Part 2 - parameters for others        ( SSS Intensity,    Shore sulphur, Caustic Intensity, Shore Distance Modifier);
++const vec4 WATER_SEA_PARAMS_2 =      vec4(           1.0,              0.0,               0.5,                     0.0);
++const vec4 WATER_CALM_PARAMS_2 =     vec4(           0.5,              0.0,               0.4,                     0.0);
++const vec4 WATER_SWAMP_PARAMS_2 =    vec4(           0.0,              0.0,               0.4,                     0.0);
++const vec4 WATER_SULPHUR_PARAMS_2 =  vec4(           0.2,              1.0,               0.5,                     0.0);
++const vec4 WATER_TROPICAL_PARAMS_2 = vec4(           0.9,              0.0,               0.6,                     0.0);
++const vec4 WATER_INTERIOR_PARAMS_2 = vec4(           0.0,              0.0,               0.6,                     0.0);
++
++// Helper function
++void UpdateWaterFactor(inout float factor, vec3 worldPos, vec4 boundsMinMax, vec2 center, vec2 halfSize, float blendDist)
++{
++    if (factor < 1.0
++        && worldPos.x >= boundsMinMax.x && worldPos.x <= boundsMinMax.z
++        && worldPos.y >= boundsMinMax.y && worldPos.y <= boundsMinMax.w)
++    {
++        vec2 d = abs(worldPos.xy - center) - halfSize;
++        float sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
++        if (sdf < 0.0)
++            factor = max(factor, smoothstep(0.0, blendDist, sdf));
++    }
++}
++
++void UpdateWaterTypes(vec3 worldPos, bool isInterior, inout vec4 baseWaterColor,
++    inout float waveStrength, inout float multicolorIntensity, inout float foamIntensity, inout float refractionBrightness,
++    inout float sssIntensity, inout float shoreSulphurIntensity, inout float shoreDistanceModifier)
++{
++    // Early out if interior water
++    if (isInterior)
++    {
++        baseWaterColor = WATER_COLOR_INTERIOR;
++        waveStrength = WATER_INTERIOR_PARAMS_1.x;
++        multicolorIntensity = WATER_INTERIOR_PARAMS_1.y;
++        foamIntensity = WATER_INTERIOR_PARAMS_1.z;
++        refractionBrightness = WATER_INTERIOR_PARAMS_1.w;
++        sssIntensity = WATER_INTERIOR_PARAMS_2.x;
++        shoreSulphurIntensity = WATER_INTERIOR_PARAMS_2.y;
++        shoreDistanceModifier = WATER_INTERIOR_PARAMS_2.w;
++        return;
++    }
++
++    // Initialize
++    float calmFactor = 0.0;
++    float swampFactor = 0.0;
++    float sulphurFactor = 0.0;
++    float tropicalFactor = 0.0;
++    vec4 params1 = WATER_SEA_PARAMS_1;
++    vec4 params2 = WATER_SEA_PARAMS_2;
++
++    // Box surrounding the Vvardenfell boxes (update if you exceed these bounds)
++    const vec4 vvBox = vec4(154000.0, 174500.0, -103000.0, -76000.0);
++    if (worldPos.x <= vvBox.x && worldPos.x >= vvBox.z
++        && worldPos.y <= vvBox.y && worldPos.y >= vvBox.w)
++    {
++        // Odai River
++        const vec2 calmStart1 = vec2(-3500.0, 0.0); // one corner (whichever one you want)
++        const vec2 calmEnd1 = vec2(-50000.0, -58000.0); // opposite corner (order doesn't matter)
++
++        // S Vvardenfell
++        const vec2 calmStart2 = vec2(136000.0, 5200.0);
++        const vec2 calmEnd2 = vec2(-41000.0, -76000.0);
++
++        // Gnisis & West Gash
++        const vec2 calmStart3 = vec2(-54500.0, 125000.0);
++        const vec2 calmEnd3 = vec2(-103000.0, 85000.0);
++
++        // Azura's Coast
++        const vec2 calmStart4 = vec2(154000.0, 69000.0);
++        const vec2 calmEnd4 = vec2(82000.0, -67000.0);
++
++        // Sheogorad
++        const vec2 calmStart5 = vec2(78000.0, 174500.0);
++        const vec2 calmEnd5 = vec2(-17000.0, 126000.0);
++
++        // Gnaar Mok
++        const vec2 swampStart = vec2(-30500.0, 56500.0);
++        const vec2 swampEnd = vec2(-70500.0, -39000.0);
++
++        // Lake Nabia
++        const vec2 sulphurPos = vec2(43565.0, -16194.0);
++        const float sulphurRadius = 15000.0;
++
++        // Odai River
++        const vec2 calmCenter1 = calmStart1 * 0.5 + calmEnd1 * 0.5;
++        const vec2 calmHalfSize1 = abs(calmEnd1 - calmStart1) * 0.5;
++        vec4 calmBounds1 = vec4(
++            min(calmStart1.x, calmEnd1.x),
++            min(calmStart1.y, calmEnd1.y),
++            max(calmStart1.x, calmEnd1.x),
++            max(calmStart1.y, calmEnd1.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds1, calmCenter1, calmHalfSize1, -3000.0); // blending radius inside the box
++
++        // S Vvardenfell
++        const vec2 calmCenter2 = calmStart2 * 0.5 + calmEnd2 * 0.5;
++        const vec2 calmHalfSize2 = abs(calmEnd2 - calmStart2) * 0.5;
++        vec4 calmBounds2 = vec4(
++            min(calmStart2.x, calmEnd2.x),
++            min(calmStart2.y, calmEnd2.y),
++            max(calmStart2.x, calmEnd2.x),
++            max(calmStart2.y, calmEnd2.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds2, calmCenter2, calmHalfSize2, -6000.0);
++
++        // Gnisis & West Gash
++        const vec2 calmCenter3 = calmStart3 * 0.5 + calmEnd3 * 0.5;
++        const vec2 calmHalfSize3 = abs(calmEnd3 - calmStart3) * 0.5;
++        vec4 calmBounds3 = vec4(
++            min(calmStart3.x, calmEnd3.x),
++            min(calmStart3.y, calmEnd3.y),
++            max(calmStart3.x, calmEnd3.x),
++            max(calmStart3.y, calmEnd3.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds3, calmCenter3, calmHalfSize3, -2500.0);
++
++        // Azura's Coast
++        const vec2 calmCenter4 = calmStart4 * 0.5 + calmEnd4 * 0.5;
++        const vec2 calmHalfSize4 = abs(calmEnd4 - calmStart4) * 0.5;
++        vec4 calmBounds4 = vec4(
++            min(calmStart4.x, calmEnd4.x),
++            min(calmStart4.y, calmEnd4.y),
++            max(calmStart4.x, calmEnd4.x),
++            max(calmStart4.y, calmEnd4.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds4, calmCenter4, calmHalfSize4, -3000.0);
++
++        // Sheogorad
++        const vec2 calmCenter5 = calmStart5 * 0.5 + calmEnd5 * 0.5;
++        const vec2 calmHalfSize5 = abs(calmEnd5 - calmStart5) * 0.5;
++        vec4 calmBounds5 = vec4(
++            min(calmStart5.x, calmEnd5.x),
++            min(calmStart5.y, calmEnd5.y),
++            max(calmStart5.x, calmEnd5.x),
++            max(calmStart5.y, calmEnd5.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds5, calmCenter5, calmHalfSize5, -3000.0);
++
++        // Gnaar Mok
++        const vec2 swampCenter = swampStart * 0.5 + swampEnd * 0.5;
++        const vec2 swampHalfSize = abs(swampEnd - swampStart) * 0.5;
++        vec4 swampBounds = vec4(
++            min(swampStart.x, swampEnd.x),
++            min(swampStart.y, swampEnd.y),
++            max(swampStart.x, swampEnd.x),
++            max(swampStart.y, swampEnd.y)
++        );
++        if (worldPos.x >= swampBounds.x && worldPos.x <= swampBounds.z
++            && worldPos.y >= swampBounds.y && worldPos.y <= swampBounds.w)
++        {
++            vec2 d = abs(worldPos.xy - swampCenter) - swampHalfSize;
++            float sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
++            if (sdf < 0.0)
++            {
++                swampFactor = smoothstep(0.0, -9000.0, sdf);
++
++                const vec2 swampStartEx = vec2(-55000.0, -10500.0);
++                const vec2 swampEndEx = vec2(-72000.0, -37200.0);
++                const vec2 swampCenterEx = swampStartEx * 0.5 + swampEndEx * 0.5;
++                const vec2 swampHalfSizeEx = abs(swampEndEx - swampStartEx) * 0.5;
++                vec4 swampBoundsEx = vec4(
++                    min(swampStartEx.x, swampEndEx.x),
++                    min(swampStartEx.y, swampEndEx.y),
++                    max(swampStartEx.x, swampEndEx.x),
++                    max(swampStartEx.y, swampEndEx.y)
++                );
++                if (worldPos.x >= swampBoundsEx.x && worldPos.x <= swampBoundsEx.z
++                    && worldPos.y >= swampBoundsEx.y && worldPos.y <= swampBoundsEx.w)
++                {
++                    d = abs(worldPos.xy - swampCenterEx) - swampHalfSizeEx;
++                    sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
++                    if (sdf < 0.0)
++                        swampFactor = max(0.0, swampFactor - smoothstep(0.0, -5000.0, sdf));
++                }
++
++                const vec2 swampStartEx2 = vec2(-63000.0, -23000.0);
++                const vec2 swampEndEx2 = vec2(-47500.0, -13000.0);
++                const vec2 swampCenterEx2 = swampStartEx2 * 0.5 + swampEndEx2 * 0.5;
++                const vec2 swampHalfSizeEx2 = abs(swampEndEx2 - swampStartEx2) * 0.5;
++                vec4 swampBoundsEx2 = vec4(
++                    min(swampStartEx2.x, swampEndEx2.x),
++                    min(swampStartEx2.y, swampEndEx2.y),
++                    max(swampStartEx2.x, swampEndEx2.x),
++                    max(swampStartEx2.y, swampEndEx2.y)
++                );
++                if (worldPos.x >= swampBoundsEx2.x && worldPos.x <= swampBoundsEx2.z
++                    && worldPos.y >= swampBoundsEx2.y && worldPos.y <= swampBoundsEx2.w)
++                {
++                    d = abs(worldPos.xy - swampCenterEx2) - swampHalfSizeEx2;
++                    sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
++                    if (sdf < 0.0)
++                    {
++                        swampFactor = max(0.0, swampFactor - smoothstep(0.0, -1000.0, sdf));
++                        UpdateWaterFactor(calmFactor, worldPos, swampBoundsEx2, swampCenterEx2, swampHalfSizeEx2, -4000.0);
++                    }
++                }
++            }
++        }
++
++        // Lake Nabia
++        vec4 sulphurBounds = vec4(
++            sulphurPos.x - sulphurRadius,
++            sulphurPos.y - sulphurRadius,
++            sulphurPos.x + sulphurRadius,
++            sulphurPos.y + sulphurRadius
++        );
++        if (worldPos.x >= sulphurBounds.x && worldPos.x <= sulphurBounds.z
++            && worldPos.y >= sulphurBounds.y && worldPos.y <= sulphurBounds.w)
++        {
++            float sulphurDist = distance(worldPos.xy, sulphurPos);
++            if (sulphurDist < sulphurRadius)
++                sulphurFactor = smoothstep(sulphurRadius, 6200.0, sulphurDist);
++        }
++    }
++    else
++    {
++        // Abecean Sea
++        const vec2 tropicalStart = vec2(-920000.0, -140000.0);
++        const vec2 tropicalEnd = vec2(-2090000.0, -1065000.0);
++
++        // Mainland Tamriel
++        const vec2 calmStart6 = vec2(221000.0, -145000.0);
++        const vec2 calmEnd6 = vec2(-930000.0, -672000.0);
++
++        // Skyrim
++        const vec2 calmStart7 = vec2(-418000.0, 230000.0);
++        const vec2 calmEnd7 = vec2(-1081500.0, -295000.0);
++
++        // N Telvanni
++        const vec2 calmStart8 = vec2(233500.0, 152000.0);
++        const vec2 calmEnd8 = vec2(188000.0, 94500.0);
++
++        // Tamriel East Coast
++        const vec2 calmStart9 = vec2(310000.0, -10000.0);
++        const vec2 calmEnd9 = vec2(190000.0, -270000.0);
++
++        // C Telvanni
++        const vec2 calmStart10 = vec2(291000.0, 116500.0);
++        const vec2 calmEnd10 = vec2(208500.0, -20000.0);
++
++        // Bodrum
++        const vec2 calmStart11 = vec2(-53000.0, -104500.0);
++        const vec2 calmEnd11 = vec2(-117000.0, -157000.0);
++
++        // Necrom
++        const vec2 calmStart12 = vec2(352000.0, -75000.0);
++        const vec2 calmEnd12 = vec2(297000.0, -143000.0);
++
++        // Andothren
++        const vec2 calmStart13 = vec2(29500.0, -126600.0);
++        const vec2 calmEnd13 = vec2(-13000.0, -159000.0);
++
++        // Abecean Sea
++        const vec2 tropicalCenter = tropicalStart * 0.5 + tropicalEnd * 0.5;
++        const vec2 tropicalHalfSize = abs(tropicalEnd - tropicalStart) * 0.5;
++        vec4 tropicalBounds = vec4(
++            min(tropicalStart.x, tropicalEnd.x),
++            min(tropicalStart.y, tropicalEnd.y),
++            max(tropicalStart.x, tropicalEnd.x),
++            max(tropicalStart.y, tropicalEnd.y)
++        );
++        UpdateWaterFactor(tropicalFactor, worldPos, tropicalBounds, tropicalCenter, tropicalHalfSize, -10000.0);
++
++        // Mainland Tamriel
++        const vec2 calmCenter6 = calmStart6 * 0.5 + calmEnd6 * 0.5;
++        const vec2 calmHalfSize6 = abs(calmEnd6 - calmStart6) * 0.5;
++        vec4 calmBounds6 = vec4(
++            min(calmStart6.x, calmEnd6.x),
++            min(calmStart6.y, calmEnd6.y),
++            max(calmStart6.x, calmEnd6.x),
++            max(calmStart6.y, calmEnd6.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds6, calmCenter6, calmHalfSize6, -10000.0);
++
++        // Skyrim
++        const vec2 calmCenter7 = calmStart7 * 0.5 + calmEnd7 * 0.5;
++        const vec2 calmHalfSize7 = abs(calmEnd7 - calmStart7) * 0.5;
++        vec4 calmBounds7 = vec4(
++            min(calmStart7.x, calmEnd7.x),
++            min(calmStart7.y, calmEnd7.y),
++            max(calmStart7.x, calmEnd7.x),
++            max(calmStart7.y, calmEnd7.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds7, calmCenter7, calmHalfSize7, -5000.0);
++
++        // N Telvanni
++        const vec2 calmCenter8 = calmStart8 * 0.5 + calmEnd8 * 0.5;
++        const vec2 calmHalfSize8 = abs(calmEnd8 - calmStart8) * 0.5;
++        vec4 calmBounds8 = vec4(
++            min(calmStart8.x, calmEnd8.x),
++            min(calmStart8.y, calmEnd8.y),
++            max(calmStart8.x, calmEnd8.x),
++            max(calmStart8.y, calmEnd8.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds8, calmCenter8, calmHalfSize8, -5000.0);
++
++        // Tamriel East Coast
++        const vec2 calmCenter9 = calmStart9 * 0.5 + calmEnd9 * 0.5;
++        const vec2 calmHalfSize9 = abs(calmEnd9 - calmStart9) * 0.5;
++        vec4 calmBounds9 = vec4(
++            min(calmStart9.x, calmEnd9.x),
++            min(calmStart9.y, calmEnd9.y),
++            max(calmStart9.x, calmEnd9.x),
++            max(calmStart9.y, calmEnd9.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds9, calmCenter9, calmHalfSize9, -8000.0);
++
++        // C Telvanni
++        const vec2 calmCenter10 = calmStart10 * 0.5 + calmEnd10 * 0.5;
++        const vec2 calmHalfSize10 = abs(calmEnd10 - calmStart10) * 0.5;
++        vec4 calmBounds10 = vec4(
++            min(calmStart10.x, calmEnd10.x),
++            min(calmStart10.y, calmEnd10.y),
++            max(calmStart10.x, calmEnd10.x),
++            max(calmStart10.y, calmEnd10.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds10, calmCenter10, calmHalfSize10, -9000.0);
++
++        // Bodrum
++        const vec2 calmCenter11 = calmStart11 * 0.5 + calmEnd11 * 0.5;
++        const vec2 calmHalfSize11 = abs(calmEnd11 - calmStart11) * 0.5;
++        vec4 calmBounds11 = vec4(
++            min(calmStart11.x, calmEnd11.x),
++            min(calmStart11.y, calmEnd11.y),
++            max(calmStart11.x, calmEnd11.x),
++            max(calmStart11.y, calmEnd11.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds11, calmCenter11, calmHalfSize11, -7000.0);
++
++        // Necrom
++        const vec2 calmCenter12 = calmStart12 * 0.5 + calmEnd12 * 0.5;
++        const vec2 calmHalfSize12 = abs(calmEnd12 - calmStart12) * 0.5;
++        vec4 calmBounds12 = vec4(
++            min(calmStart12.x, calmEnd12.x),
++            min(calmStart12.y, calmEnd12.y),
++            max(calmStart12.x, calmEnd12.x),
++            max(calmStart12.y, calmEnd12.y)
++        );
++        if (worldPos.x >= calmBounds12.x && worldPos.x <= calmBounds12.z
++            && worldPos.y >= calmBounds12.y && worldPos.y <= calmBounds12.w)
++        {
++            vec2 d = abs(worldPos.xy - calmCenter12) - calmHalfSize12;
++            float sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
++            if (sdf < 0.0)
++            {
++                calmFactor = smoothstep(0.0, -8000.0, sdf);
++
++                const vec2 calmStartEx = vec2(353000.0, -114000.0);
++                const vec2 calmEndEx = vec2(325000.0, -143000.0);
++                const vec2 calmCenterEx = calmStartEx * 0.5 + calmEndEx * 0.5;
++                const vec2 calmHalfSizeEx = abs(calmEndEx - calmStartEx) * 0.5;
++                vec4 calmBoundsEx = vec4(
++                    min(calmStartEx.x, calmEndEx.x),
++                    min(calmStartEx.y, calmEndEx.y),
++                    max(calmStartEx.x, calmEndEx.x),
++                    max(calmStartEx.y, calmEndEx.y)
++                );
++                if (worldPos.x >= calmBoundsEx.x && worldPos.x <= calmBoundsEx.z
++                    && worldPos.y >= calmBoundsEx.y && worldPos.y <= calmBoundsEx.w)
++                {
++                    d = abs(worldPos.xy - calmCenterEx) - calmHalfSizeEx;
++                    sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
++                    if (sdf < 0.0)
++                        calmFactor = max(0.0, calmFactor - smoothstep(0.0, -1.0, sdf));
++                }
++            }
++        }
++
++        // Andothren
++        const vec2 calmCenter13 = calmStart13 * 0.5 + calmEnd13 * 0.5;
++        const vec2 calmHalfSize13 = abs(calmEnd13 - calmStart13) * 0.5;
++        vec4 calmBounds13 = vec4(
++            min(calmStart13.x, calmEnd13.x),
++            min(calmStart13.y, calmEnd13.y),
++            max(calmStart13.x, calmEnd13.x),
++            max(calmStart13.y, calmEnd13.y)
++        );
++        UpdateWaterFactor(calmFactor, worldPos, calmBounds13, calmCenter13, calmHalfSize13, -5000.0);
++    }
++
++    float totalFactor = calmFactor + swampFactor + tropicalFactor;
++    if (totalFactor > 0.0)
++    {
++        float invTotal = 1.0 / totalFactor;
++        vec4 specialWaterColor = WATER_COLOR_CALM * calmFactor
++                                + WATER_COLOR_SWAMP * swampFactor
++                                + WATER_COLOR_TROPICAL * tropicalFactor;
++        params1 = WATER_CALM_PARAMS_1 * calmFactor
++                     + WATER_SWAMP_PARAMS_1 * swampFactor
++                     + WATER_TROPICAL_PARAMS_1 * tropicalFactor;
++        params2 = WATER_CALM_PARAMS_2 * calmFactor
++                     + WATER_SWAMP_PARAMS_2 * swampFactor
++                     + WATER_TROPICAL_PARAMS_2 * tropicalFactor;
++
++        totalFactor = clamp(totalFactor, 0.0, 1.0);
++        baseWaterColor = mix(baseWaterColor, specialWaterColor * invTotal, totalFactor);
++        params1 = mix(WATER_SEA_PARAMS_1, params1 * invTotal, totalFactor);
++        params2 = mix(WATER_SEA_PARAMS_2, params2 * invTotal, totalFactor);
++    }
++
++    if (sulphurFactor > 0.0)
++    {
++        baseWaterColor = mix(baseWaterColor, WATER_COLOR_SULPHUR, sulphurFactor);
++
++        params1 = mix(params1, WATER_SULPHUR_PARAMS_1, sulphurFactor);
++        params2 = mix(params1, WATER_SULPHUR_PARAMS_2, sulphurFactor);
++    }
++
++    // Additional parameters for others      ( Wave Strength, Multicolor Intensity, Foam Intensity, Refraction Brightness)
++    waveStrength = clamp(params1.x, 0.0, 1.0);
++    multicolorIntensity = params1.y;
++    foamIntensity = params1.z;
++    refractionBrightness = params1.w;
++    // Part 2 - parameters for others        ( SSS Intensity,    Shore sulphur, [unused], Shore Distance Modifier)
++    sssIntensity = params2.x;
++    shoreSulphurIntensity = params2.y;
++    shoreDistanceModifier = params2.w;
++}
++// 2.0c
+diff --git a/files/shaders/water_pbr_android_fragment.glsl b/files/shaders/water_pbr_android_fragment.glsl
+new file mode 100644
+index 0000000..3c00bca
+--- /dev/null
++++ b/files/shaders/water_pbr_android_fragment.glsl
+@@ -0,0 +1,1203 @@
++#version 120
++
++// Android GLES compatibility profile for ArenaMW complex PBR water.
++// Keep the complete PBR/refraction/foam/ripple lighting path, but avoid the
++// ArenaMW Android fast path for tiled GPUs / Sisah Openmw3 NG-GL4ES.
++// The old near-field path raymarched the water surface and evaluated FBM
++// height repeatedly per fragment. When water filled the screen this became
++// overwhelmingly fragment-bound. Keep the PBR/reflection/refraction pipeline,
++// but use the animated normal maps as the surface geometry source on Android.
++#define RAYMARCH_WAVES 0
++#define ANDROID_LITE_WAVES 1
++#define MOBILE_SURFACE_DETAIL 0
++
++// Shore foam toggle. 1 = foam on, 0 = foam off.
++// Foam also requires the engine's Wobbly Shores setting to be enabled.
++// The wobbly shore effect itself is always on (independent of this and of Wobbly Shores).
++#define FOAM_ENABLED 1
++
++// Set to 0 to disable distant water reflecting sky color instead of warping reflection UVs
++#define WATER_SKY_CONVERGENCE 1
++
++
++// Inspired by Blender GLSL Water by martinsh ( https://devlog-martinsh.blogspot.de/2012/07/waterundewater-shader-wip.html )
++const vec2 BIG_WAVES = vec2(2.31, 2.31);       // strength of big waves
++const vec2 MID_WAVES = vec2(0.91, 0.91);       // strength of middle sized waves
++const vec2 MID_WAVES_RAIN = vec2(0.98, 0.98);  // strength of middle sized waves in rain
++const vec2 SMALL_WAVES = vec2(0.35, 0.35);     // strength of small waves
++const vec2 SMALL_WAVES_RAIN = vec2(0.49, 0.49);// strength of small waves in rain
++
++const float VISIBILITY = 1500.0;
++const float VISIBILITY_DEPTH = VISIBILITY * 1.5;
++
++const float WAVE_CHOPPINESS = 0.02;                 // wave choppiness
++const float WAVE_SCALE = 125.0;                     // overall wave scale
++
++const float BUMP = 0.42;                            // overall water surface bumpiness
++const float BUMP_RAIN = 0.56;                       // surface bumpiness in rain
++const float REFR_BUMP = 0.015;                      // refraction distortion amount
++
++#if @sunlightScattering
++const float SCATTER_AMOUNT = 0.72;                  // amount of sunlight scattering
++const vec3  SCATTER_COLOUR = vec3(0.0, 0.65, 0.95); // colour of sunlight scattering
++const vec3  SUN_EXT = vec3(0.45, 0.55, 0.68);       // sunlight extinction
++#endif
++
++const float SUN_SPEC_FADING_THRESHOLD = 0.16;       // visibility at which sun specularity starts to fade
++const float SPEC_HARDNESS = 64.0;                   // specular highlights hardness
++
++// Lua-tunable sky color (shared with lighting_pbr.glsl)
++uniform vec3 envSkyAwayColor;
++uniform float envSkyStrength;
++
++const float AMBIENT_INTENSITY = 0.60;               // ambient lighting intensity
++const float BUMP_SUPPRESS_DEPTH = 40.0;             // at what water depth bumpmap will be suppressed for reflections and refractions (prevents artifacts at shores)
++const float REFR_FOG_DISTORT_DISTANCE = 3000.0;     // at what distance refraction fog will be calculated using real water depth instead of distorted depth (prevents splotchy shores)
++const float REFL_BUMP = 0.10;                       // reflection distortion amount
++
++#if WATER_SKY_CONVERGENCE
++const float SKY_CONVERGENCE_START = 1000.0;         // distance where sky convergence begins
++const float SKY_CONVERGENCE_END = 5000.0;           // distance where sky convergence is full
++const float SKY_CONVERGENCE_CHOP_SCALE = 0.5;       // how much wave strength drives the sky blend
++#endif
++
++const vec2 WIND_DIR = vec2(0.5, -0.8);
++const float WIND_SPEED = 0.2;
++uniform float osg_SimulationTime;
++
++// Water depth for shore effects (set from refraction when available)
++float g_waterDepth = 1000.0;
++
++const float WOBBLY_SHORE_FADE_DISTANCE = 6200.0;    // fade out wobbly shores to mask precision errors, the effect is almost impossible to see at a distance
++
++// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
++
++vec2 normalCoords(vec2 uv, float scale, float speed, float time, float timer1, float timer2, vec3 previousNormal)
++{
++    time *= 0.25;
++    vec2 spatial = uv * (WAVE_SCALE * scale);
++    vec2 temporal = WIND_DIR * time * (WIND_SPEED * speed) + vec2(time * timer1, time * timer2);
++    vec2 choppiness = -(previousNormal.xy / previousNormal.zz) * WAVE_CHOPPINESS;
++    return spatial + temporal + choppiness;
++}
++
++vec2 rotateUV(vec2 uv, float angle)
++{
++    uv -= 0.5;
++    float s = sin(angle), c = cos(angle);
++    mat2 R = mat2(c, -s, s, c);
++    return R * uv + 0.5;
++}
++
++uniform sampler2D rippleMap;
++uniform vec3 playerPos;
++varying vec3 worldPos;
++varying vec2 rippleMapUV;
++varying vec4 position;
++varying float linearDepth;
++uniform sampler2D normalMap;
++uniform float near;
++uniform float far;
++uniform float rainIntensity;
++uniform bool enableRainRipples;
++uniform bool isInteriorWater;
++uniform float useRefraction;
++uniform float useActorRipples;
++// ArenaMW runtime water controls. Defaults preserve the upstream PBR look.
++uniform float waterWaveStrength;
++uniform float waterSurfaceRoughness;
++uniform float waterTransparency;
++uniform float waterFoamIntensity;
++uniform float waterHighlightIntensity;
++varying vec3 screenCoordsPassthrough;
++
++#define WATER 1
++#include "shadows_fragment.glsl"
++
++// Minimal PBR helpers used only by this shader. The custom PBR setup uses a
++// separate lighting pipeline (lighting_pbr.glsl), so these symbols are provided
++// locally to avoid pulling in the shared lighting.glsl that objects/terrain use.
++#define PBR_ENABLED 1
++#define OMW_VER 51
++#define LIGHTING_DEBUG_MODE 0
++
++uniform mat4 osg_ViewMatrixInverse;
++
++float Pow5(float x)
++{
++    float x2 = x * x;
++    return x2 * x2 * x;
++}
++
++float Schlick(float f0, float f90, float VdotH)
++{
++    return f0 + (f90 - f0) * Pow5(1.0 - VdotH);
++}
++
++float TrowbridgeReitz(float alpha, float NdotH)
++{
++    float alpha2 = alpha * alpha;
++    float denom = (NdotH * NdotH) * (alpha2 - 1.0) + 1.0;
++    denom *= denom;
++    return alpha2 / denom;
++}
++
++#include "water_pbr_compat.glsl"
++#include "water_pbr_rain_ripples.glsl"
++#include "water_pbr_android_data.glsl"
++
++#if !defined(HLSL)
++    #define float2 vec2
++    #define float3 vec3
++    #define float4 vec4
++    #define float2x2 mat2
++    #define float3x3 mat3
++    #define saturate(x) clamp(x, 0, 1)
++    #define lerp(x, a, b) mix(x, a, b)
++#endif // !defined(HLSL)
++
++// ===========================================================================
++// Surface detail layer (animated sparkle / breathing / time-of-day tint)
++// ===========================================================================
++
++#if MOBILE_SURFACE_DETAIL
++// cheap self-contained value noise
++float valueHash2(vec2 p)
++{
++    p = mod(p, 289.0); // keep coordinates small to preserve float precision at large OpenMW world positions
++    p = fract(p * vec2(123.34, 456.21));
++    p += dot(p, p + 45.32);
++    return fract(p.x * p.y);
++}
++
++float valueNoise2(vec2 p)
++{
++    p = mod(p, 289.0); // wrap for stable tiling and mantissa precision
++    vec2 i = floor(p);
++    vec2 f = fract(p);
++    f = f * f * (3.0 - 2.0 * f);
++    float a = valueHash2(i);
++    float b = valueHash2(i + vec2(1.0, 0.0));
++    float c = valueHash2(i + vec2(0.0, 1.0));
++    float d = valueHash2(i + vec2(1.0, 1.0));
++    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
++}
++
++// Animated glittering of sunlight off ripples.
++float surfaceSparkle(vec2 worldXY, vec3 nrm, float time)
++{
++    vec2 p = worldXY * 0.06;
++    float a = valueNoise2(p + vec2(time * 0.13, -time * 0.09));
++    float b = valueNoise2(p * 1.7 + vec2(-time * 0.11, time * 0.15));
++    float shimmer = a * b;
++    float glint = smoothstep(0.62, 0.95, shimmer);
++    float micro = valueNoise2(worldXY * 0.22 + time * 0.30);
++    micro = smoothstep(0.75, 1.0, micro) * (0.4 + 0.6 * abs(nrm.x + nrm.y));
++    return clamp(glint * 0.7 + micro * 0.5, 0.0, 1.0);
++}
++
++// Slow large-scale brightness breathing so the whole surface subtly lives.
++float surfaceBreathing(vec2 worldXY, float time)
++{
++    float w = valueNoise2(worldXY * 0.012 + vec2(time * 0.04, time * 0.03));
++    return 0.85 + 0.15 * w;
++}
++
++// Day/evening/night tint approximated from the sun height.
++vec3 dayTint(float sunZ)
++{
++    float day    = smoothstep(0.05, 0.30, sunZ);            // full daylight
++    float sunset = smoothstep(0.30, 0.05, sunZ) * step(0.0, sunZ); // low sun
++    vec3 base = mix(vec3(1.1, 1.15, 1.4), vec3(0.95, 0.98, 1.0), day);
++    return mix(base, vec3(1.0, 0.8, 0.65), sunset);
++}
++#endif // MOBILE_SURFACE_DETAIL
++
++vec3 GetUnderwaterPos(vec2 fragUV, float d)
++{
++    float depth =
++    #if @reverseZ
++        1.0 -
++    #endif
++        d;
++    depth = depth * 2.0 - 1.0;
++    vec4 pos = vec4(fragUV * 2.0 - 1.0, depth, 1.0);
++    #if PBR_ENABLED
++        pos = gl_ProjectionMatrixInverse * pos;
++        pos = osg_ViewMatrixInverse * pos;
++    #else
++        pos = gl_ModelViewProjectionMatrixInverse * pos;
++    #endif // PBR_ENABLED
++    return pos.xyz / pos.w;
++}
++
++float CalculateReflectionAttenuation(vec3 normal)
++{
++    float cosTheta = clamp(normal.z, 0.0, 1.0);
++    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
++    return clamp(1.0 - sinTheta / max(cosTheta, 0.001), 0.0, 1.0);
++}
++
++#if CAUSTICS_ENABLED
++// Water's own caustics are disabled (CAUSTICS_ENABLED 0 in water_data.glsl).
++// The Voronoi caustics path is not included here; enable it via version control
++// if needed.
++#error "CAUSTICS_ENABLED is set but the water caustics path is not present here. Restore it from version control or set CAUSTICS_ENABLED 0."
++#endif
++
++#if PBR_ENABLED && !ANDROID_LITE_WAVES
++vec3 GetNoiseWithGradient(vec2 p)
++{
++    vec2 i = floor(p);
++    vec2 f = p - i;
++    vec2 df = 6.0 * f * (1.0 - f);
++    f = f * f * (3.0 - 2.0 * f);
++    vec2 np = vec2(0.0, 1.0);
++    vec4 ix = mod(i.x + np.xyxy, 271.0);
++    vec4 iy = mod(i.y + np.xxyy, 227.0);
++    vec4 phase = ix * 127.1 + iy * 311.7;
++    vec4 h = fract(vec4(sin(phase.x), sin(phase.y), sin(phase.z), sin(phase.w)) * 43758.5453);
++    float ba = h.y - h.x;
++    float dc = h.w - h.z;
++    float ab = mix(h.x, h.y, f.x);
++    float cd = mix(h.z, h.w, f.x);
++    vec2 grad;
++    grad.x = mix(ba, dc, f.y) * df.x;
++    grad.y = (cd - ab) * df.y;
++    return vec3(mix(ab, cd, f.y), grad);
++}
++
++vec3 expVec3GLES(vec3 v)
++{
++    return vec3(exp(v.x), exp(v.y), exp(v.z));
++}
++
++float CalculateWaveHeight(vec2 pos, float time, float distFromCamera, vec4 waveStrength, float targetH, float4 bounds)
++{
++    vec2 dir1 = -normalize(vec2(0.83, -0.91));
++    vec2 dir2 = -normalize(vec2(-0.37, 0.88));
++    vec2 dir3 = -normalize(vec2(-0.59, -0.71));
++    mat2 rot1 = mat2(cos(0.6), -sin(0.6), sin(0.6), cos(0.6));
++    mat2 rot2 = mat2(cos(1.2), -sin(1.2), sin(1.2), cos(1.2));
++    mat2 rot3 = mat2(cos(2.1), -sin(2.1), sin(2.1), cos(2.1));
++    pos = rot1 * pos * 0.003;
++    pos.x *= 1.17;
++    float h = 0.0;
++    vec3 r = vec3(0.0);
++    float4 fbm = float4(1.164, 1.0, 22.5, 0.0055 * waveStrength.x);
++    r = fbm.z * GetNoiseWithGradient(rot1 * (pos * 0.77 * fbm.x + dir1 * time * fbm.y));
++    h = r.x * waveStrength.x;
++    pos = -r.yz * fbm.w + pos;
++
++    bool doEarlyOut = targetH < 999.0;
++    if (!(doEarlyOut && (h + bounds.x < targetH || h - bounds.x > targetH)))
++    {
++        fbm *= float4(2.17, 1.6141, 0.29, 1.3);
++        r = fbm.z * GetNoiseWithGradient(rot1 * (pos * 0.92 * fbm.x + dir2 * time * fbm.y));
++        h = r.x * waveStrength.x + h;
++        pos = -r.yz * fbm.w + pos;
++
++        float lod = smoothstep(10000.0, 2000.0, distFromCamera);
++        if (lod > 0.0 && !(doEarlyOut && (h + bounds.y < targetH || h - bounds.y > targetH)))
++        {
++            pos.xy = pos.yx;
++            fbm *= float4(2.17, 1.6141, 0.46, 1.3);
++            r = GetNoiseWithGradient(rot2 * (pos * fbm.x + dir3 * time * fbm.y));
++            r = lod * fbm.z * mix(r * 0.7, expVec3GLES(r * 2.0 - 1.9), waveStrength.w);
++            h = r.x * waveStrength.y + h;
++            pos = -r.yz * fbm.w + pos;
++
++            if (!(doEarlyOut && (h + bounds.z < targetH || h - bounds.z > targetH)))
++            {
++                fbm *= float4(1.618, 1.346321, 0.45, 1.3);
++                r = GetNoiseWithGradient(rot2 * (pos * fbm.x + dir1 * time * fbm.y));
++                r = lod * fbm.z * mix(r * 0.7, expVec3GLES(r * 2.0 - 1.7), waveStrength.w);
++                h = r.x * waveStrength.y + h;
++                pos = -r.yz * fbm.w + pos;
++
++                lod = smoothstep(2000.0, 700.0, distFromCamera);
++                if (lod > 0.0 && !(doEarlyOut && (h + bounds.w < targetH || h - bounds.w > targetH)))
++                {
++                    fbm *= float4(1.618, 1.346321, 0.45, 1.3);
++                    vec3 waveExp = GetNoiseWithGradient(rot1 * (pos * fbm.x + dir3 * time * fbm.y)) * 2.0 - 1.5 - waveStrength.x * 0.7;
++                    r = lod * fbm.z * expVec3GLES(waveExp);
++                    h = r.x * waveStrength.z + h;
++                }
++            }
++        }
++    }
++    return h * 2.7 - 27.0;
++}
++
++float CalculateWaveHeight(vec2 pos, float time, float distFromCamera, vec4 waveStrength)
++{
++    return CalculateWaveHeight(pos, time, distFromCamera, waveStrength, 999.9, float4(0.0));
++}
++
++vec3 RaymarchWater(vec3 eyePos, vec3 direction, float t0, float t1, float time, vec4 waveStrength, bool isUnderwater)
++{
++    // vertical wave envelope bounds
++    float maxWaveHeight =  35.0 * waveStrength.x + worldPos.z;
++    float minWaveHeight = -10.5 * waveStrength.x + worldPos.z;
++    float tEnter = (maxWaveHeight - eyePos.z) / direction.z;
++    float tExit = (minWaveHeight - eyePos.z) / direction.z;
++    if (tEnter > tExit)
++    {
++        float tmp = tEnter;
++        tEnter = tExit;
++        tExit = tmp;
++    }
++    tEnter = max(tEnter, t0);
++    tExit = min(tExit, t1);
++    if (tEnter >= tExit)
++        return direction * t1 + eyePos;
++
++    const int raySteps = 12; // fixed bound keeps GLES compilers happy
++    float rayStep = (tExit - tEnter) / 12.0;
++
++    float invDirZ = 1.0 / max(abs(direction.z), 0.2);
++    float4 bounds = float4(1.37 * waveStrength.z);
++    bounds.z = 1.783 * waveStrength.y + bounds.w;
++    bounds.y = 3.244 * waveStrength.y + bounds.z;
++    bounds.x = 6.525 * waveStrength.x + bounds.y;
++    float t = tEnter;
++    vec3 p = eyePos;
++    float dynamicStep = rayStep;
++
++    for (int i = 0; i < 12; i++)
++    {
++        if (t >= tExit)
++            break;
++        t += dynamicStep;
++        p = direction * t + eyePos;
++        float distanceDamping = smoothstep(80.0, 500.0, t);
++        float cellSize = max(1.0, t * 0.02);
++        float h = CalculateWaveHeight(p.xy, time, t, waveStrength, (p.z - worldPos.z + 27.0) / 2.7, bounds) * distanceDamping;
++        float delta = isUnderwater ? h - p.z : p.z - h;
++
++        if (delta <= 0.0)
++            break;
++        dynamicStep = clamp(delta * invDirZ, rayStep * 0.25, rayStep * 3.0);
++    }
++
++    // refine with a short binary search around the last marching interval
++    t0 = t - dynamicStep;
++    t1 = t;
++    for (int i = 0; i < 2; i++)
++    {
++        t = 0.5 * (t0 + t1);
++        p = direction * t + eyePos;
++        float distanceDamping = smoothstep(80.0, 500.0, t);
++        float h = CalculateWaveHeight(p.xy, time, t, waveStrength) * distanceDamping;
++        if (isUnderwater ? p.z >= h : p.z <= h)
++            t1 = t;
++        else
++            t0 = t;
++    }
++    return direction * 0.5 * (t0 + t1) + eyePos;
++}
++#endif // PBR_ENABLED
++
++void main(void)
++{
++    vec3 wp = worldPos;
++    vec3 cameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
++    bool isUnderwater = cameraPos.z < position.z;
++    bool isInterior = isInteriorWater;
++    float radialDepth = distance(position.xyz, cameraPos);
++    vec3 viewDir = (position.xyz - cameraPos.xyz) / radialDepth;
++    vec4 baseWaterColor = WATER_COLOR_SEA;
++    float waveStrength = 1.0;
++    float multicolorIntensity = 1.0;
++    float foamIntensity = 1.0;
++    float refractionBrightness = 1.0;
++    float sssIntensity = 1.0;
++    float shoreSulphurIntensity = 0.0;
++    float shoreDistanceModifier = 0.0;
++
++#if MULTIPLE_WATER_TYPES
++    {
++        UpdateWaterTypes(wp, isInterior, baseWaterColor,
++            waveStrength, multicolorIntensity, foamIntensity, refractionBrightness,
++            sssIntensity, shoreSulphurIntensity, shoreDistanceModifier);
++
++        if (isUnderwater)
++            shoreSulphurIntensity = 0.0;
++    }
++#endif // MULTIPLE_WATER_TYPES
++
++    // Apply ArenaMW's global controls on top of the per-region water profile.
++    // 1.0 keeps the Complete Water Shaders PBR author's original values.
++    waveStrength = clamp(waveStrength * waterWaveStrength, 0.0, 2.5);
++    foamIntensity = clamp(foamIntensity * waterFoamIntensity, 0.0, 2.0);
++
++    vec4 sunSpec = lcalcSpecular(0);
++    // NOTE: upstream mod used a custom waterShadowSoft() (PCF) helper added to a
++    // modified shadows_fragment.glsl. Reverted to the stock unshadowedLightRatio()
++    // so this ships against the native, unmodified shadow shader.
++    float shadow = isInterior ? 1.0 : unshadowedLightRatio(radialDepth);
++    vec2 screenCoords = screenCoordsPassthrough.xy / screenCoordsPassthrough.z;
++    screenCoords.y = 1.0 - screenCoords.y;
++    screenCoords = clamp(screenCoords, vec2(0.001), vec2(0.999));
++    float waterTimer = osg_SimulationTime * 0.6;
++    float waveTimer = osg_SimulationTime * 0.6;
++
++    vec4 waveStrengthFBM = vec4(waveStrength, sqrt(waveStrength), 0.0, 0.0);
++    waveStrengthFBM.z = sqrt(waveStrengthFBM.y);
++    waveStrengthFBM.w = smoothstep(0.80, 0.65, waveStrengthFBM.x);
++
++#if PBR_ENABLED && RAYMARCH_WAVES
++    // Only raymarch the near field; distant water shows no usable parallax and
++    // is remapped back toward worldPos anyway. The raymarched position is faded
++    // back to the flat worldPos across the far transition band to avoid a seam
++    // where the FBM normal also vanishes.
++    if (radialDepth < 2400.0 && waveStrength > 0.001)
++    {
++        wp = RaymarchWater(osg_ViewMatrixInverse[3].xyz, viewDir, 0.0, radialDepth,
++                waveTimer, waveStrengthFBM, isUnderwater);
++        // near band: blend in parallax from the flat plane (0..500)
++        // far band : blend back out to the flat plane (1500..2400)
++        float nearBlend = clamp(radialDepth * 0.002, 0.0, 1.0);
++        float farBlend  = smoothstep(2400.0, 1500.0, radialDepth);
++        wp = mix(worldPos, wp, nearBlend * farBlend);
++    }
++#endif // PBR_ENABLED && RAYMARCH_WAVES
++
++    vec2 UV = wp.xy / 163840.0;
++
++#if @waterRefraction
++    float depthSample = sampleRefractionDepthMap(screenCoords);
++    depthSample = linearizeDepth(depthSample, near, far);
++    float surfaceDepth = linearizeDepth(gl_FragCoord.z, near, far);
++    float opticalWaterDepth = depthSample - surfaceDepth;
++#endif
++
++    vec3 normal0 = vec3(0.0, 0.0, 1.0);
++#if PBR_ENABLED && !ANDROID_LITE_WAVES
++    // The analytic FBM wave normal costs three CalculateWaveHeight() evaluations
++    // per fragment. Its contribution is faded smoothly to flat across a transition
++    // band (no hard seam) and skipped entirely past the band, so the cost is
++    // unchanged on wide ocean views.
++    const float FBM_FADE_START = 1500.0; // full detail up to here
++    const float FBM_FADE_END   = 2400.0; // fully flat (and skipped) past here
++    float fbmLod = smoothstep(FBM_FADE_END, FBM_FADE_START, radialDepth);
++    if (fbmLod > 0.0)
++    {
++        #if RAYMARCH_WAVES
++            const float waveSampleDist = 1.0;
++        #else
++            float waveSampleDist = max(length(dFdx(wp.xy)), length(dFdy(wp.xy)));
++        #endif
++        float hC = CalculateWaveHeight(wp.xy, waveTimer, radialDepth, waveStrengthFBM);
++        float hX = CalculateWaveHeight(wp.xy + vec2(waveSampleDist, 0.0), waveTimer, radialDepth, waveStrengthFBM);
++        float hY = CalculateWaveHeight(wp.xy + vec2(0.0, waveSampleDist), waveTimer, radialDepth, waveStrengthFBM);
++        vec3 dX = vec3(waveSampleDist, 0.0, (hX - hC) * fbmLod);
++        vec3 dY = vec3(0.0, waveSampleDist, (hY - hC) * fbmLod);
++        dX = cross(dX, dY);
++        hC = dot(dX, dX);
++        if (hC > 0.0)
++            normal0 = dX * inversesqrt(hC);
++    }
++#endif // PBR_ENABLED
++
++    vec2 nc = normalCoords(rotateUV(UV, 0.0), 0.05, 0.04, waterTimer, -0.015, -0.005, vec3(0.0, 0.0, 1.0));
++    float lod = log2(1024.0 * max(length(dFdx(nc)), length(dFdy(nc))));
++    lod = 1.0 - clamp((lod + 1.0) * 0.05, 0.0, 0.35);
++    vec3 normal1 = 2.0 * texture2D(normalMap, nc).rgb - 1.0;
++    UV *= 1.73;
++    vec3 normal2 = 2.0 * texture2D(normalMap, normalCoords(rotateUV(UV.yx, 1.57), 0.1, 0.08, waterTimer * 1.1, 0.02, 0.015, normal1)).rgb - 1.0;
++    UV *= 1.73;
++    UV = rotateUV(UV * -4.7, 1.05);
++    vec3 normal3 = 2.0 * texture2D(normalMap, normalCoords(rotateUV(UV, 0.0), 0.25, 0.07, -waterTimer * 1.5, -0.04, -0.06, normal2)).rgb - 1.0;
++    UV *= 2.1;
++    waterTimer *= 7.0;
++    vec4 normal4Sample = texture2D(normalMap, normalCoords(rotateUV(UV, 2.4), 0.5, 0.09, -waterTimer * 1.7, 0.03, 0.07, normal3));
++    vec3 normal4 = 2.0 * normal4Sample.rgb - 1.0;
++    UV *= 2.3;
++    waterTimer *= 1.5;
++    // normal5 is the smallest, highest-frequency detail layer. Past a moderate
++    // distance its sub-pixel ripples are invisible, so skip the dependent fetch
++    // beyond ~1200 units and fade its contribution in to avoid a seam.
++    vec3 normal5 = vec3(0.0, 0.0, 1.0);
++    float n5Lod = smoothstep(650.0, 350.0, radialDepth);
++    if (n5Lod > 0.0)
++        normal5 = 2.0 * texture2D(normalMap, normalCoords(rotateUV(UV.yx, 3.8), 1.0, 0.4, -waterTimer * 2.5, -0.02, 0.1, normal4)).rgb - 1.0;
++    waterTimer = osg_SimulationTime;
++    vec4 rainRipple = vec4(0.0);
++
++#if OMW_VER >= 51
++    if (rainIntensity > 0.01)
++#else
++    if (rainIntensity > 0.01 && enableRainRipples)
++#endif
++        rainRipple = rainCombined(wp.xy / 350.0, waterTimer) * clamp(rainIntensity, 0.0, 1.0);
++    // Distance fade: raindrop rings are a close-up detail. Their sub-pixel rings
++    // read as harsh flickering noise toward the horizon, so fade them out with
++    // distance the same way the fine wave layers LOD out. Full strength up close,
++    // gone by ~3500 units.
++    float rainDropFade = 1.0 - smoothstep(1200.0, 3500.0, radialDepth);
++    rainRipple *= rainDropFade;
++    vec3 rippleAdd = rainRipple.xyz * 5.0;
++
++    // Volumetric raindrop normal. The rings looked flat because only a weak xy
++    // tilt reached the surface. Here we build a dedicated steep normal for the
++    // impact: strong horizontal slope (the ring wall) with a small z, so once
++    // normalized the ring wall stands up and catches light at an angle instead
++    // of reading like a decal. rainRipple.xy is the ring-wall slope, .z its
++    // upward dome. This is added on top of the wave normal further down.
++    vec3 dropNormal = vec3(rainRipple.xy * 14.0, max(rainRipple.z, 0.15));
++    float distToCenter = length(rippleMapUV - vec2(0.5));
++    // Player and actor wake from the ripple map. blendClose keeps a small
++    // dead-zone at the very center; blendFar fades the trail out near the edge of
++    // the ripple map. distortionLevel controls how pronounced the wake reads.
++    float blendClose = smoothstep(0.001, 0.02, distToCenter);
++    // Tighter edge fade: during fast movement the ripple simulation writes rings
++    // near the map border that otherwise pop as isolated circles in the distance.
++    // Fading earlier (0.26->0.38) removes those before they become visible.
++    float blendFar = 1.0 - smoothstep(0.26, 0.38, distToCenter);
++    // Distance fade: the ripple map is a fixed grid centred on the player, so far
++    // from the camera its texels are large and the wake reads as coarse discrete
++    // circles (very visible when swimming fast). Fade the wake out with camera
++    // distance so only the coherent near-field trail remains.
++    float wakeDistFade = 1.0 - smoothstep(900.0, 2600.0, radialDepth);
++    float distortionLevel = 7.0;
++    vec3 playerDistortion = vec3(0.0);
++    if (useActorRipples > 0.5)
++        playerDistortion = distortionLevel * vec3(texture2D(rippleMap, rippleMapUV).ba * blendFar * blendClose * wakeDistFade, 0.0);
++    rippleAdd = playerDistortion + rippleAdd;
++    vec2 bigWaves = BIG_WAVES;
++    vec2 midWaves = mix(MID_WAVES, MID_WAVES_RAIN, rainIntensity);
++    vec2 smallWaves = mix(SMALL_WAVES, SMALL_WAVES_RAIN, rainIntensity);
++    float bump = mix(BUMP, BUMP_RAIN, rainIntensity);
++    vec3 normal5Faded = mix(vec3(0.0, 0.0, 1.0), normal5, n5Lod);
++    vec3 sunWorldDir = normal3 * midWaves.x + normal4 * midWaves.y + normal5Faded * smallWaves.x + normal0 * smallWaves.y;
++    vec3 normal = (normal1 * bigWaves.x + normal2 * bigWaves.y + sunWorldDir);
++    normal.xy *= lod;
++    normal = normalize(vec3(-normal.x * bump, -normal.y * bump, normal.z * 0.3));
++
++    // Apply the user wave multiplier before refraction distortion is sampled,
++    // so Wave Strength = 0 really produces a flat/undistorted surface.
++    float preDepthWaveStrength = clamp(waveStrength, 0.0, 2.5);
++    if (preDepthWaveStrength <= 0.001)
++    {
++        normal = vec3(0.0, 0.0, 1.0);
++    }
++    else if (abs(preDepthWaveStrength - 1.0) > 0.001)
++    {
++        vec2 scaledBigWaves = bigWaves * preDepthWaveStrength;
++        float scaledBump = mix(BUMP, BUMP_RAIN, rainIntensity * min(preDepthWaveStrength, 1.0));
++        vec3 scaledNormal = normal1 * scaledBigWaves.x + normal2 * scaledBigWaves.y
++            + sunWorldDir * preDepthWaveStrength;
++        scaledNormal.xy *= lod;
++        normal = normalize(vec3(-scaledNormal.x * scaledBump, -scaledNormal.y * scaledBump, scaledNormal.z * 0.3));
++    }
++
++    float waveAttenuation = 1.0;
++    vec2 screenCoordsOffset = normal.xy * REFR_BUMP;
++    // Raindrop impacts distort the refraction (see-through) sample too, so each
++    // drop warps the geometry visible through the water like a real transparent
++    // dimple instead of only bending the reflection.
++    if (!isUnderwater)
++        screenCoordsOffset += dropNormal.xy * REFR_BUMP;
++
++#if @waterRefraction
++    screenCoordsOffset *= clamp(opticalWaterDepth / BUMP_SUPPRESS_DEPTH - 0.25, 0.0, 1.0);
++
++    float depthSampleDistorted = sampleRefractionDepthMap(screenCoords - screenCoordsOffset);
++    depthSampleDistorted = linearizeDepth(depthSampleDistorted, near, far);
++    float waterDepthDistorted = max(depthSampleDistorted - surfaceDepth, 0.0);
++
++    screenCoordsOffset *= clamp(waterDepthDistorted / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
++    if (cameraPos.z > 0.0 && opticalWaterDepth <= VISIBILITY_DEPTH && waterDepthDistorted > VISIBILITY_DEPTH)
++        screenCoordsOffset = vec2(0.0);
++    depthSampleDistorted = sampleRefractionDepthMap(screenCoords - screenCoordsOffset);
++    vec3 underwaterPos = GetUnderwaterPos(screenCoords, depthSampleDistorted);
++    float actualWaterDepth = abs(wp.z - underwaterPos.z);
++    g_waterDepth = actualWaterDepth;
++    depthSampleDistorted = linearizeDepth(depthSampleDistorted, near, far);
++    waterDepthDistorted = max(depthSampleDistorted - surfaceDepth, 0.0);
++    waterDepthDistorted = mix(waterDepthDistorted, opticalWaterDepth, min(surfaceDepth / REFR_FOG_DISTORT_DISTANCE, 1.0));
++    waveAttenuation = smoothstep(-200.0, 300.0, actualWaterDepth);
++#endif // @waterRefraction
++
++    waveStrength *= waveAttenuation;
++
++    // Underwater, the regular depth-based suppression kills distortion, so
++    // objects seen through the surface look flat. Apply a small independent
++    // offset so they gently ripple with the waves.
++    vec2 underwaterRefrOffset = vec2(0.0);
++#if @waterRefraction
++    if (isUnderwater)
++    {
++        // Drive a dedicated offset for the underwater view.
++        const float UNDERWATER_REFR_BUMP = 0.05;
++        // Big, smooth, low-frequency waves (normal1/normal2) carry the main
++        // undulation so the surface visibly sways from below without the
++        // high-frequency jitter that pixelates the refraction. The fine layers
++        // (normal3/4) are kept only as a faint shimmer.
++        vec2 bigSway   = (normal1.xy + normal2.xy) * 0.5;
++        vec2 fineRipple = (normal3.xy + normal4.xy) * 0.5;
++        // Fold in the player/actor wake and raindrop dimples so from below you
++        // see the full relief through the water.
++        vec2 surfaceRelief = bigSway * 3.2
++                           + fineRipple * 0.35
++                           + playerDistortion.xy * 0.9
++                           + dropNormal.xy * 0.6;
++        underwaterRefrOffset = surfaceRelief * UNDERWATER_REFR_BUMP;
++        underwaterRefrOffset = clamp(underwaterRefrOffset, vec2(-0.12), vec2(0.12));
++        // Fade out near the Snell horizon (viewDir.z ~ 0) so the transition line
++        // is not smeared.
++        float horizonGuard = smoothstep(0.0, 0.05, abs(viewDir.z));
++        underwaterRefrOffset *= horizonGuard;
++    }
++#endif
++
++    // Make the global Wave Strength slider affect both raymarched displacement
++    // and the normal-map surface. The upstream shader only reduced normals for
++    // values below 1.0, which made values above 1.0 visually inconsistent.
++    if (waveStrength <= 0.001)
++    {
++        normal = vec3(0.0, 0.0, 1.0);
++    }
++    else if (abs(waveStrength - 1.0) > 0.001)
++    {
++        bigWaves *= waveStrength;
++        bump = mix(BUMP, BUMP_RAIN, rainIntensity * min(waveStrength, 1.0));
++        normal = (normal1 * bigWaves.x + normal2 * bigWaves.y + sunWorldDir * waveStrength);
++        normal.xy *= lod;
++        normal = normalize(vec3(-normal.x * bump, -normal.y * bump, normal.z * 0.3));
++    }
++    if (isUnderwater)
++        normal = -normal;
++    if (dot(-viewDir, normal) < 0.0)
++        normal = reflect(normal, viewDir);
++    float sunFade = smoothstep(-0.3, 1.0, length(gl_LightModel.ambient.rgb));
++    float sunFadeSqrt = sqrt(sunFade);
++    if (isInterior)
++        sunFade = mix(sunFade, 1.0, 0.225);
++
++    sunWorldDir = normalize((gl_ModelViewMatrixInverse * vec4(lcalcPosition(0).xyz, 0.0)).xyz);
++    vec3 sunWorldDirUnmodified = sunWorldDir;
++
++#if PBR_ENABLED
++    if (isInterior)
++        sunWorldDir = vec3(viewDir.x * 0.3, viewDir.y * 0.3, 0.03);
++#endif // PBR_ENABLED
++
++    float ior = (!isUnderwater) ? (1.333 / 1.0) : (1.0 / 1.333);
++#if PBR_ENABLED
++    vec3 normalF = mix(normal, normal0, smoothstep(far, far * 0.8, radialDepth) * 0.9) + rippleAdd * 0.85;
++    float fresnel = clamp(fresnel_dielectric(viewDir, normalF, ior), 0.0, 1.0) * clamp(mix(waveAttenuation, 0.65, smoothstep(0.0, 17000.0, radialDepth)), 0.0, 1.0) * smoothstep(-0.5, 0.0, reflect(viewDir, normalF).z);
++#else
++    float fresnel = clamp(fresnel_dielectric(viewDir, mix(normal, normal0, 0.5), ior), 0.0, 1.0);
++#endif // PBR_ENABLED
++
++#if !@waterRefraction
++    if (isInterior)
++        fresnel *= 0.125;
++#endif
++
++#if !PBR_ENABLED
++    if (!isInterior)
++        fresnel = min(fresnel, clamp(fresnel_dielectric(viewDir, normal0, ior), 0.0, 1.0));
++#endif
++
++    if (isUnderwater)
++    {
++        // Underwater the above-water world is seen through the surface, i.e. it
++        // lives in the refraction sample (which is wobbled by the waves). So the
++        // blend must favour refraction across most of the up-hemisphere and only
++        // lean on the reflection/TIR ceiling right at the grazing horizon, where
++        // the surface truly turns into a mirror. A low fresnel keeps the real
++        // (rippled) houses/sky/trees visible instead of darkening them into the
++        // tinted ceiling.
++        float upDot = clamp(abs(viewDir.z), 0.0, 1.0);
++        fresnel = isInterior ? 0.0 : (1.0 - smoothstep(0.02, 0.22, upDot)) * 0.55;
++    }
++
++    sunSpec.a = min(1.0, sunSpec.a * sunWorldDir.z / SUN_SPEC_FADING_THRESHOLD);
++
++#if @waterRefraction
++    float shoreFactor = smoothstep(shoreDistanceModifier + 2500.0, 250.0, waterDepthDistorted);
++    vec3 waterColor = baseWaterColor.rgb * (shoreFactor * 0.6 + 0.8);
++    #if SUB_SURFACE_ABSORPTION_ENABLED
++    {
++        const float deepFadeStart = 30.0;
++        const float deepFadeEnd = 175.0;
++        waterColor = mix(waterColor, exp(-vec3(0.012096, 0.012716, 0.01572) * waterDepthDistorted * 0.4), shoreSulphurIntensity * max(shadow, shoreFactor) * (1.0 - clamp((actualWaterDepth - deepFadeStart) / (deepFadeEnd - deepFadeStart), 0.0, 1.0)));
++    }
++    #endif // SUB_SURFACE_ABSORPTION_ENABLED
++#else
++    float shoreFactor = 0.0;
++    vec3 waterColor = isInterior ? baseWaterColor.rgb * 1.4 : baseWaterColor.rgb * (1.0 - fresnel) * 1.5;
++#endif // @waterRefraction
++
++#if WATER_MULTICOLOR_ENABLED
++    waterColor += (max(normal1, normal3) * WATER_COLOR_1 + max(normal2, normal4) * WATER_COLOR_2) * multicolorIntensity * (shoreFactor * 0.5 + 0.5);
++#endif // WATER_MULTICOLOR_ENABLED
++
++    float foamMask = 0.0;
++#if @wobblyShores && FOAM_ENABLED
++    if (foamIntensity > 0.0)
++    {
++        // Cheap coverage masks first: foam only appears on steep enough wave
++        // slopes past a short distance, or in shallow water near shore. When
++        // neither can contribute we skip the texture fetches below entirely.
++        float waveSlope = length(normal0.xy);
++        float waveMask = smoothstep(0.08, 0.35, waveSlope);
++        waveMask = waveMask * waveMask * waveMask;
++        waveMask *= smoothstep(15.0, 50.0, radialDepth);
++
++        float depthOpacity = 0.0;
++        if (g_waterDepth < 80.0)
++        {
++            float shoreFade = smoothstep(0.0, 5.0, g_waterDepth);
++            float deepFade  = 1.0 - smoothstep(5.0, 45.0, g_waterDepth);
++            depthOpacity = shoreFade * deepFade;
++        }
++
++        if (waveMask > 0.0 || depthOpacity > 0.0)
++        {
++            const float FOAM_OVERALL_SCALE = 0.0005;
++            vec2 foamBase = wp.xy * FOAM_OVERALL_SCALE;
++
++            vec2 drift1 = vec2(waterTimer * 0.003,  waterTimer * 0.002);
++            vec2 drift2 = vec2(waterTimer * 0.001, -waterTimer * 0.004);
++
++            vec2 foamUV1 = foamBase * 2.1 + drift1 * 5.5;
++            float baseFoam = texture2D(normalMap, foamUV1).a;
++
++            float baseGrayPulse = 0.4 + sin(waterTimer * 2.5) * 0.15;
++            float midGrayPulse  = 0.3 + sin(waterTimer * 1.7 + 1.9) * 0.09;
++
++            float result = mix(baseFoam, 0.5, baseGrayPulse);
++
++            vec2 foamUV2 = foamBase * 5.0 + drift2 * 5.0;
++            float detail2 = texture2D(normalMap, foamUV2).a;
++            result = result * detail2;
++
++            // Mobile: two foam samples instead of three. The third high-frequency
++            // alpha lookup was mostly sub-pixel near shore and cost fill-rate.
++            result = mix(result, 0.5, midGrayPulse);
++
++            const float FOAM_CONTRAST_LOW  = 0.0;
++            const float FOAM_CONTRAST_HIGH = 0.4;
++            float combinedFoam = smoothstep(FOAM_CONTRAST_LOW, FOAM_CONTRAST_HIGH, result);
++
++            float waveFoam = combinedFoam * waveMask;
++            float depthFoam = combinedFoam * depthOpacity;
++
++            foamMask = clamp(max(waveFoam, depthFoam) * foamIntensity, 0.0, 1.0);
++            fresnel *= (1.0 - foamMask);
++        }
++    }
++#endif
++
++    float transparencyControl = clamp(waterTransparency, 0.0, 1.4);
++#if @waterRefraction
++    float absorptionMultiplier = transparencyControl <= 1.0
++        ? mix(2.2, 1.0, transparencyControl)
++        : mix(1.0, 0.45, transparencyControl - 1.0);
++    vec3 sigma = baseWaterColor.a * (1.0 - baseWaterColor.rgb) * absorptionMultiplier;
++    vec3 expSigma = min(vec3(1.0), exp(-sigma * waterDepthDistorted));
++    vec3 diffuseShadow = mix(vec3(1.0), vec3(shadow), (1.0 - clamp(expSigma, 0.0, 1.0)));
++    vec3 diffuse = diffuseShadow * (1.0 - AMBIENT_INTENSITY);
++#else
++    float diffuse = shadow * (1.0 - AMBIENT_INTENSITY);
++#endif
++    vec3 sunDiffuse = lcalcDiffuse(0).rgb;
++
++    // -----------------------------------------------------------------------
++    // Weather gate: a single 0..1 factor that is ~1 only in clear, sunlit
++    // weather and falls to 0 in overcast, fog and rain. Direct-sun highlights
++    // (the warm specular track and the decorative sparkle) are multiplied by it
++    // so they do not light up when the sky is grey. Inputs:
++    //   - directShare: share of hard direct sun vs flat ambient. The engine
++    //     collapses the sun's diffuse toward ambient in overcast/fog.
++    //   - sunSpec.a : the engine's own sun specular amount.
++    //   - rainIntensity / fog distance: extra suppression for rain and fog.
++    float wgDirectShare;
++    {
++        const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
++        float sunLum = dot(sunDiffuse, LUMA);
++        float ambLum = dot(gl_LightModel.ambient.rgb, LUMA);
++        wgDirectShare = sunLum / max(sunLum + ambLum, 1e-4);
++    }
++    float clearWeather = smoothstep(0.45, 0.72, wgDirectShare);
++    float fogClear = smoothstep(4000.0, 9000.0, gl_Fog.end);
++    float weatherGate = clearWeather * (1.0 - clamp(rainIntensity, 0.0, 1.0)) * fogClear;
++
++#if PBR_ENABLED
++    vec3 normalS = normalize(mix(normal, normal0, 0.15) + rippleAdd * 0.4);
++    float specular = 0.0;
++
++    if (!isUnderwater)
++    {
++        const bool isDay = true;
++        if (!isInterior)
++        {
++            // Warm "golden" sun tint only in clear weather; fade it toward a
++            // neutral, cooler highlight as the sky greys out so overcast water
++            // does not show gold glints.
++            vec3 warmSun = vec3(1.48, 0.90, 0.30 * sunWorldDir.z + 0.3);
++            vec3 dullSun = vec3(0.55, 0.62, 0.72);
++            vec3 daySpec = mix(dullSun, warmSun, clearWeather);
++            sunSpec.rgb = dot(sunSpec.rgb, vec3(0.2126, 0.7152, 0.0722))
++                 * (isDay ? daySpec
++                    : vec3(0.10, 0.15, 0.20) * sunWorldDir.z + 0.04);
++        }
++
++        float alphaBase = isInterior ? 0.25 : mix(isDay ? 0.17 : 0.10, 0.85, foamMask);
++        // Existing ArenaMW Water Roughness now controls the PBR BRDF lobe.
++        // 0.22 is the compatibility/default value and leaves the port unchanged.
++        float roughnessScale = clamp(waterSurfaceRoughness / 0.22, 0.09, 4.55);
++        float alpha = clamp(alphaBase * roughnessScale, 0.02, 1.0);
++        float NdotV = max(0.0, dot(normalS, -viewDir));
++        float NdotL = max(dot(normalS, sunWorldDir), 0.0);
++        vec3 H = normalize(-viewDir + sunWorldDir);
++        alpha *= alpha;
++        float VdotH = dot(-viewDir, H);
++        float NdotH = max(dot(normalS, H), 0.0);
++
++        float ks = Schlick(0.02, 1.0, VdotH) * sunSpec.a;
++        float D = TrowbridgeReitz(alpha, NdotH);
++        float denom = 2.0 * mix(2.0 * NdotL * NdotV, NdotL + NdotV, alpha);
++        float specularBRDF = D / max(denom, 1e-4);
++        // Gate the highlight by weather (interiors keep their own lighting).
++        specular = ks * specularBRDF * shadow * (isInterior ? 1.0 : weatherGate);
++        specular *= clamp(waterHighlightIntensity, 0.0, 2.0);
++
++        diffuse *= (1.0 - ks);
++    }
++#else
++    float NdotL = sunFade * sunFade;
++    float specular = pow(max(dot(reflect(viewDir, normal), sunWorldDir), 0.0), SPEC_HARDNESS) * shadow * sunSpec.a * weatherGate
++        * clamp(waterHighlightIntensity, 0.0, 2.0);
++#endif
++
++    waterColor = waterColor * sunFade * sunFadeSqrt * (diffuse + AMBIENT_INTENSITY);
++
++    vec3 skyColorEstimate = (envSkyStrength > 0.0)
++        ? envSkyAwayColor * length(gl_LightModel.ambient.rgb) * 2.0
++        : vec3(max(0.0, mix(-0.3, 1.0, sunFade)));
++    // Raindrops no longer paint any bright/white ring. The whole impact is
++    // carried by the surface normal (dropNormal, folded into the normal below,
++    // and into the refraction offset above), so a drop reads as a voluminous but
++    // fully transparent dimple that distorts the view through the water rather
++    // than a white decal on top of it. Above and below water both stay clear.
++    vec3 rainSpecular = vec3(0.0);
++    if (isUnderwater)
++        rainSpecular = vec3(0.0);
++    float surfaceOpacity = clamp(fresnel * 6.0 + specular, 0.0, 1.0);
++    float opacityControl = transparencyControl <= 1.0
++        ? mix(1.20, 1.0, transparencyControl)
++        : mix(1.0, 0.68, transparencyControl - 1.0);
++
++#if PBR_ENABLED
++    normal = mix(normal3, mix(normal2, mix(normal0, normal1, 0.75 * fresnel / (fresnel_dielectric(viewDir, normal1, ior) + fresnel + 0.0001)), smoothstep(80.0, 500.0, radialDepth) * 0.5 + 0.5), 0.1 * waveAttenuation + 0.85) * (isUnderwater ? -1.0 : 1.0);
++#else
++    normal = mix(normal3, mix(normal2, mix(normal, normal1, fresnel / (fresnel_dielectric(viewDir, normal1, ior) + fresnel + 0.0001)), smoothstep(80.0, 500.0, radialDepth) * 0.5 + 0.5), 0.1 * waveAttenuation + 0.60) * (isUnderwater ? -1.0 : 1.0);
++#endif
++
++    // Over water: add the steep drop normal so raindrop rings stand up as real
++    // 3D dimples in the reflection/refraction distortion, not flat decals.
++    if (!isUnderwater)
++    {
++        normal.xy += dropNormal.xy;
++        normal = normalize(normal);
++    }
++
++    // Underwater: the refraction normal rebuilt above comes only from the wave
++    // layers, so neither the player/actor wake nor the raindrops reach it. Fold
++    // both in here (sign-flipped to match the -1.0 underwater normal) so from
++    // below you see the player's wake trail and gentle raindrop dimples as
++    // transparent distortions, not black rings.
++    if (isUnderwater)
++        normal.xy += -(playerDistortion.xy + rainRipple.xy * 2.2);
++
++    vec2 reflOffset = normal.xy * REFL_BUMP;
++    vec3 reflection = sampleReflectionMap(screenCoords + reflOffset).rgb;
++
++#if WATER_SKY_CONVERGENCE
++    if (!isInterior)
++    {
++        vec3 skyColor;
++        if (envSkyStrength > 0.0)
++        {
++            skyColor = envSkyAwayColor * length(gl_LightModel.ambient.rgb) * 1.5;
++            skyColor = max(skyColor, gl_LightModel.ambient.rgb * 1.5);
++        }
++        else
++        {
++            skyColor = max(gl_Fog.color.rgb, gl_LightModel.ambient.rgb * 1.5);
++        }
++        skyColor *= mix(0.5, 1.5, sunFade);
++        float distFactor = smoothstep(SKY_CONVERGENCE_START, SKY_CONVERGENCE_END, radialDepth);
++        float chopFactor = waveStrength * SKY_CONVERGENCE_CHOP_SCALE;
++        float grazeFactor = 1.0 - abs(viewDir.z);
++        float skyBlend = clamp(distFactor * chopFactor * grazeFactor, 0.0, 1.0);
++        reflection = mix(reflection, skyColor, skyBlend);
++    }
++#endif // WATER_SKY_CONVERGENCE
++
++    if (!isInterior)
++        reflection *= waveAttenuation * 0.5 + 0.5;
++
++    // CalculateReflectionAttenuation darkens the reflection toward grazing
++    // angles to mimic the above-water Fresnel edge. Underwater the surface is a
++    // total-internal-reflection mirror, so this must not be applied there or the
++    // upper view collapses to black on grazing looks. Only attenuate above water.
++    if (!isUnderwater)
++    {
++#if PBR_ENABLED
++        float mss = CalculateReflectionAttenuation(normalF);
++        reflection *= mss * mss;
++#else
++        reflection *= CalculateReflectionAttenuation(normal);
++#endif // PBR_ENABLED
++    }
++
++    reflection *= (1.0 - rainIntensity * 0.5);
++
++    if (isUnderwater)
++    {
++        // Grazing / TIR ceiling only. The above-water view comes from the
++        // refraction sample via the fresnel blend below, so this term is only
++        // what shows at grazing angles where the surface acts as a mirror of the
++        // underwater world. There is no underwater reflection texture, so use a
++        // smooth, lit, time-of-day-graded water medium colour here.
++        float litMedium = AMBIENT_INTENSITY + shadow * (1.0 - AMBIENT_INTENSITY);
++        float dayLight = mix(0.20, 1.0, sunFade);
++        vec3 mediumCeil = baseWaterColor.rgb * litMedium * dayLight * 2.4;
++        mediumCeil = mix(mediumCeil, mediumCeil + WATER_SSS_COLOR * 0.5, sunFade * 0.5);
++        reflection = mediumCeil;
++    }
++    bool isSky = false;
++
++#if @waterRefraction
++    vec2 refrCoords = screenCoords - screenCoordsOffset - underwaterRefrOffset;
++    vec3 refraction;
++    if (isUnderwater)
++    {
++        // Soften the distorted underwater view with a small 3-tap blur so the
++        // refraction does not show hard pixel steps along the wave/wake edges.
++        // Blur scale is tied to screen resolution so it stays ~constant on screen.
++        vec2 pixelStep = vec2(length(dFdx(screenCoords)), length(dFdy(screenCoords)));
++        vec2 blur = max(pixelStep, vec2(1.0 / 4096.0)) * 1.3;
++        refraction = sampleRefractionMap(refrCoords).rgb * 0.5
++                   + sampleRefractionMap(refrCoords + vec2(blur.x, blur.y)).rgb * 0.25
++                   + sampleRefractionMap(refrCoords + vec2(-blur.x, blur.y)).rgb * 0.25;
++    }
++    else
++    {
++        refraction = sampleRefractionMap(refrCoords).rgb;
++    }
++    vec3 rawRefraction = refraction;
++    if (isUnderwater)
++    {
++        refraction = clamp(refraction * (isInterior ? 0.4 : 0.9), 0.0, 1.0);
++
++        const float g = 0.6;
++        const float scatteringWeight = 0.77;
++        float phase = g * g + 1.0 - 2.0 * g * max(0.0, dot(viewDir, sunWorldDir));
++        phase = phase * sqrt(phase) + 0.000001;
++        phase = (1.0 - g * g) / (4.0 * 3.14159 * phase);
++        // NG-GL4ES simple shader converter exposes only scalar exp2 on this path.
++        // Evaluate the Beer-Lambert term component-wise to preserve identical RGB math.
++        vec3 scatterExp = -sigma * max(0.0, position.z - cameraPos.z);
++        vec3 sunScatter = clamp(vec3(exp2(scatterExp.x), exp2(scatterExp.y), exp2(scatterExp.z)), 0.0, 1.0);
++        sunScatter = vec3(1.0, 0.85, 0.66) * phase * sunScatter * scatteringWeight * sunSpec.a;
++        refraction = sunScatter * diffuseShadow + refraction;
++
++        // -------------------------------------------------------------------
++        // Underwater fog + tint: distant geometry seen through the water column
++        // fades into the active water type's colour, lit by time of day.
++        {
++            // distance the view ray travels through water to the seen surface.
++            float throughWater = max(depthSampleDistorted - surfaceDepth, 0.0);
++            // skip fogging the bright sky disc seen through the Snell window.
++            float hitsGeometry = 1.0 - smoothstep(far * 0.9, far, depthSampleDistorted);
++            // when looking up through the surface at above-water objects the ray
++            // barely travels through water, so only fog when looking down/out.
++            float looksDown = smoothstep(0.10, -0.10, viewDir.z); // 1 down, 0 up
++            // scale absorption up for the underwater medium so the fog closes in
++            // at a believable distance.
++            vec3 fogTrans = exp(-sigma * throughWater * 9.0);
++            fogTrans = clamp(fogTrans, 0.0, 1.0);
++            fogTrans = mix(vec3(1.0), fogTrans, hitsGeometry * looksDown);
++            // fog colour: the water tint lit by daylight, ambient floor at night.
++            float dayLight = mix(0.06, 1.0, sunFade);
++            vec3 fogColor = baseWaterColor.rgb * dayLight;
++            // a touch of the SSS hue warms the near field.
++            fogColor = mix(fogColor, mix(fogColor, WATER_SSS_COLOR, 0.25), sunFade);
++            refraction = mix(fogColor, refraction, fogTrans);
++        }
++
++        refraction *= (1.0 - foamMask);
++        isSky = (depthSampleDistorted >= far && viewDir.z > 0.02);
++    }
++    else
++    {
++        refraction *= refractionBrightness;
++        vec3 transmission = (1.0 - foamMask) * expSigma * min(transparencyControl, 1.0);
++        refraction = clamp(mix(waterColor, refraction, transmission), 0.0, 1.0);
++        // Values above 1.0 progressively restore some of the unabsorbed scene,
++        // making clear water visibly clearer without changing the default look.
++        float extraClarity = max(transparencyControl - 1.0, 0.0);
++        refraction = mix(refraction, rawRefraction * refractionBrightness,
++            extraClarity * 0.35 * (1.0 - foamMask));
++        refraction = mix(refraction, vec3(dot(refraction, vec3(0.2126, 0.7152, 0.0722))), foamMask);
++
++        // Shadowed water volume: where the surface is in shadow the column below
++        // receives no direct sun, so it reads darker and leans toward the water's
++        // own absorption colour, making cast shadows feel volumetric.
++        {
++            // deeper water -> more of the column is shadowed; ramp with depth but
++            // saturate so shallows stay clear.
++            float depthRamp = smoothstep(20.0, 400.0, waterDepthDistorted);
++            float shadowAmt = (1.0 - shadow) * depthRamp;
++            refraction *= mix(1.0, 0.62, shadowAmt);
++            // cool tint pulled from the water's own colour plus a touch of SSS.
++            vec3 shadowTint = mix(baseWaterColor.rgb, WATER_SSS_COLOR, 0.25);
++            refraction = mix(refraction, refraction * (0.5 + shadowTint * 2.0), shadowAmt * 0.5);
++        }
++    }
++
++#if @sunlightScattering && !PBR_ENABLED
++    vec3 scatterNormal = (normal1 * bigWaves.x * 0.5 + normal2 * bigWaves.y * 0.5 + normal3 * midWaves.x * 0.2 +
++                          normal4 * midWaves.y * 0.2 + normal5Faded * smallWaves.x * 0.1 + normal0 * smallWaves.y * 0.1 + rippleAdd);
++    scatterNormal = normalize(vec3(-scatterNormal.xy * bump, scatterNormal.z));
++    float sunHeight = sunWorldDir.z;
++    vec3 scatterColour = mix(SCATTER_COLOUR * vec3(1.0, 0.4, 0.0), SCATTER_COLOUR, max(1.0 - exp(-sunHeight * SUN_EXT), 0.0));
++    float scatterLambert = max(dot(sunWorldDir, scatterNormal) * 0.7 + 0.3, 0.0);
++    float scatterReflectAngle = max(dot(reflect(sunWorldDir, scatterNormal), viewDir) * 2.0 - 1.2, 0.0);
++    float lightScatter = (shadow * AMBIENT_INTENSITY + 0.5) * scatterLambert * scatterReflectAngle * SCATTER_AMOUNT * sunFade * sunSpec.a * max(1.0 - exp(-sunHeight), 0.0);
++    refraction = mix(refraction, scatterColour, lightScatter * (1.0 - foamMask) * smoothstep(0.0, 500.0, waterDepthDistorted));
++#endif
++
++    vec3 sss = vec3(0.0);
++#if PBR_ENABLED && WATER_SSS_ENABLED
++    sss = sssIntensity * clamp(WATER_SSS_COLOR * (1.0 - abs(viewDir.z)) * (1.0 - fresnel) * max(0.0, dot(viewDir, sunWorldDir)), 0.0, 1.0) * shadow * sunSpec.a * smoothstep(0.4, 0.1, foamMask) * smoothstep(0.0, 500.0, actualWaterDepth);
++    sss += baseWaterColor.rgb * 0.2 * expSigma * sunSpec.a;
++    refraction += sss;
++#endif // PBR_ENABLED && WATER_SSS_ENABLED
++
++    gl_FragData[0].rgb = mix(refraction, reflection, fresnel);
++    gl_FragData[0].a = 1.0;
++    rainSpecular *= surfaceOpacity;
++#else
++    gl_FragData[0].rgb = mix(waterColor, reflection, fresnel);
++    gl_FragData[0].a = clamp((isInterior ? surfaceOpacity * 0.5 + 0.5 : surfaceOpacity * 0.28 + 0.72) * opacityControl, 0.0, 1.0);
++
++    // Without refraction the grazing horizon shows a bright reflected-sky seam.
++    // Roll the water back toward its own colour there so the white band fades.
++    if (!isInterior && !isUnderwater)
++    {
++        float horizonBand = smoothstep(0.35, 0.02, abs(viewDir.z));      // strongest at the flat horizon
++        horizonBand *= smoothstep(1500.0, 6000.0, radialDepth);          // only in the distance
++        gl_FragData[0].rgb = mix(gl_FragData[0].rgb, waterColor, horizonBand * 0.75);
++    }
++#endif // @waterRefraction
++
++    // ArenaMW keeps the refraction RTT alive even when the user disables the
++    // visual refraction option.  Reuse the 0.51 no-refraction look dynamically
++    // instead of rebuilding/switching the water pipeline at runtime.
++    if (useRefraction < 0.5)
++    {
++        gl_FragData[0].rgb = mix(waterColor, reflection, fresnel);
++        gl_FragData[0].a = clamp((isInterior ? surfaceOpacity * 0.5 + 0.5
++                                     : surfaceOpacity * 0.28 + 0.72) * opacityControl, 0.0, 1.0);
++
++        if (!isInterior && !isUnderwater)
++        {
++            float horizonBand = smoothstep(0.35, 0.02, abs(viewDir.z));
++            horizonBand *= smoothstep(1500.0, 6000.0, radialDepth);
++            gl_FragData[0].rgb = mix(gl_FragData[0].rgb, waterColor, horizonBand * 0.75);
++        }
++    }
++
++#if @sunlightScattering
++    gl_FragData[0].rgb += (specular * sunSpec.rgb + rainSpecular) * (1.0 - foamMask);
++#else
++    gl_FragData[0].rgb += rainSpecular * (1.0 - foamMask);
++#endif // @sunlightScattering
++
++#if @waterRefraction
++    vec3 normalShoreRippleRain = texture2D(normalMap, normalCoords(UV, 2.0, 2.7, -1.0 * waterTimer, 0.05, 0.1, normal4)).rgb - 0.5
++                               + texture2D(normalMap, normalCoords(UV, 2.0, 2.7, waterTimer, 0.04, -0.13, normal5)).rgb - 0.5;
++    float verticalWaterDepth = max(waterDepthDistorted, 0.0);
++    float shoreOffset = verticalWaterDepth - (normal1.x + mix(0.0, normalShoreRippleRain.r, rainIntensity) + 0.15) * 8.0;
++    float fuzzFactor = min(1.0, 1000.0 / surfaceDepth);
++    shoreOffset *= fuzzFactor;
++    shoreOffset = clamp(mix(shoreOffset, 1.0, clamp(linearDepth / WOBBLY_SHORE_FADE_DISTANCE, 0.0, 1.0)), 0.0, 1.0);
++    shoreOffset = mix(shoreOffset, 0.0, smoothstep(4.0, 0.0, verticalWaterDepth));
++    if (useRefraction > 0.5)
++        gl_FragData[0].rgb = mix(gl_FragData[0].rgb, rawRefraction, 1.0 - shoreOffset);
++#endif
++
++    if (!isUnderwater)
++    {
++        float foamLight = clamp(shadow * sunFade + AMBIENT_INTENSITY * sunFade * 0.5, 0.03, 1.0);
++        vec3 foamColor = vec3(0.9, 0.9, 0.9) * foamLight;
++        gl_FragData[0].rgb = mix(gl_FragData[0].rgb, foamColor, foamMask);
++    }
++
++#if MOBILE_SURFACE_DETAIL
++    // Optional decorative sparkle/breathing layer. Disabled on Android because
++    // it performs multiple procedural-noise evaluations for every water pixel.
++    if (!isUnderwater && !isInterior)
++    {
++        float sunZ = sunWorldDirUnmodified.z;
++        float sparkleGate = shadow * clamp(sunZ * 1.5, 0.0, 1.0) * weatherGate * sunSpec.a;
++        if (sparkleGate > 0.001)
++        {
++            float sparkle = surfaceSparkle(wp.xy, normal, osg_SimulationTime * 3.14);
++            vec3 sparkleCol = mix(sunDiffuse, vec3(1.0), 0.4);
++            gl_FragData[0].rgb += sparkleCol * sparkle * sparkleGate * (0.18 + 0.12 * fresnel)
++                * clamp(waterHighlightIntensity, 0.0, 2.0) * (1.0 - foamMask);
++        }
++        gl_FragData[0].rgb *= surfaceBreathing(wp.xy, osg_SimulationTime * 3.14);
++        vec3 tint = dayTint(sunZ);
++        gl_FragData[0].rgb = mix(gl_FragData[0].rgb, gl_FragData[0].rgb * tint, 0.06);
++    }
++#endif // MOBILE_SURFACE_DETAIL
++
++    gl_FragData[0] = applyFogAtDist(gl_FragData[0], radialDepth, linearDepth, far);
++
++#if !@disableNormals
++    #if PBR_ENABLED
++        normal = normalF * (isUnderwater ? -1.0 : 1.0);
++    #else
++        normal = mix(normal, vec3(0.0, 0.0, isUnderwater ? -1.0 : 1.0), 0.5);
++    #endif // PBR_ENABLED
++
++    gl_FragData[1].rgb = normalize(gl_NormalMatrix * normal) * 0.5 + 0.5;
++
++    #if PBR_ENABLED
++        if (isSky)
++            gl_FragData[1].rgb = 1.0 - gl_FragData[1].rgb;
++        else
++        {
++            #if @waterRefraction
++                gl_FragData[1].rgb *= smoothstep(0.0, 0.9, shoreOffset + rainIntensity);
++            #endif // @waterRefraction
++        }
++    #endif // PBR_ENABLED
++
++    gl_FragData[1].rgb *= (1.0 - foamMask) * (min(0.0, rainSpecular.g) + 1.0);
++#endif // !@disableNormals
++
++#if PBR_ENABLED
++#if LIGHTING_DEBUG_MODE == 1
++    gl_FragData[0].rgb = isInterior ? vec3(0.0, 0.75, 0.0) : vec3(shadow);
++#elif LIGHTING_DEBUG_MODE == 2
++    gl_FragData[0].rgb = vec3(1.0);
++#elif LIGHTING_DEBUG_MODE == 3
++    gl_FragData[0].rgb = sss;
++#elif LIGHTING_DEBUG_MODE == 4
++    gl_FragData[0].rgb = vec3(UV.xy, 0.0);
++#endif // LIGHTING_DEBUG_MODE
++#endif // PBR_ENABLED
++
++    applyShadowDebugOverlay();
++}

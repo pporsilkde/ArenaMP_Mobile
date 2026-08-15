@@ -1,4 +1,4 @@
-# ArenaMP Mobile Client V1 — что изменено
+# ArenaMP Mobile Client V1.1 — что изменено
 
 ## Цель
 

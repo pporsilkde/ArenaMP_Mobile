@@ -537,7 +537,7 @@ set(ARENAMP_PATCH
     # The old ArenaMW patch series was rebased onto current AMP and resolved as
     # one deterministic cumulative patch. Individual originals are preserved in
     # patches/openmw/legacy-arenamw for audit/reference.
-    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-arenamp-mobile-cumulative-v1.patch &&
+    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-arenamp-mobile-cumulative-v1-1.patch &&
     cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_main.cpp <SOURCE_DIR>/apps/openmw/android_main.cpp &&
     sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR>
 )

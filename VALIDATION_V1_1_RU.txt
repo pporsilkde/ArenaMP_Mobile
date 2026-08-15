@@ -1,0 +1,20 @@
+ArenaMP Mobile Client V1.1 — validation
+
+Источник ошибки logs_86531197839.zip:
+CMake configure не находил:
+- files/shaders/water_pbr_android_fragment.glsl
+- files/shaders/water_pbr_android_data.glsl
+
+Исправлено:
+- оба shader-файла теперь создаются cumulative patch;
+- финальные версии восстановлены из ArenaMW Mobile chain 07 -> 09 -> 10 -> 12 -> 21;
+- patch проходит git apply --check и git apply на чистом AMP snapshot;
+- все Android XML проходят строгий XML parse;
+- workflow YAML проходит parse;
+- shell scripts проходят bash -n;
+- outer builder CMake configure проходит для arm64 release;
+- targets arenamp/raknet/android-dependencies/NG-GL4ES присутствуют;
+- cache epoch: arenamp-android-arm64-client-v1-1.
+
+По присланному CI-логу RakNet уже успешно собран до 100% как libRakNetLibStatic.a.
+Сервер по-прежнему не собирается.

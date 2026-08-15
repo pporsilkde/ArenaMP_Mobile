@@ -1,4 +1,4 @@
-# ArenaMP Mobile Client V1
+# ArenaMP Mobile Client V1.1
 
 Android builder for the ArenaMP client from `https://github.com/pporsilkde/AMP` (`main` by default).
 
