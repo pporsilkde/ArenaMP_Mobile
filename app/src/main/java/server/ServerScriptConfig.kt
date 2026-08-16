@@ -14,8 +14,9 @@ object ServerScriptConfig {
 
     private fun replaceAssignment(text: String, key: String, value: String): String {
         val regex = Regex("(?m)^(\\s*config\\.${Regex.escape(key)}\\s*=\\s*).*$")
-        if (regex.containsMatchIn(text))
-            return regex.replaceFirst(text) { it.groupValues[1] + value }
+        val match = regex.find(text)
+        if (match != null)
+            return text.replaceRange(match.range, match.groupValues[1] + value)
         val returnRegex = Regex("(?m)^\\s*return\\s+config\\s*$")
         return if (returnRegex.containsMatchIn(text))
             returnRegex.replaceFirst(text, "config.$key = $value\n\nreturn config")
