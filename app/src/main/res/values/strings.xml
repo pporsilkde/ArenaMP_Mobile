@@ -875,4 +875,7 @@
     <string name="filechooser_folder_error">Could not create folder. Try again.</string>
     <string name="filechooser_folder_name">Folder name</string>
     <string name="filechooser_empty_folder_name">Enter a folder name</string>
+    <string name="server_status_stopping">Stopping server…</string>
+    <string name="server_status_exiting">Closing server service…</string>
+    <string name="server_exit">Exit</string>
 </resources>

@@ -639,4 +639,7 @@
     <string name="filechooser_folder_error">Не удалось создать папку. Попробуйте ещё раз.</string>
     <string name="filechooser_folder_name">Имя папки</string>
     <string name="filechooser_empty_folder_name">Введите имя папки</string>
+    <string name="server_status_stopping">Остановка сервера…</string>
+    <string name="server_status_exiting">Выход из сервера…</string>
+    <string name="server_exit">Выход</string>
 </resources>
