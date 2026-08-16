@@ -16,7 +16,8 @@ object BuildManifest {
     // This is intentionally independent from Android versionCode/versionName.
     const val DEFAULT_NETWORK_VERSION = "0.8.1"
     const val DEFAULT_NETWORK_PROTOCOL = "806"
-    const val DEFAULT_NETWORK_COMMIT_HASH = "ba8cf3b139c50b3f8e08069afee964294ad8fdbb"
+    const val DEFAULT_NETWORK_COMMIT_HASH = "0f659371bcbaf9e7e6b94bd6bcb7a81970082234"
+    private const val LEGACY_NETWORK_COMMIT_HASH_V126 = "ba8cf3b139c50b3f8e08069afee964294ad8fdbb"
 
     data class Data(
         var formatVersion: Int = 1,
@@ -161,7 +162,12 @@ object BuildManifest {
         if (out.serverPort.isBlank()) out.serverPort = DEFAULT_SERVER_PORT
         if (out.networkVersion.isBlank()) out.networkVersion = DEFAULT_NETWORK_VERSION
         if (out.networkProtocol.isBlank()) out.networkProtocol = DEFAULT_NETWORK_PROTOCOL
-        if (out.networkCommitHash.isBlank()) out.networkCommitHash = DEFAULT_NETWORK_COMMIT_HASH
+        if (out.networkCommitHash.isBlank()
+            || out.networkCommitHash.equals(LEGACY_NETWORK_COMMIT_HASH_V126, ignoreCase = true)) {
+            // V1.2.6/V1.2.7 wrote the newer Android build checkpoint into build.ini.
+            // The parent PC server currently expects its resources/version identity instead.
+            out.networkCommitHash = DEFAULT_NETWORK_COMMIT_HASH
+        }
         return out
     }
 

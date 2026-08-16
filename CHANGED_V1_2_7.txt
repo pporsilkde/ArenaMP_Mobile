@@ -1,0 +1,12 @@
+ArenaMP Mobile Client V1.2.7
+
+Changed builder files:
+- app/build.gradle
+- app/src/main/res/xml/settings.xml
+- app/src/main/java/ui/fragments/FragmentSettings.kt
+- app/src/main/java/ui/activity/MainActivity.kt
+- buildscripts/CMakeLists.txt
+- buildscripts/patches/openmw/08-arenamp-android-compact-display-v1-2-7.patch
+- patches/openmw/08-arenamp-android-compact-display-v1-2-7.patch
+- .github/workflows/android.yml
+- FIX_V1_2_7_RU.txt

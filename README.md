@@ -127,7 +127,7 @@ for audit/reference only; CMake does not apply them individually.
 
 ```bash
 ARENAMP_REPOSITORY=https://github.com/pporsilkde/AMP.git \
-ARENAMP_GIT_TAG=main \
+ARENAMP_GIT_TAG=0f659371bcbaf9e7e6b94bd6bcb7a81970082234 \
 ./buildscripts/build.sh --arch arm64 --ccache --release --client-only
 ```
 

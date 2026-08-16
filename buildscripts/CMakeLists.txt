@@ -60,9 +60,9 @@ endif()
 project(arenamp-android)
 
 # ArenaMP source can be overridden from the command line. The Android client
-# tracks pporsilkde/AMP main by default; the multiplayer server is not built.
+# is pinned to the parent PC-compatible AMP commit 0f659371bc; the multiplayer server is not built.
 set(ARENAMP_REPOSITORY "https://github.com/pporsilkde/AMP.git" CACHE STRING "ArenaMP Git repository or local source path")
-set(ARENAMP_GIT_TAG "main" CACHE STRING "ArenaMP branch, tag or commit")
+set(ARENAMP_GIT_TAG "0f659371bcbaf9e7e6b94bd6bcb7a81970082234" CACHE STRING "ArenaMP branch, tag or commit")
 
 include(ExternalProject)
 
@@ -539,6 +539,7 @@ set(ARENAMP_PATCH
     # patches/openmw/legacy-arenamw for audit/reference.
     git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch &&
     git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/07-arenamp-parent-network-identity-v1-2-6.patch &&
+    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/08-arenamp-android-compact-display-v1-2-7.patch &&
     cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_main.cpp <SOURCE_DIR>/apps/openmw/android_main.cpp &&
     sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR>
 )
@@ -554,7 +555,8 @@ ExternalProject_Add(arenamp
 
     GIT_REPOSITORY ${ARENAMP_REPOSITORY}
     GIT_TAG ${ARENAMP_GIT_TAG}
-    GIT_SHALLOW TRUE
+    # A fixed historical SHA must always be fetchable even after AMP/main moves.
+    GIT_SHALLOW FALSE
     UPDATE_DISCONNECTED TRUE
     DOWNLOAD_DIR ${download_dir}
 

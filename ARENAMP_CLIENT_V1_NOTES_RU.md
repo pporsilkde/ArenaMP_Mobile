@@ -69,3 +69,10 @@ OSC:
 - удержание scroll-wheel 650 мс без движения = `TAB`, обычный scroll сохранён;
 - кнопка keyboard/F11/F12 перенесена под scroll-wheel: X=12, Y=528, соосно Pause;
 - Pause default alpha = 0.52.
+
+## V1.2.7 — compact Screen UI / launcher cleanup
+
+- Игровая вкладка «Экран» уплотнена для Android: список разрешений, Fullscreen и Window Border скрыты, VSync перенесён в левую верхнюю область.
+- Оставшиеся экранные ползунки подняты вверх без больших пустых промежутков; Canvas уменьшен до 360 px.
+- В лаунчере удалена отдельная категория GUI / «Масштаб интерфейса»; используется автоматический масштаб устройства, устаревший `pref_uiScaling` очищается.
+- Android `versionCode` возвращён на 47. Сетевая Parent ArenaMP identity остаётся отдельной и не зависит от `versionCode`.

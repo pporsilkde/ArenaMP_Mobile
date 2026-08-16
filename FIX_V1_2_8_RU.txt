@@ -1,0 +1,10 @@
+ArenaMP Mobile Client V1.2.8
+
+Исправление сетевой совместимости:
+- Parent PC ArenaMP server identity: 0f659371bcbaf9e7e6b94bd6bcb7a81970082234.
+- Android app versionCode остаётся 47 и не участвует в handshake.
+- DEFAULT_NETWORK_VERSION = 0.8.1.
+- DEFAULT_NETWORK_PROTOCOL = 806.
+- DEFAULT_NETWORK_COMMIT_HASH = 0f659371bcbaf9e7e6b94bd6bcb7a81970082234.
+- Добавлена миграция build.ini: старый автоматически записанный V1.2.6/V1.2.7 hash ba8cf3b... при чтении заменяется на parent-server hash 0f659371....
+- Остальные изменения V1.2.7 сохранены.

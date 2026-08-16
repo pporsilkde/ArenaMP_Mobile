@@ -1,0 +1,13 @@
+ArenaMP Mobile Client V1.2.9
+
+Исправление фиксации родительской версии AMP:
+- Исходники ArenaMP больше НЕ отслеживают AMP/main автоматически.
+- ARENAMP_GIT_TAG по умолчанию зафиксирован на:
+  0f659371bcbaf9e7e6b94bd6bcb7a81970082234
+- Сетевой network-commit остаётся тем же 0f659371bcbaf9e7e6b94bd6bcb7a81970082234.
+- Android versionCode остаётся 47.
+- Incremental cache epoch обновлён, поэтому cached checkout 555354b46f не будет повторно использован.
+- Cached-source updater понимает как branch/tag, так и полный 40-символьный commit SHA.
+- Для exact SHA в ExternalProject отключён GIT_SHALLOW, чтобы старый commit оставался надёжно доступен после движения main.
+
+Все изменения V1.2.8 сохранены.

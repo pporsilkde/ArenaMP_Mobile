@@ -7,6 +7,6 @@ ArenaMP Mobile Client V1.2.6
 - По умолчанию родительский checkpoint из присланного AMP(1):
   version=0.8.1
   protocol=806
-  commit=ba8cf3b139c50b3f8e08069afee964294ad8fdbb
+  commit=0f659371bcbaf9e7e6b94bd6bcb7a81970082234
 - build.ini поддерживает [Server] network-version, network-protocol, network-commit.
 - Все предыдущие правки сохранены.

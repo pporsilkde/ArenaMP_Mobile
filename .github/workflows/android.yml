@@ -27,10 +27,10 @@ jobs:
       LTO_JOBS: 1
       GENERATE_DEBUG_SYMBOLS: "false"
       ARENAMP_REPOSITORY: https://github.com/pporsilkde/AMP.git
-      ARENAMP_GIT_TAG: main
+      ARENAMP_GIT_TAG: 0f659371bcbaf9e7e6b94bd6bcb7a81970082234
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2-6
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2-9-pin-0f659371bc
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -143,7 +143,8 @@ jobs:
             ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-
 
       # ExternalProject keeps the checked-out AMP repository inside arenamp-prefix.
-      # If upstream/main did not move, leave that tree completely untouched so its
+      # The ArenaMP client is pinned to a parent PC-compatible commit. If the
+# pinned commit did not change, leave the cached tree completely untouched so its
       # mtimes match the cached object files.  If upstream changed, reset only the
       # patched working tree, fetch the new commit and invalidate patch/configure
       # stamps without deleting the binary directory.  Make/CMake then rebuilds
@@ -156,7 +157,7 @@ jobs:
           STAMP="buildscripts/build/arm64/arenamp-prefix/src/arenamp-stamp"
 
           if [[ ! -d "$SRC/.git" ]]; then
-            echo '==> No cached ArenaMP checkout; ExternalProject will clone pporsilkde/AMP on this run'
+            echo '==> No cached ArenaMP checkout; ExternalProject will clone pinned AMP commit 0f659371bc'
             if [[ -e "$SRC" || -d "buildscripts/build/arm64/arenamp-prefix" ]]; then
               # A partial/corrupt cache must not block ExternalProject's first clone.
               rm -rf buildscripts/build/arm64/arenamp-prefix
@@ -166,10 +167,19 @@ jobs:
 
           git -C "$SRC" remote set-url origin "$ARENAMP_REPOSITORY"
           LOCAL_SHA="$(git -C "$SRC" rev-parse HEAD)"
-          REMOTE_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "refs/heads/$ARENAMP_GIT_TAG" | awk 'NR==1 {print $1}')"
-          if [[ -z "$REMOTE_SHA" ]]; then
-            echo "Could not resolve $ARENAMP_REPOSITORY refs/heads/$ARENAMP_GIT_TAG" >&2
-            exit 1
+          if [[ "$ARENAMP_GIT_TAG" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            # Exact parent commit: do not follow AMP/main. This keeps the Android
+            # engine code and TES3MP network identity on the same PC baseline.
+            REMOTE_SHA="${ARENAMP_GIT_TAG,,}"
+          else
+            REMOTE_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "refs/heads/$ARENAMP_GIT_TAG" | awk 'NR==1 {print $1}')"
+            if [[ -z "$REMOTE_SHA" ]]; then
+              REMOTE_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "$ARENAMP_GIT_TAG" | awk 'NR==1 {print $1}')"
+            fi
+            if [[ -z "$REMOTE_SHA" ]]; then
+              echo "Could not resolve $ARENAMP_REPOSITORY $ARENAMP_GIT_TAG" >&2
+              exit 1
+            fi
           fi
 
           # UPDATE_DISCONNECTED=TRUE changes ExternalProject step stamp names.
@@ -178,7 +188,7 @@ jobs:
           # Android patches (including the NDK r21e sse2neon compatibility fix).
           PATCH_STAMP="$STAMP/arenamp-patch_disconnected"
           echo "==> Cached ArenaMP base: $LOCAL_SHA"
-          echo "==> Upstream ArenaMP base: $REMOTE_SHA"
+          echo "==> Required ArenaMP base: $REMOTE_SHA"
 
           if [[ "$LOCAL_SHA" == "$REMOTE_SHA" && -f "$PATCH_STAMP" ]]; then
             echo '==> ArenaMP source is unchanged; preserving source/object mtimes for a true incremental build'
@@ -191,7 +201,13 @@ jobs:
           # apply them once again via the invalidated patch stamp.
           git -C "$SRC" reset --hard HEAD
           git -C "$SRC" clean -fdx
-          git -C "$SRC" fetch --depth=50 origin "$ARENAMP_GIT_TAG"
+          if [[ "$ARENAMP_GIT_TAG" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            # GitHub accepts fetching an exact reachable commit by object id. Use
+            # a one-commit fetch first, then fall back to a normal fetch if needed.
+            git -C "$SRC" fetch --depth=1 origin "$REMOTE_SHA" || git -C "$SRC" fetch origin "$REMOTE_SHA"
+          else
+            git -C "$SRC" fetch --depth=50 origin "$ARENAMP_GIT_TAG"
+          fi
           git -C "$SRC" checkout --detach "$REMOTE_SHA"
 
           rm -f \

@@ -456,16 +456,12 @@ class MainActivity : AppCompatActivity() {
     private fun startGame() {
 //***********************************************************************************************************************************************************
 
-        var scaling = 0f
+        // GUI scale is no longer exposed in the Android launcher. Keep the
+        // automatic device-derived scale and drop any stale legacy override.
+        val scaling = MyApp.app.defaultScaling
+        if (prefs.contains("pref_uiScaling"))
+            prefs.edit().remove("pref_uiScaling").apply()
 
-        try {
-            scaling = prefs.getString("pref_uiScaling", "")!!.toFloat()
-        } catch (e: NumberFormatException) {
-            with(prefs.edit()) {
-                putString("pref_uiScaling", "")
-                apply()
-            }
-        }
         // set up gamma, if invalid, use the default (1.0)
         var gamma = 1.0f
         try {
@@ -482,11 +478,6 @@ class MainActivity : AppCompatActivity() {
             Os.setenv("OPENMW_GAMMA", "%.2f".format(Locale.ROOT, gamma), true)
         } catch (e: ErrnoException) {
             // can't really do much if that fails...
-        }
-
-        // If scaling didn't get set, determine it automatically
-        if (scaling == 0f) {
-            scaling = MyApp.app.defaultScaling
         }
 
         val dialog = ProgressDialog.show(
