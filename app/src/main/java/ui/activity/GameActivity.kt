@@ -234,6 +234,21 @@ class GameActivity : SDLActivity() {
             if (manifest.vanillaServerCompatibility) {
                 if (isNotEmpty()) append(' ')
                 append("--vanilla-build-server")
+            } else {
+                // Android application version is independent from the parent PC ArenaMP
+                // network identity. The server only sees these handshake values.
+                if (manifest.networkVersion.isNotBlank()) {
+                    if (isNotEmpty()) append(' ')
+                    append("--network-version=").append(manifest.networkVersion.trim())
+                }
+                val networkProtocol = manifest.networkProtocol.trim().toIntOrNull()
+                    ?.takeIf { it > 0 } ?: BuildManifest.DEFAULT_NETWORK_PROTOCOL.toInt()
+                if (isNotEmpty()) append(' ')
+                append("--network-protocol=").append(networkProtocol)
+                if (manifest.networkCommitHash.isNotBlank()) {
+                    if (isNotEmpty()) append(' ')
+                    append("--network-commit-hash=").append(manifest.networkCommitHash.trim())
+                }
             }
         }
         return CommandlineParser(cmd).argv

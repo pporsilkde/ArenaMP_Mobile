@@ -1,0 +1,8 @@
+ArenaMP Mobile Client V1.2.5
+
+- app/build.gradle: versionCode 47 -> 48.
+- MainActivity.kt: compare APK bundled resources/version with deployed resources/version before launch.
+- MainActivity.kt: automatically refresh static resources/global config when commit identity differs.
+- buildscripts/build.sh: fail packaging if resources/version commit hash does not match the checked-out AMP HEAD.
+- No server code is built or changed.
+- V1.2.4 renderer, control and icon changes are preserved.

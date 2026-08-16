@@ -12,6 +12,12 @@ object BuildManifest {
     const val DEFAULT_SERVER_ADDRESS = "127.0.0.1"
     const val DEFAULT_SERVER_PORT = "25565"
 
+    // Network identity of the parent PC ArenaMP checkpoint supplied with AMP(1).
+    // This is intentionally independent from Android versionCode/versionName.
+    const val DEFAULT_NETWORK_VERSION = "0.8.1"
+    const val DEFAULT_NETWORK_PROTOCOL = "806"
+    const val DEFAULT_NETWORK_COMMIT_HASH = "ba8cf3b139c50b3f8e08069afee964294ad8fdbb"
+
     data class Data(
         var formatVersion: Int = 1,
         var name: String = "ArenaMP",
@@ -23,6 +29,9 @@ object BuildManifest {
         var serverAddressSpecified: Boolean = false,
         var serverPortSpecified: Boolean = false,
         var vanillaServerCompatibility: Boolean = false,
+        var networkVersion: String = DEFAULT_NETWORK_VERSION,
+        var networkProtocol: String = DEFAULT_NETWORK_PROTOCOL,
+        var networkCommitHash: String = DEFAULT_NETWORK_COMMIT_HASH,
         val content: MutableList<String> = mutableListOf(),
         val groundcover: MutableList<String> = mutableListOf(),
         val archives: MutableList<String> = mutableListOf()
@@ -134,6 +143,12 @@ object BuildManifest {
                 }
                 isServerSection(section) && (key == "vanilla-build-server" || key == "vanilla" || key == "legacy-client") ->
                     out.vanillaServerCompatibility = parseBool(value)
+                isServerSection(section) && (key == "network-version" || key == "parent-version" || key == "tes3mp-version" || key == "version") ->
+                    out.networkVersion = value.trim()
+                isServerSection(section) && (key == "network-protocol" || key == "protocol" || key == "tes3mp-protocol") ->
+                    out.networkProtocol = value.trim()
+                isServerSection(section) && (key == "network-commit" || key == "network-commit-hash" || key == "parent-commit" || key == "commit-hash") ->
+                    out.networkCommitHash = value.trim()
                 key == "content" || key == "plugin" || key == "esm" || key == "esp"
                     || key == "omwgame" || key == "omwaddon" -> out.content.add(value)
                 key == "groundcover" || key == "grass" -> out.groundcover.add(value)
@@ -144,6 +159,9 @@ object BuildManifest {
         out.language = canonicalLanguage(out.language)
         if (out.serverAddress.isBlank()) out.serverAddress = DEFAULT_SERVER_ADDRESS
         if (out.serverPort.isBlank()) out.serverPort = DEFAULT_SERVER_PORT
+        if (out.networkVersion.isBlank()) out.networkVersion = DEFAULT_NETWORK_VERSION
+        if (out.networkProtocol.isBlank()) out.networkProtocol = DEFAULT_NETWORK_PROTOCOL
+        if (out.networkCommitHash.isBlank()) out.networkCommitHash = DEFAULT_NETWORK_COMMIT_HASH
         return out
     }
 
@@ -170,7 +188,10 @@ object BuildManifest {
             serverPort = if (locked) existing?.serverPort ?: DEFAULT_SERVER_PORT else prefPort.ifBlank { DEFAULT_SERVER_PORT },
             serverAddressSpecified = if (locked) existing?.serverAddressSpecified ?: false else true,
             serverPortSpecified = if (locked) existing?.serverPortSpecified ?: false else true,
-            vanillaServerCompatibility = existing?.vanillaServerCompatibility ?: false
+            vanillaServerCompatibility = existing?.vanillaServerCompatibility ?: false,
+            networkVersion = existing?.networkVersion?.takeIf { it.isNotBlank() } ?: DEFAULT_NETWORK_VERSION,
+            networkProtocol = existing?.networkProtocol?.takeIf { it.isNotBlank() } ?: DEFAULT_NETWORK_PROTOCOL,
+            networkCommitHash = existing?.networkCommitHash?.takeIf { it.isNotBlank() } ?: DEFAULT_NETWORK_COMMIT_HASH
         )
         ModsCollection(ModType.Plugin, dataFiles, db).mods.filter { it.enabled }.sortedBy { it.order }
             .forEach { out.content.add(it.filename) }
@@ -198,7 +219,10 @@ object BuildManifest {
             append("[Server]\n")
             if (out.serverAddressSpecified) append("address=").append(quote(out.serverAddress)).append('\n')
             if (out.serverPortSpecified) append("port=").append(quote(out.serverPort)).append('\n')
-            append("vanilla-build-server=").append(if (out.vanillaServerCompatibility) "true" else "false").append("\n\n")
+            append("vanilla-build-server=").append(if (out.vanillaServerCompatibility) "true" else "false").append('\n')
+            append("network-version=").append(quote(out.networkVersion)).append('\n')
+            append("network-protocol=").append(quote(out.networkProtocol)).append('\n')
+            append("network-commit=").append(quote(out.networkCommitHash)).append("\n\n")
             append("[Content]\n")
             out.content.forEach { append("content=").append(quote(it)).append('\n') }
             out.groundcover.forEach { append("groundcover=").append(quote(it)).append('\n') }

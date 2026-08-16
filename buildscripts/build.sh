@@ -330,6 +330,18 @@ if [[ $DEPLOY_RESOURCES = "true" ]]; then
 	# resources
 	cp -r "$SRC/resources" "$DST"
 
+	# TES3MP uses resources/version commit hash in the low-level RakNet
+	# connection identity. Never package stale CMake resources next to a newer
+	# libtes3mp.so: that produces ID_INVALID_PASSWORD / "Version mismatch".
+	ARENAMP_SOURCE=build/$ARCH/arenamp-prefix/src/arenamp
+	EXPECTED_AMP_SHA=$(git -C "$ARENAMP_SOURCE" rev-parse HEAD | tr -d '\r\n')
+	PACKAGED_AMP_SHA=$(sed -n '2p' "$DST/resources/version" | tr -d '\r\n')
+	if [[ -z "$PACKAGED_AMP_SHA" || "$PACKAGED_AMP_SHA" != "$EXPECTED_AMP_SHA" ]]; then
+		echo "ArenaMP resources/version is stale: packaged=$PACKAGED_AMP_SHA expected=$EXPECTED_AMP_SHA" >&2
+		exit 1
+	fi
+	echo "==> ArenaMP network build identity: ${PACKAGED_AMP_SHA:0:10}"
+
 	# global config
 	mkdir -p "$DST/openmw/"
 	cp "$SRC/defaults.bin" "$DST/openmw/"

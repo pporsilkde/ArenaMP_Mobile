@@ -27,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId "com.mrzer0x0.arenamp"
-        versionCode 47
+        versionCode 49
         versionName calculateVersion()
 
         minSdkVersion 21

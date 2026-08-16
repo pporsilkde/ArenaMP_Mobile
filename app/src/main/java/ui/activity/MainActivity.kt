@@ -344,6 +344,62 @@ class MainActivity : AppCompatActivity() {
      * Removes old and creates new files located in private application directories
      * (i.e. under getFilesDir(), or /data/data/.../files)
      */
+    private fun normalizeVersionText(value: String): String {
+        return value.replace("\r\n", "\n").replace('\r', '\n').trim()
+    }
+
+    /**
+     * TES3MP uses resources/version as part of the low-level RakNet connection
+     * password (version + protocol + commit hash).  VERSION_CODE alone is not a
+     * sufficient resource deployment stamp because Android development builds
+     * can be rebuilt from a newer AMP commit without changing the Java version.
+     */
+    private fun bundledResourcesVersion(): String {
+        return assets.open("libopenmw/resources/version").bufferedReader().use {
+            normalizeVersionText(it.readText())
+        }
+    }
+
+    private fun installedResourcesVersion(): String {
+        val versionFile = File(Constants.RESOURCES, "version")
+        if (!versionFile.isFile)
+            return ""
+        return normalizeVersionText(versionFile.readText())
+    }
+
+    private fun staticFilesNeedReinstall(): Boolean {
+        val stampMatches = try {
+            File(Constants.VERSION_STAMP).readText().trim().toInt() == BuildConfig.VERSION_CODE
+        } catch (_: Exception) {
+            false
+        }
+
+        val bundledVersion = try {
+            bundledResourcesVersion()
+        } catch (e: Exception) {
+            Log.e("ArenaMP", "Could not read bundled resources/version", e)
+            return true
+        }
+        val installedVersion = try {
+            installedResourcesVersion()
+        } catch (e: Exception) {
+            Log.w("ArenaMP", "Could not read installed resources/version", e)
+            ""
+        }
+
+        val resourceVersionMatches = bundledVersion.isNotEmpty() && bundledVersion == installedVersion
+        if (!stampMatches || !resourceVersionMatches) {
+            val bundledCommit = bundledVersion.lineSequence().drop(1).firstOrNull().orEmpty().take(10)
+            val installedCommit = installedVersion.lineSequence().drop(1).firstOrNull().orEmpty().take(10)
+            Log.i(
+                "ArenaMP",
+                "Static resource refresh required: versionCodeOk=$stampMatches " +
+                    "bundledCommit=$bundledCommit installedCommit=$installedCommit"
+            )
+        }
+        return !stampMatches || !resourceVersionMatches
+    }
+
     private fun reinstallStaticFiles() {
         // we store global "config" and "resources" under private files
 
@@ -360,7 +416,7 @@ class MainActivity : AppCompatActivity() {
         if (!File(Constants.USER_OPENMW_CFG).exists())
             File(Constants.USER_OPENMW_CFG).writeText("# This is the user openmw.cfg. Feel free to modify it as you wish.\n")
 
-        // set version stamp
+        // set version stamp only after the complete resource/config copy succeeds.
         File(Constants.VERSION_STAMP).writeText(BuildConfig.VERSION_CODE.toString())
     }
 
@@ -444,13 +500,10 @@ class MainActivity : AppCompatActivity() {
         val th = Thread {
             var launchOk = false
             try {
-                // Only reinstall static files if they are of a mismatched version
-                try {
-                    val stamp = File(Constants.VERSION_STAMP).readText().trim()
-                    if (stamp.toInt() != BuildConfig.VERSION_CODE) {
-                        reinstallStaticFiles()
-                    }
-                } catch (e: Exception) {
+                // Keep the deployed resources/version synchronized with the native
+                // ArenaMP build. This commit hash is part of the TES3MP connection
+                // identity, so stale resources cause a misleading "Version mismatch".
+                if (staticFilesNeedReinstall()) {
                     reinstallStaticFiles()
                 }
 

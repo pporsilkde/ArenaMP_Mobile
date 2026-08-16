@@ -1,0 +1,12 @@
+ArenaMP Mobile Client V1.2.6
+
+Исправление Version mismatch между PC ArenaMP и Android:
+- Android versionCode/versionName отделены от сетевой identity.
+- В native client добавлены --network-version, --network-protocol, --network-commit-hash.
+- Android launcher передаёт родительскую PC identity, если не включён vanilla-build-server.
+- По умолчанию родительский checkpoint из присланного AMP(1):
+  version=0.8.1
+  protocol=806
+  commit=ba8cf3b139c50b3f8e08069afee964294ad8fdbb
+- build.ini поддерживает [Server] network-version, network-protocol, network-commit.
+- Все предыдущие правки сохранены.
