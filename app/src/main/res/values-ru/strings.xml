@@ -588,4 +588,29 @@
     <string name="server_update_hashes">Обновить хэши модов сервера</string>
     <string name="server_hashes_updated">Манифест сервера обновлён: обязательных файлов %1$d, groundcover %2$d. %3$s</string>
     <string name="server_hashes_failed">Не удалось обновить манифест сервера: %1$s</string>
+
+    <string name="server_storage_path">Файлы сервера: %1$s</string>
+    <string name="server_log_path">Лог: %1$s</string>
+    <string name="server_mode_label">Режим сервера</string>
+    <string name="server_mode_coop">CO-OP</string>
+    <string name="server_mode_mmo">MMO</string>
+    <string name="server_mode_saved">Режим сервера сохранён. Перезапустите сервер для применения.</string>
+    <string name="server_edit_script_config">Расширенные настройки сервера (config.lua)</string>
+    <string name="server_script_config_title">Настройка config.lua сервера</string>
+    <string name="server_script_config_path">Постоянный конфиг: %1$s</string>
+    <string name="server_script_config_save">Сохранить</string>
+    <string name="server_script_config_saved">config.lua сервера сохранён</string>
+    <string name="server_script_config_failed">Не удалось сохранить config.lua сервера: %1$s</string>
+    <string name="server_maintenance">Очистка данных сервера</string>
+    <string name="server_clear_cells">Очистить ячейки</string>
+    <string name="server_full_reset">Полный сброс сервера</string>
+    <string name="server_stop_before_cleanup">Перед очисткой постоянных данных остановите сервер.</string>
+    <string name="server_clear_cells_confirm_title">Очистить ячейки сервера?</string>
+    <string name="server_clear_cells_confirm_message">Будет удалено сохранённое состояние всех ячеек. Профили игроков и данные мира сохранятся.</string>
+    <string name="server_clear_cells_done">Все сохранённые ячейки сервера очищены.</string>
+    <string name="server_full_reset_confirm_title">Полностью сбросить сервер?</string>
+    <string name="server_full_reset_confirm_message">Будут удалены профили игроков, ячейки, состояние мира, карты, custom-данные, recordstore и база сервера. requiredDataFiles.json и banlist.json сохранятся.</string>
+    <string name="server_full_reset_done">Игровые данные сервера полностью очищены.</string>
+    <string name="server_cleanup_failed">Не удалось очистить данные сервера.</string>
+    <string name="server_enforce_required">Проверять обязательные DataFiles</string>
 </resources>

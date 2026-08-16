@@ -1,0 +1,14 @@
+ArenaMP Mobile Client + Server V1.4
+
+1. Portable server runtime перенесён из private app data в /storage/emulated/0/ArenaMP.
+2. server/data теперь находится в ArenaMP/server/data и доступен серверным CoreScripts для JSON-профилей.
+3. Старые V1.0-V1.3 data/cfg/log мигрируют один раз; повторного восстановления после очистки нет.
+4. Native server запускается с working directory = ArenaMP и Plugins home = ./server.
+5. tes3mp-server.cfg, server-config.lua, tes3mp-server.log и status находятся в ArenaMP/config.
+6. Добавлены режимы CO-OP/MMO по логике PC launcher.
+7. Добавлены Enforce required DataFiles, Update Hash, raw config.lua editor.
+8. Добавлены Clear server cells и Full server reset с сохранением requiredDataFiles.json/banlist.json.
+9. Добавлен server/lib/lua/cjson.lua compatibility layer поверх bundled dkjson: ошибка Could not find Lua CJSON больше не должна появляться.
+10. Первый V1.4 CI build принудительно делает чистую пересборку libtes3mp.so + libarenamp_server.so.
+11. Native dependency checkpoint (Boost/OSG/NG-GL4ES/RakNet/LuaJIT и т.д.) отделён от ArenaMP object tree и повторно не собирается, если checkpoint полный.
+12. ArenaMP commit остаётся 0f659371bcbaf9e7e6b94bd6bcb7a81970082234; Android versionCode остаётся 47.

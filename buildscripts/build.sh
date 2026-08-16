@@ -387,9 +387,13 @@ if [[ $DEPLOY_RESOURCES = "true" ]]; then
 		# Windows-only Lua modules cannot load on Android. CoreScripts use the
 		# standard Lua io/json fallback on non-Windows hosts, so omit DLLs.
 		find "$SERVER_DST/server" -type f -name '*.dll' -delete
+		# Android cannot load the PC cjson.dll from portable storage. Bundle an
+		# API-compatible pure-Lua cjson module backed by the CoreScripts dkjson.
+		mkdir -p "$SERVER_DST/server/lib/lua"
+		cp "$DIR/../app/server-cjson-compat.lua" "$SERVER_DST/server/lib/lua/cjson.lua"
 		cp "$SRC/tes3mp-server-default.cfg" "$SERVER_DST/tes3mp-server-default.cfg"
 		cp "$DST/resources/version" "$SERVER_DST/resources/version"
-		printf '%s\n' "$EXPECTED_AMP_SHA" > "$SERVER_DST/runtime-stamp.txt"
+		printf '%s\n' "$EXPECTED_AMP_SHA-android-server-v1-4" > "$SERVER_DST/runtime-stamp.txt"
 	fi
 fi
 

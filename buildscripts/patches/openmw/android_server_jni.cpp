@@ -2,6 +2,7 @@
 
 #include <jni.h>
 #include <unistd.h>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -37,8 +38,13 @@ Java_server_ArenaServerService_nativeRun(JNIEnv* env, jobject instance,
     Java_ui_activity_GameActivity_getPathToJni(env, instance, globalPath, userPath);
 
     const std::string runtime = fromJString(env, runtimePath);
+    const std::string userRoot = fromJString(env, userPath);
     if (runtime.empty() || ::chdir(runtime.c_str()) != 0)
         return 126;
+
+    // Dedicated-server-only path override. The client process never sets it.
+    if (!userRoot.empty())
+        ::setenv("ARENAMP_ANDROID_SERVER_ROOT", userRoot.c_str(), 1);
 
     std::vector<std::string> args;
     args.emplace_back("tes3mp-server");

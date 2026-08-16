@@ -8,7 +8,8 @@ cmake = root / 'apps/openmw-mp/CMakeLists.txt'
 main = root / 'apps/openmw-mp/main.cpp'
 networking = root / 'apps/openmw-mp/Networking.cpp'
 script_functions = root / 'apps/openmw-mp/Script/ScriptFunctions.hpp'
-if not cmake.is_file() or not main.is_file() or not networking.is_file() or not script_functions.is_file():
+config_manager = root / 'components/files/configurationmanager.cpp'
+if not cmake.is_file() or not main.is_file() or not networking.is_file() or not script_functions.is_file() or not config_manager.is_file():
     raise SystemExit('ArenaMP server sources not found')
 
 # Turn only the Android dedicated-server target into a shared library. Desktop
@@ -157,6 +158,52 @@ if 'ARENAMP_ANDROID_VA_LIST_NATIVE_TABLE' not in sf:
         raise SystemExit('Could not locate ScriptFunctions::functionAddresses va_list entries')
     sf = sf.replace(old_addresses, new_addresses, 1)
     script_functions.write_text(sf, encoding='utf-8')
+
+# Android server portable storage override. The Service sets the environment
+# variable before tes3mpServerMain(), so only the server uses ArenaMP/config.
+cm = config_manager.read_text(encoding='utf-8')
+if 'ARENAMP_ANDROID_SERVER_CONFIG_ROOT' not in cm:
+    old_cfg_paths = """        mLocalPath = mFixedPath.getLocalPath();
+        mUserConfigPath = mLocalPath / \"userdata\";
+        mUserDataPath = mUserConfigPath;
+
+        if (!ensureDirectory(mUserConfigPath) || !ensureDirectory(mUserDataPath))
+        {
+            mUserConfigPath = mFixedPath.getUserConfigPath();
+            mUserDataPath = mFixedPath.getUserDataPath();
+            ensureDirectory(mUserConfigPath);
+            ensureDirectory(mUserDataPath);
+        }
+"""
+    new_cfg_paths = """        mLocalPath = mFixedPath.getLocalPath();
+#if defined(__ANDROID__)
+        // ARENAMP_ANDROID_SERVER_CONFIG_ROOT
+        if (const char* serverRoot = std::getenv(\"ARENAMP_ANDROID_SERVER_ROOT\"))
+        {
+            mUserConfigPath = boost::filesystem::path(serverRoot) / \"config\";
+            mUserDataPath = boost::filesystem::path(serverRoot);
+            ensureDirectory(mUserConfigPath);
+            ensureDirectory(mUserDataPath);
+        }
+        else
+#endif
+        {
+            mUserConfigPath = mLocalPath / \"userdata\";
+            mUserDataPath = mUserConfigPath;
+
+            if (!ensureDirectory(mUserConfigPath) || !ensureDirectory(mUserDataPath))
+            {
+                mUserConfigPath = mFixedPath.getUserConfigPath();
+                mUserDataPath = mFixedPath.getUserDataPath();
+                ensureDirectory(mUserConfigPath);
+                ensureDirectory(mUserDataPath);
+            }
+        }
+"""
+    if old_cfg_paths not in cm:
+        raise SystemExit('Could not locate ConfigurationManager local userdata preference')
+    cm = cm.replace(old_cfg_paths, new_cfg_paths, 1)
+    config_manager.write_text(cm, encoding='utf-8')
 
 # A foreground Service has no terminal. RakNet's legacy Kbhit helper attempts
 # tcgetattr()/select() on stdin and can touch invalid termios state when fd 0 is

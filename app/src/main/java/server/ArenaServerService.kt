@@ -84,8 +84,9 @@ class ArenaServerService : Service() {
                     updateNotification(getString(R.string.server_status_running))
                     sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra(EXTRA_STATE, "running"))
 
+                    ServerRuntime.syncPersistentScriptConfig(this)
                     val globalRoot = filesDir.parentFile?.absolutePath ?: filesDir.absolutePath
-                    val userRoot = getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
+                    val userRoot = ServerRuntime.root(this).absolutePath
                     val code = nativeRun(globalRoot, userRoot, ServerRuntime.root(this).absolutePath)
                     ServerRuntime.writeStatus(this, "stopped", code)
                     sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName)

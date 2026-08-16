@@ -1,4 +1,4 @@
-> Client+Server V1.2: LuaJIT `v2.1` server SDK now installs the required C++ wrapper `lua.hpp`; native dependency cache is invalidated accordingly.
+> Client+Server V1.4: portable server runtime in `/storage/emulated/0/ArenaMP`, config/log in `ArenaMP/config`, CO-OP/MMO + maintenance UI, and Android CJSON compatibility.
 
 # ArenaMP Mobile Client + Server V1
 
@@ -23,8 +23,9 @@ cd buildscripts
 ```
 
 The GitHub Actions workflow does the same and publishes an arm64 Client+Server APK.
-The existing incremental ArenaMP source/object cache is retained, so changed C/C++
-translation units are rebuilt without intentionally discarding the whole native tree.
+The first V1.4 run deliberately starts with a clean ArenaMP client/server object tree,
+while restoring the existing third-party native dependency checkpoint. After that first
+V1.4 build, normal incremental C/C++ rebuilds resume.
 
 Expected native outputs before Gradle packaging:
 
@@ -35,27 +36,28 @@ app/src/main/jniLibs/arm64-v8a/libarenamp_server.so
 
 ## Server runtime on Android
 
-The APK contains the ArenaMP CoreScripts, server default configuration and the matching
-`resources/version`. On first use they are installed into private application storage:
+On first use the APK deploys the writable portable runtime to:
 
 ```text
-files/arenamp-server/
-├── resources/version
+/storage/emulated/0/ArenaMP/
 ├── server/
 │   ├── scripts/
-│   ├── lib/lua/
+│   ├── lib/lua/cjson.lua
 │   └── data/
-├── userdata/
+├── resources/
+├── config/
 │   ├── tes3mp-server.cfg
+│   ├── server-config.lua
 │   └── tes3mp-server.log
 └── Backup/
 ```
 
-`server/data` is preserved when the packaged server runtime is refreshed.
+The native server library stays inside the APK, but its working directory is the
+portable ArenaMP root. `server/data` is therefore writable shared-storage state.
+Legacy V1.0-V1.3 private server data is migrated once.
 
-The server itself runs in a dedicated Android process `:arenamp_server` as a foreground
-service with a partial WakeLock. Closing the SDL game activity therefore does not
-intentionally stop the hosted server.
+The Android server page provides CO-OP/MMO presets, required-DataFiles enforcement,
+Update Hash, raw `config.lua` editing, cell cleanup and a full gameplay-data reset.
 
 ## Launcher integration
 
@@ -96,10 +98,10 @@ the TES3MP handshake identity.
 
 ## Lua runtime
 
-The Android dedicated server links a static LuaJIT 2.1 runtime. The bundled pure-Lua
-modules are packaged with the server. Windows-only `.dll` modules are omitted from the
-Android assets; the default JSON CoreScripts can use the bundled `dkjson` / regular Lua
-`io` fallback. Native Lua SQL modules are not ported in V1.
+The server links the existing static LuaJIT dependency. Android also packages
+`server/lib/lua/cjson.lua`, an API-compatible CJSON layer backed by bundled dkjson,
+so CoreScripts no longer emit the missing Lua CJSON error without adding another
+native dependency. Windows-only `.dll` modules remain excluded.
 
 ## Important files
 
@@ -118,6 +120,7 @@ app/src/main/java/server/ServerActivity.kt
 app/src/main/java/server/ServerConfig.kt
 app/src/main/java/server/ServerController.kt
 app/src/main/java/server/ServerRuntime.kt
+app/src/main/java/server/ServerScriptConfig.kt
 ```
 
-Detailed Russian notes are in `ARENAMP_CLIENT_SERVER_V1_NOTES_RU.md`.
+Detailed V1.4 Russian notes are in `ARENAMP_CLIENT_SERVER_V1_4_NOTES_RU.md`.

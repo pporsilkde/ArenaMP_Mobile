@@ -824,4 +824,29 @@
     <string name="server_update_hashes">Update server data-file hashes</string>
     <string name="server_hashes_updated">Server manifest updated: %1$d required, %2$d groundcover. %3$s</string>
     <string name="server_hashes_failed">Could not update server manifest: %1$s</string>
+
+    <string name="server_storage_path">Server files: %1$s</string>
+    <string name="server_log_path">Log: %1$s</string>
+    <string name="server_mode_label">Server mode</string>
+    <string name="server_mode_coop">CO-OP</string>
+    <string name="server_mode_mmo">MMO</string>
+    <string name="server_mode_saved">Server mode saved. Restart the server to apply it.</string>
+    <string name="server_edit_script_config">Advanced server settings (config.lua)</string>
+    <string name="server_script_config_title">Server config.lua</string>
+    <string name="server_script_config_path">Persistent config: %1$s</string>
+    <string name="server_script_config_save">Save</string>
+    <string name="server_script_config_saved">Server config.lua saved</string>
+    <string name="server_script_config_failed">Could not save server config: %1$s</string>
+    <string name="server_maintenance">Server maintenance</string>
+    <string name="server_clear_cells">Clear server cells</string>
+    <string name="server_full_reset">Full server reset</string>
+    <string name="server_stop_before_cleanup">Stop the server before clearing persistent data.</string>
+    <string name="server_clear_cells_confirm_title">Clear server cells?</string>
+    <string name="server_clear_cells_confirm_message">This deletes all saved cell state. Player accounts and world data are kept.</string>
+    <string name="server_clear_cells_done">All saved server cells were cleared.</string>
+    <string name="server_full_reset_confirm_title">Full server reset?</string>
+    <string name="server_full_reset_confirm_message">This deletes player accounts, cells, world state, maps, custom data, record stores and the server database. requiredDataFiles.json and banlist.json are kept.</string>
+    <string name="server_full_reset_done">Server gameplay data was fully reset.</string>
+    <string name="server_cleanup_failed">Server data reset failed.</string>
+    <string name="server_enforce_required">Enforce required DataFiles</string>
 </resources>

@@ -26,6 +26,22 @@
             android:layout_marginTop="4dp"
             android:textSize="14sp" />
 
+        <TextView
+            android:id="@+id/server_storage_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textSize="12sp"
+            android:textIsSelectable="true" />
+
+        <TextView
+            android:id="@+id/server_log_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="12sp"
+            android:textIsSelectable="true" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -59,6 +75,19 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/server_auto_restart" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/server_mode_label"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/server_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="44dp" />
 
         <TextView
             android:layout_width="match_parent"
@@ -110,11 +139,53 @@
             android:text="@string/server_save" />
 
         <Button
-            android:id="@+id/server_update_hashes"
+            android:id="@+id/server_edit_script_config"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
+            android:text="@string/server_edit_script_config" />
+
+        <CheckBox
+            android:id="@+id/server_enforce_required"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/server_enforce_required" />
+
+        <Button
+            android:id="@+id/server_update_hashes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
             android:text="@string/server_update_hashes" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/server_maintenance"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/server_clear_cells"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/server_clear_cells" />
+
+            <Button
+                android:id="@+id/server_full_reset"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/server_full_reset" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

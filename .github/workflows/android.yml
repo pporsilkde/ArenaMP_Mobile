@@ -35,7 +35,7 @@ jobs:
       ARENAMP_GIT_TAG: ${{ inputs.arenamp_ref || '0f659371bcbaf9e7e6b94bd6bcb7a81970082234' }}
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-3-incremental-v1
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-4-storage-config-cjson-v1
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -92,9 +92,36 @@ jobs:
             buildscripts/toolchain
             buildscripts/prefix/arm64
             buildscripts/build/arm64
-          key: arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          key: arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-deps-v1
           restore-keys: |
             arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-
+
+      # V1.4 changes only ArenaMP/client/server code. Reuse the already-built
+      # NDK/Boost/OSG/NG-GL4ES/RakNet/LuaJIT checkpoint even when it was
+      # restored through an older cache key. Do not rebuild third-party libs.
+      - name: Verify restored native dependency checkpoint
+        id: native-deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          READY=true
+          for file in \
+            buildscripts/prefix/arm64/lib/libluajit-5.1.a \
+            buildscripts/prefix/arm64/lib/libRakNetLibStatic.a \
+            buildscripts/prefix/arm64/lib/libopenal.so \
+            buildscripts/prefix/arm64/lib/libSDL2.so \
+            buildscripts/prefix/arm64/lib/libng_gl4es.so \
+            buildscripts/prefix/arm64/include/boost/version.hpp \
+            buildscripts/prefix/arm64/include/osg/Node; do
+            if [[ ! -f "$file" ]]; then
+              echo "Missing dependency checkpoint file: $file"
+              READY=false
+            fi
+          done
+          echo "ready=$READY" >> "$GITHUB_OUTPUT"
+          if [[ "$READY" == true ]]; then
+            echo '==> Native dependency checkpoint is complete; third-party libraries will not be rebuilt.'
+          fi
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -114,9 +141,13 @@ jobs:
       # Build expensive third-party libraries once. Save them before compiling
       # ArenaMP, so an ArenaMP compiler error does not throw away the dependency work.
       - name: Build native dependencies
-        if: steps.native-cache.outputs.cache-hit != 'true'
+        if: steps.native-deps.outputs.ready != 'true'
         working-directory: buildscripts
         run: bash ./build.sh --arch arm64 --ccache --release --dependencies-only
+
+      - name: Strip ArenaMP objects from native dependency checkpoint
+        shell: bash
+        run: rm -rf buildscripts/build/arm64/arenamp-prefix
 
       - name: Save native dependency cache
         if: steps.native-cache.outputs.cache-hit != 'true'
@@ -127,7 +158,7 @@ jobs:
             buildscripts/toolchain
             buildscripts/prefix/arm64
             buildscripts/build/arm64
-          key: arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          key: arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-deps-v1
 
       - name: Verify LuaJIT server SDK
         shell: bash
@@ -139,6 +170,15 @@ jobs:
           test -f buildscripts/prefix/arm64/include/luajit-2.1/lualib.h
           test -f buildscripts/prefix/arm64/include/luajit-2.1/luajit.h
           echo 'LuaJIT C/C++ headers + static library validated.'
+
+      # The dependency cache is intentionally independent of ArenaMP objects.
+      # Remove a legacy arenamp-prefix if an older cache happened to contain it;
+      # the V1.4 incremental cache is restored only after this cleanup. On the
+      # first V1.4 run this guarantees a full client+server rebuild while all
+      # expensive native dependencies remain intact.
+      - name: Isolate native dependencies from ArenaMP build tree
+        shell: bash
+        run: rm -rf buildscripts/build/arm64/arenamp-prefix
 
       - name: Drop ArenaMP incremental tree on request
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.clean_arenamp_build == true }}
@@ -157,7 +197,6 @@ jobs:
           key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh') }}-
-            arenamp-android-arm64-client-v1-2-9-pin-0f659371bc-
 
       # ExternalProject keeps the checked-out AMP repository inside arenamp-prefix.
       # This step compares the cached ArenaMP revision against ARENAMP_GIT_TAG,
@@ -435,6 +474,8 @@ jobs:
           test -f app/src/main/assets/libopenmw/openmw/tes3mp-client-default.cfg
           test -f app/src/main/assets/arenamp-server/tes3mp-server-default.cfg
           test -f app/src/main/assets/arenamp-server/server/scripts/serverCore.lua
+          test -f app/src/main/assets/arenamp-server/server/lib/lua/cjson.lua
+          grep -q 'dkjson' app/src/main/assets/arenamp-server/server/lib/lua/cjson.lua
           test -f app/src/main/assets/arenamp-server/resources/version
           test -f app/src/main/assets/arenamp-server/runtime-stamp.txt
           echo 'ArenaMP Android client + dedicated server + RakNet + LuaJIT payload validated.'
