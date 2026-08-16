@@ -35,7 +35,10 @@ import java.util.*
 /**
  * An adapter to put a ModsCollection into a UI list
  */
-class ModsAdapter(private val collection: ModsCollection) : RecyclerView.Adapter<ModsAdapter.ModViewHolder>() {
+class ModsAdapter(
+    private val collection: ModsCollection,
+    private val onChanged: (() -> Unit)? = null
+) : RecyclerView.Adapter<ModsAdapter.ModViewHolder>() {
 
     lateinit var touchHelper: ItemTouchHelper
 
@@ -70,12 +73,14 @@ class ModsAdapter(private val collection: ModsCollection) : RecyclerView.Adapter
             holder.mCheckbox.isChecked = mod.enabled
             mod.dirty = true
             collection.update()
+            onChanged?.invoke()
         }
 
         holder.mCheckbox.setOnClickListener {
             mod.enabled = (it as CheckBox).isChecked
             mod.dirty = true
             collection.update()
+            onChanged?.invoke()
         }
 
         holder.rowView.setOnClickListener {
@@ -125,5 +130,6 @@ class ModsAdapter(private val collection: ModsCollection) : RecyclerView.Adapter
         // Возврат к обычному фону элемента после drop'а.
         modViewHolder.rowView.setBackgroundResource(R.drawable.mod_item_background)
         collection.update()
+        onChanged?.invoke()
     }
 }

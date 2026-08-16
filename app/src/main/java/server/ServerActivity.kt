@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.preference.PreferenceManager
 import android.text.InputType
+import android.text.method.ScrollingMovementMethod
 import android.view.ViewGroup
 import android.view.MenuItem
 import android.widget.*
@@ -30,6 +31,7 @@ class ServerActivity : AppCompatActivity() {
     private lateinit var enforceRequired: CheckBox
     private lateinit var clearCells: Button
     private lateinit var fullReset: Button
+    private var syncingServerToggle = false
     private var selectedMode = -1
     private val handler = Handler()
 
@@ -58,6 +60,7 @@ class ServerActivity : AppCompatActivity() {
         storagePath = findViewById(R.id.server_storage_path)
         logPath = findViewById(R.id.server_log_path)
         logView = findViewById(R.id.server_log)
+        logView.movementMethod = ScrollingMovementMethod.getInstance()
         localAddress = findViewById(R.id.server_local_address)
         port = findViewById(R.id.server_port)
         maxPlayers = findViewById(R.id.server_max_players)
@@ -93,10 +96,19 @@ class ServerActivity : AppCompatActivity() {
         }
 
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        autoStart.isChecked = prefs.getBoolean(ServerController.PREF_AUTO_START, true)
+        autoStart.isChecked = prefs.getBoolean(ServerController.PREF_SERVER_ENABLED, false)
         autoRestart.isChecked = prefs.getBoolean(ServerController.PREF_AUTO_RESTART, true)
         autoStart.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean(ServerController.PREF_AUTO_START, checked).apply()
+            if (syncingServerToggle) return@setOnCheckedChangeListener
+            prefs.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, checked).apply()
+            if (checked) {
+                saveConfig(false)
+                ServerRuntime.syncPersistentScriptConfig(this)
+                ServerController.start(this, autoRestart.isChecked)
+            } else {
+                ServerController.stop(this)
+            }
+            refresh()
         }
         autoRestart.setOnCheckedChangeListener { _, checked ->
             prefs.edit().putBoolean(ServerController.PREF_AUTO_RESTART, checked).apply()
@@ -124,13 +136,19 @@ class ServerActivity : AppCompatActivity() {
         fullReset.setOnClickListener { confirmFullReset() }
         findViewById<Button>(R.id.server_start).setOnClickListener {
             saveConfig(false)
-            ServerRuntime.syncPersistentScriptConfig(this)
-            ServerController.start(this, autoRestart.isChecked)
-            refresh()
+            if (!autoStart.isChecked) autoStart.isChecked = true
+            else {
+                ServerRuntime.syncPersistentScriptConfig(this)
+                ServerController.start(this, autoRestart.isChecked)
+                refresh()
+            }
         }
         findViewById<Button>(R.id.server_stop).setOnClickListener {
-            ServerController.stop(this)
-            refresh()
+            if (autoStart.isChecked) autoStart.isChecked = false
+            else {
+                ServerController.stop(this)
+                refresh()
+            }
         }
         findViewById<Button>(R.id.server_log_clear).setOnClickListener {
             try { ServerRuntime.logFile(this).writeText("") } catch (_: Throwable) {}
@@ -165,6 +183,8 @@ class ServerActivity : AppCompatActivity() {
     }
 
     private fun saveConfig(showToast: Boolean = true) {
+        val configFile = ServerRuntime.userConfig(this)
+        val previous = ServerConfig.load(configFile)
         val cfg = ServerConfigData(
             localAddress.text.toString().trim().ifBlank { "0.0.0.0" },
             port.text.toString().trim().ifBlank { "25565" },
@@ -173,7 +193,17 @@ class ServerActivity : AppCompatActivity() {
             password.text.toString(),
             "1"
         )
-        ServerConfig.save(ServerRuntime.userConfig(this), cfg)
+        ServerConfig.save(configFile, cfg)
+        val running = ServerRuntime.readStatus(this) == "running"
+        val endpointChanged = previous.localAddress != cfg.localAddress || previous.port != cfg.port
+        if (running && endpointChanged) {
+            ServerController.stop(this)
+            handler.postDelayed({
+                PreferenceManager.getDefaultSharedPreferences(this).edit()
+                    .putBoolean(ServerController.PREF_SERVER_ENABLED, true).apply()
+                ServerController.start(this, autoRestart.isChecked)
+            }, 2300L)
+        }
         if (showToast) Toast.makeText(this, R.string.server_saved, Toast.LENGTH_SHORT).show()
         refresh()
     }
@@ -262,6 +292,13 @@ class ServerActivity : AppCompatActivity() {
         val cfg = ServerConfig.load(ServerRuntime.userConfig(this))
         val state = ServerRuntime.readStatus(this)
         val running = state == "running"
+        val enabled = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(ServerController.PREF_SERVER_ENABLED, false)
+        if (autoStart.isChecked != enabled) {
+            syncingServerToggle = true
+            autoStart.isChecked = enabled
+            syncingServerToggle = false
+        }
         status.text = when (state) {
             "running" -> getString(R.string.server_status_running)
             "error" -> getString(R.string.server_status_error)
@@ -282,12 +319,36 @@ class ServerActivity : AppCompatActivity() {
                     input.seek(start)
                     val bytes = ByteArray((length - start).toInt())
                     input.readFully(bytes)
-                    logView.text = String(bytes, Charsets.UTF_8)
+                    val newText = String(bytes, Charsets.UTF_8)
+                    if (newText != logView.text.toString()) {
+                        val oldScroll = logView.scrollY
+                        val followTail = isLogAtBottom()
+                        logView.text = newText
+                        logView.post {
+                            if (followTail) scrollLogToBottom()
+                            else logView.scrollTo(0, oldScroll)
+                        }
+                    }
                 }
             } catch (_: Throwable) {}
         } else {
             logView.text = ""
         }
+    }
+
+    private fun isLogAtBottom(): Boolean {
+        val layout = logView.layout ?: return true
+        val maxScroll = (layout.getLineTop(logView.lineCount) - logView.height +
+            logView.compoundPaddingBottom + logView.compoundPaddingTop).coerceAtLeast(0)
+        val tolerance = (24f * resources.displayMetrics.density).toInt()
+        return logView.scrollY >= maxScroll - tolerance
+    }
+
+    private fun scrollLogToBottom() {
+        val layout = logView.layout ?: return
+        val scroll = (layout.getLineTop(logView.lineCount) - logView.height +
+            logView.compoundPaddingBottom + logView.compoundPaddingTop).coerceAtLeast(0)
+        logView.scrollTo(0, scroll)
     }
 
     override fun onStart() {

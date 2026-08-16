@@ -514,7 +514,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val dialog = ProgressDialog.show(
-            this, "", "Preparing for launch...", true)
+            this, "", getString(R.string.preparing_launch), true)
 
         val activity = this
 
@@ -540,22 +540,22 @@ class MainActivity : AppCompatActivity() {
                 // preserves the endpoint supplied by the package manifest.
                 val launchManifest = BuildManifest.writeFromDatabase(this)
 
-                // Desktop-compatible local host mode. A build.ini endpoint keeps
-                // its value on disk; when auto-start is selected it is overridden
-                // only for this launch and the local server is assigned the same
-                // port that the play page/client would use.
-                launchLocalServer = prefs.getBoolean(ServerController.PREF_AUTO_START, false)
-                launchLocalServerPort = launchManifest.serverPort.trim()
-                    .toIntOrNull()?.takeIf { it in 1..65535 }?.toString()
-                    ?: BuildManifest.DEFAULT_SERVER_PORT
+                // Local host mode is controlled by the launcher "Run server" checkbox.
+                // The build.ini endpoint always remains the remote/distributed endpoint;
+                // the local Android server is used only as a runtime connection override.
+                launchLocalServer = prefs.getBoolean(ServerController.PREF_SERVER_ENABLED, false)
+                launchLocalServerPort = BuildManifest.DEFAULT_SERVER_PORT
                 restartLocalServerBeforeLaunch = false
                 if (launchLocalServer) {
+                    // Local-host mode follows the actual Android server config. The
+                    // remote endpoint in build.ini remains untouched, including when
+                    // complete=true locks it for the distributed build.
                     ServerRuntime.ensureInstalled(this)
                     val serverConfigFile = ServerRuntime.userConfig(this)
-                    val previousPort = ServerConfig.load(serverConfigFile).port
-                    restartLocalServerBeforeLaunch = ServerRuntime.readStatus(this) == "running"
-                        && previousPort != launchLocalServerPort
-                    ServerConfig.setPort(serverConfigFile, launchLocalServerPort)
+                    val serverCfg = ServerConfig.load(serverConfigFile)
+                    launchLocalServerPort = serverCfg.port.trim()
+                        .toIntOrNull()?.takeIf { it in 1..65535 }?.toString()
+                        ?: BuildManifest.DEFAULT_SERVER_PORT
                 }
 
                 generateOpenmwCfg()
@@ -575,7 +575,7 @@ class MainActivity : AppCompatActivity() {
                     settingsFolder.mkdirs()
                 }
                 if (!settingsFolder.isDirectory) {
-                    throw IOException("Cannot create user config directory: ${settingsFolder.absolutePath}")
+                    throw IOException(getString(R.string.user_config_create_failed, settingsFolder.absolutePath))
                 }
 
                 val settingsFile = File(settingsFolder, "settings.cfg")
@@ -756,7 +756,7 @@ class MainActivity : AppCompatActivity() {
                     try { dialog.dismiss() } catch (_: Exception) {}
                     Toast.makeText(
                         activity,
-                        "Не удалось запустить игру: $msg",
+                        getString(R.string.launch_failed, msg),
                         Toast.LENGTH_LONG
                     ).show()
                 }

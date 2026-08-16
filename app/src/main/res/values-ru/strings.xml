@@ -575,7 +575,7 @@
     <string name="server_endpoint">LAN: %1$s:%2$s</string>
     <string name="server_start">Запустить</string>
     <string name="server_stop">Остановить</string>
-    <string name="server_auto_start">Запускать локальный сервер вместе с игрой</string>
+    <string name="server_auto_start">Запустить сервер</string>
     <string name="server_auto_restart">Автоматически перезапускать сервер после сбоя</string>
     <string name="server_settings">Настройки сервера</string>
     <string name="server_password_hint">Пароль (необязательно)</string>
@@ -613,4 +613,30 @@
     <string name="server_full_reset_done">Игровые данные сервера полностью очищены.</string>
     <string name="server_cleanup_failed">Не удалось очистить данные сервера.</string>
     <string name="server_enforce_required">Проверять обязательные DataFiles</string>
+
+    <!-- V1.4.4 launcher/server UX -->
+    <string name="server_run_toggle">Запустить сервер</string>
+    <string name="server_run_toggle_summary">Галочка стоит — сервер работает; снята — сервер остановлен</string>
+    <string name="server_run_toggle_on">Сервер включён — клиент подключается к локальному Android-серверу</string>
+    <string name="server_run_toggle_off">Сервер выключен — используется адрес из build.ini / лаунчера</string>
+    <string name="pref_server_local_ip">127.0.0.1 (LAN: %1$s)</string>
+    <string name="pref_server_local_port">Порт локального сервера: %1$s</string>
+    <string name="server_start_failed">Не удалось запустить сервер ArenaMP: %1$s</string>
+    <string name="build_manifest_save_failed">Не удалось сохранить build.ini: %1$s</string>
+    <string name="preparing_launch">Подготовка ArenaMP к запуску…</string>
+    <string name="launch_failed">Не удалось запустить ArenaMP: %1$s</string>
+    <string name="user_config_create_failed">Не удалось создать папку настроек: %1$s</string>
+
+    <!-- Файловый менеджер -->
+    <string name="filechooser_select">Выбрать</string>
+    <string name="filechooser_create">Создать</string>
+    <string name="filechooser_new_folder">Новая папка</string>
+    <string name="filechooser_cancel">Отмена</string>
+    <string name="filechooser_choose_storage">Выберите папку с игрой</string>
+    <string name="filechooser_internal_storage">Внутренняя память</string>
+    <string name="filechooser_free_space">Свободно: %1$s</string>
+    <string name="filechooser_folder_created">Папка создана</string>
+    <string name="filechooser_folder_error">Не удалось создать папку. Попробуйте ещё раз.</string>
+    <string name="filechooser_folder_name">Имя папки</string>
+    <string name="filechooser_empty_folder_name">Введите имя папки</string>
 </resources>

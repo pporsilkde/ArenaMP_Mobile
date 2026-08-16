@@ -5,6 +5,7 @@
 		<Preference android:title="@string/mods" android:key="pref_mods" />
         <EditTextPreference android:title="@string/pref_server_ip" android:key="pref_server_ip" android:defaultValue="@string/pref_server_ip_default" android:dialogTitle="@string/pref_server_ip" android:inputType="textUri" />
         <EditTextPreference android:title="@string/pref_server_port" android:key="pref_server_port" android:defaultValue="@string/pref_server_port_default" android:dialogTitle="@string/pref_server_port" android:inputType="number" />
+        <CheckBoxPreference android:title="@string/server_run_toggle" android:key="pref_server_enabled" android:defaultValue="false" android:summary="@string/server_run_toggle_summary" />
         <Preference android:key="pref_server_manage" android:title="@string/server_title" android:summary="@string/server_manage_summary" />
         <Preference
             android:key="pref_graphics_settings"

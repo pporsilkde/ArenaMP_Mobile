@@ -71,6 +71,8 @@ class ArenaServerService : Service() {
             var lastStart = 0L
             try {
                 ServerRuntime.ensureInstalled(this)
+                val writableRoot = ServerRuntime.verifyWritableRuntime(this)
+                Log.i(TAG, "Writable ArenaMP server runtime: $writableRoot")
                 while (!stopRequested) {
                     val now = System.currentTimeMillis()
                     if (lastStart != 0L && now - lastStart < 15000L) rapidCrashes++ else rapidCrashes = 0
@@ -111,6 +113,8 @@ class ArenaServerService : Service() {
                 ServerRuntime.writeStatus(this, "error", 125)
             } finally {
                 ServerRuntime.writeStatus(this, "stopped")
+                PreferenceManager.getDefaultSharedPreferences(this).edit()
+                    .putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
                 stopForeground(true)
                 stopSelf()
             }

@@ -23,6 +23,7 @@ import com.libopenmw.openmw.R
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Handler
 import com.google.android.material.tabs.TabLayout
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -34,10 +35,14 @@ import mods.*
 import android.view.MenuItem
 import android.app.AlertDialog
 import android.preference.PreferenceManager
+import android.widget.Toast
 
 
 class ModsActivity : AppCompatActivity() {
     private var modsReady = false
+    private var manifestDirty = false
+    private val manifestHandler = Handler()
+    private val manifestSaveRunnable = Runnable { persistManifest(false) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,7 +105,9 @@ class ModsActivity : AppCompatActivity() {
         list.layoutManager = linearLayoutManager
 
         // Set up the adapter using the specified ModsCollection
-        val adapter = ModsAdapter(ModsCollection(type, dataFiles, database))
+        val adapter = ModsAdapter(ModsCollection(type, dataFiles, database)) {
+            scheduleManifestSave()
+        }
 
         // Set up the drag-and-drop callback
         val callback = ModMoveCallback(adapter)
@@ -113,11 +120,42 @@ class ModsActivity : AppCompatActivity() {
     }
 
 
+    private fun scheduleManifestSave() {
+        if (!modsReady) return
+        manifestDirty = true
+        manifestHandler.removeCallbacks(manifestSaveRunnable)
+        // Debounce rapid checkbox taps / drag operations, but do not wait until
+        // the Activity is closed: build.ini is now kept in sync while editing.
+        manifestHandler.postDelayed(manifestSaveRunnable, 200L)
+    }
+
+    private fun persistManifest(showError: Boolean) {
+        if (!modsReady || !manifestDirty && !showError) return
+        manifestHandler.removeCallbacks(manifestSaveRunnable)
+        try {
+            BuildManifest.writeFromDatabase(this)
+            manifestDirty = false
+        } catch (e: Throwable) {
+            if (showError) {
+                Toast.makeText(this, getString(R.string.build_manifest_save_failed,
+                    e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     override fun onPause() {
+        // Persist enabled state and exact load order before leaving the screen.
+        // complete=true locks only IP/port; mod order remains writable.
+        if (modsReady) {
+            manifestDirty = true
+            persistManifest(true)
+        }
         super.onPause()
-        // Persist enabled state and exact load order only after a valid
-        // resources folder initialized the mod database.
-        if (modsReady) BuildManifest.writeFromDatabase(this)
+    }
+
+    override fun onDestroy() {
+        manifestHandler.removeCallbacks(manifestSaveRunnable)
+        super.onDestroy()
     }
 
     /**

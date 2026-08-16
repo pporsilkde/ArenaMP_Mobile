@@ -7,6 +7,7 @@ import android.preference.PreferenceManager
 
 object ServerController {
     const val PREF_AUTO_START = "pref_server_auto_start"
+    const val PREF_SERVER_ENABLED = "pref_server_enabled"
     const val PREF_AUTO_RESTART = "pref_server_auto_restart"
     const val PREF_SERVER_DEFAULTS_INITIALIZED = "pref_server_defaults_initialized"
 

@@ -811,7 +811,7 @@
     <string name="server_endpoint">LAN: %1$s:%2$s</string>
     <string name="server_start">Start</string>
     <string name="server_stop">Stop</string>
-    <string name="server_auto_start">Start local server with the game</string>
+    <string name="server_auto_start">Run server</string>
     <string name="server_auto_restart">Automatically restart server after a crash</string>
     <string name="server_settings">Server settings</string>
     <string name="server_password_hint">Password (optional)</string>
@@ -849,4 +849,30 @@
     <string name="server_full_reset_done">Server gameplay data was fully reset.</string>
     <string name="server_cleanup_failed">Server data reset failed.</string>
     <string name="server_enforce_required">Enforce required DataFiles</string>
+
+    <!-- V1.4.4 launcher/server UX -->
+    <string name="server_run_toggle">Run ArenaMP server</string>
+    <string name="server_run_toggle_summary">Checked: server is running; unchecked: server is stopped</string>
+    <string name="server_run_toggle_on">Server enabled — local play uses the running Android server</string>
+    <string name="server_run_toggle_off">Server disabled — play uses the endpoint from build.ini / launcher</string>
+    <string name="pref_server_local_ip">127.0.0.1 (LAN: %1$s)</string>
+    <string name="pref_server_local_port">Local server port: %1$s</string>
+    <string name="server_start_failed">Could not start ArenaMP server: %1$s</string>
+    <string name="build_manifest_save_failed">Could not save build.ini: %1$s</string>
+    <string name="preparing_launch">Preparing ArenaMP for launch…</string>
+    <string name="launch_failed">Could not start ArenaMP: %1$s</string>
+    <string name="user_config_create_failed">Could not create the settings folder: %1$s</string>
+
+    <!-- Localized StorageChooser content -->
+    <string name="filechooser_select">Select</string>
+    <string name="filechooser_create">Create</string>
+    <string name="filechooser_new_folder">New folder</string>
+    <string name="filechooser_cancel">Cancel</string>
+    <string name="filechooser_choose_storage">Choose game folder</string>
+    <string name="filechooser_internal_storage">Internal storage</string>
+    <string name="filechooser_free_space">%1$s free</string>
+    <string name="filechooser_folder_created">Folder created</string>
+    <string name="filechooser_folder_error">Could not create folder. Try again.</string>
+    <string name="filechooser_folder_name">Folder name</string>
+    <string name="filechooser_empty_folder_name">Enter a folder name</string>
 </resources>

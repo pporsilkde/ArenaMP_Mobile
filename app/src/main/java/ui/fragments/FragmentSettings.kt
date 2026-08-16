@@ -31,13 +31,16 @@ import android.os.Bundle
 import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.widget.ListView
+import android.widget.Toast
 import android.preference.EditTextPreference
+import android.preference.CheckBoxPreference
 import android.preference.Preference
 import android.preference.PreferenceFragment
 import android.preference.PreferenceGroup
 import androidx.core.content.ContextCompat
 
 import com.codekidlabs.storagechooser.StorageChooser
+import com.codekidlabs.storagechooser.Content
 import com.libopenmw.openmw.R
 import file.GameInstaller
 import file.BuildManifest
@@ -48,6 +51,9 @@ import ui.activity.ModsActivity
 import ui.activity.GraphicsSettingsActivity
 import server.ServerActivity
 import server.ServerController
+import server.ServerConfig
+import server.ServerConfigData
+import server.ServerRuntime
 
 class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener {
 
@@ -93,11 +99,25 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
                     Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 showError(R.string.permissions_error_title, R.string.permissions_error_message)
             } else {
+                val chooserContent = Content().apply {
+                    setSelectLabel(getString(R.string.filechooser_select))
+                    setCreateLabel(getString(R.string.filechooser_create))
+                    setNewFolderLabel(getString(R.string.filechooser_new_folder))
+                    setCancelLabel(getString(R.string.filechooser_cancel))
+                    setOverviewHeading(getString(R.string.filechooser_choose_storage))
+                    setInternalStorageText(getString(R.string.filechooser_internal_storage))
+                    setFreeSpaceText(getString(R.string.filechooser_free_space))
+                    setFolderCreatedToastText(getString(R.string.filechooser_folder_created))
+                    setFolderErrorToastText(getString(R.string.filechooser_folder_error))
+                    setTextfieldHintText(getString(R.string.filechooser_folder_name))
+                    setTextfieldErrorText(getString(R.string.filechooser_empty_folder_name))
+                }
                 val chooser = StorageChooser.Builder()
                     .withActivity(activity)
                     .withFragmentManager(fragmentManager)
                     .withMemoryBar(true)
                     .allowCustomPath(true)
+                    .withContent(chooserContent)
                     .setType(StorageChooser.DIRECTORY_CHOOSER)
                     .build()
 
@@ -193,13 +213,55 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
                 updatePreference(preference, preference.key)
             }
         }
+        syncServerRunningState()
         updateServerLockState()
+    }
+
+    private fun syncServerRunningState() {
+        val shared = preferenceScreen.sharedPreferences
+        val enabled = shared.getBoolean(ServerController.PREF_SERVER_ENABLED, false)
+        val running = ServerRuntime.readStatus(activity) == "running"
+        var effectiveEnabled = enabled
+        if (enabled && !running) {
+            try {
+                ServerRuntime.ensureInstalled(activity)
+                ServerController.start(activity, shared.getBoolean(ServerController.PREF_AUTO_RESTART, true))
+            } catch (e: Throwable) {
+                effectiveEnabled = false
+                shared.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
+                Toast.makeText(activity, getString(R.string.server_start_failed,
+                    e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            }
+        } else if (!enabled && running) {
+            // The server may have been started by the desktop-compatible
+            // "start with game" option. Reflect the real process state instead
+            // of silently killing it when the launcher returns.
+            effectiveEnabled = true
+            shared.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, true).apply()
+        }
+        val toggle = findPreference(ServerController.PREF_SERVER_ENABLED) as? CheckBoxPreference
+        toggle?.summary = if (effectiveEnabled) getString(R.string.server_run_toggle_on) else getString(R.string.server_run_toggle_off)
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String) {
         updatePreference(findPreference(key), key)
         if (key == "pref_server_ip" || key == "pref_server_port")
             BuildManifest.updateConnectionFromPreferences(activity)
+        if (key == ServerController.PREF_SERVER_ENABLED) {
+            val enabled = sharedPreferences.getBoolean(ServerController.PREF_SERVER_ENABLED, false)
+            if (enabled) {
+                try {
+                    ServerRuntime.ensureInstalled(activity)
+                    ServerController.start(activity, sharedPreferences.getBoolean(ServerController.PREF_AUTO_RESTART, true))
+                } catch (e: Throwable) {
+                    sharedPreferences.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
+                    Toast.makeText(activity, getString(R.string.server_start_failed,
+                        e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
+            } else {
+                ServerController.stop(activity)
+            }
+        }
         updateGammaState()
         updateServerLockState()
     }
@@ -219,13 +281,40 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
     private fun updateServerLockState() {
         val manifest = BuildManifest.read(activity)
         val locked = manifest?.complete == true
+        val serverEnabled = preferenceScreen.sharedPreferences
+            .getBoolean(ServerController.PREF_SERVER_ENABLED, false)
         val ip = findPreference("pref_server_ip")
         val port = findPreference("pref_server_port")
+        val toggle = findPreference(ServerController.PREF_SERVER_ENABLED) as? CheckBoxPreference
+
+        toggle?.summary = if (serverEnabled)
+            getString(R.string.server_run_toggle_on)
+        else
+            getString(R.string.server_run_toggle_off)
+
+        if (serverEnabled) {
+            // Local host mode never rewrites the endpoint from build.ini. Show the
+            // endpoint of the actually configured Android server instead.
+            val cfg = try {
+                ServerRuntime.ensureInstalled(activity)
+                ServerConfig.load(ServerRuntime.userConfig(activity))
+            } catch (_: Throwable) {
+                ServerConfigData()
+            }
+            ip?.isEnabled = false
+            port?.isEnabled = false
+            ip?.summary = getString(R.string.pref_server_local_ip, ServerRuntime.lanAddress())
+            port?.summary = getString(R.string.pref_server_local_port, cfg.port)
+            return
+        }
+
         ip?.isEnabled = !locked
         port?.isEnabled = !locked
         if (locked) {
-            ip?.summary = getString(R.string.pref_server_locked) + " · " + (manifest?.serverAddress ?: BuildManifest.DEFAULT_SERVER_ADDRESS)
-            port?.summary = getString(R.string.pref_server_locked) + " · " + (manifest?.serverPort ?: BuildManifest.DEFAULT_SERVER_PORT)
+            ip?.summary = getString(R.string.pref_server_locked) + " · " +
+                (manifest?.serverAddress ?: BuildManifest.DEFAULT_SERVER_ADDRESS)
+            port?.summary = getString(R.string.pref_server_locked) + " · " +
+                (manifest?.serverPort ?: BuildManifest.DEFAULT_SERVER_PORT)
         } else {
             updatePreference(ip, "pref_server_ip")
             updatePreference(port, "pref_server_port")

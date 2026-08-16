@@ -1,0 +1,16 @@
+ArenaMP Mobile Client + Server V1.4.4 — changed files relative to V1.4.3
+
+FIX_CLIENT_SERVER_V1_4_4_RU.txt
+app/src/main/java/file/BuildManifest.kt
+app/src/main/java/mods/ModsAdapter.kt
+app/src/main/java/server/ArenaServerService.kt
+app/src/main/java/server/ServerActivity.kt
+app/src/main/java/server/ServerController.kt
+app/src/main/java/ui/activity/MainActivity.kt
+app/src/main/java/ui/activity/ModsActivity.kt
+app/src/main/java/ui/fragments/FragmentSettings.kt
+app/src/main/res/layout/activity_server.xml
+app/src/main/res/values/strings.xml
+app/src/main/res/values-ru/strings.xml
+app/src/main/res/xml/settings.xml
+storagechooser/src/main/res/values-ru/strings.xml

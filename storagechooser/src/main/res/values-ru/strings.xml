@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Выбор хранилища</string>
+    <string name="choose_storage">Выберите хранилище</string>
+    <string name="choose_external_storage">Выберите внешнее хранилище</string>
+    <string name="external_storage">Внешнее хранилище</string>
+    <string name="usb_storage">USB-накопитель</string>
+    <string name="text_freespace">Свободно: %1$s</string>
+    <string name="toast_threshold_breached">Недостаточно свободного места: доступно %1$s. Освободите место и повторите попытку.</string>
+    <string name="toast_not_readable">Выбранное хранилище недоступно.</string>
+</resources>

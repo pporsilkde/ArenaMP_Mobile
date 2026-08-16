@@ -254,7 +254,13 @@ object BuildManifest {
     /** Persist editable endpoint back to build.ini; complete=true leaves it untouched. */
     fun updateConnectionFromPreferences(ctx: Context) {
         val existing = read(ctx)
-        if (existing?.complete == true) return
+        if (existing?.complete == true) {
+            // complete=true locks only the distributed connection endpoint.
+            // If an Android preference was changed programmatically, restore it
+            // immediately instead of allowing UI state to drift from build.ini.
+            syncConnectionPreferences(ctx)
+            return
+        }
         writeFromDatabase(ctx)
     }
 
