@@ -1,0 +1,9 @@
+ArenaMP Mobile Client + Server V1.2
+
+Исправление по логу сборки:
+- libtes3mp.so уже собирался успешно.
+- tes3mp-server падал на LangLua.hpp: fatal error: lua.hpp file not found.
+- LuaJIT ExternalProject теперь устанавливает src/lua.hpp в prefix/include/luajit-2.1/lua.hpp.
+- Native dependency cache bump: v8-luajit-v21-luacpp-nolto.
+- После сборки зависимостей workflow отдельно проверяет lua.hpp и остальные публичные LuaJIT headers.
+- ArenaMP incremental cache epoch поднят до client-server-v1-2; код/сетевой commit 0f659371... и versionCode 47 не менялись.

@@ -214,6 +214,8 @@ ExternalProject_Add(luajit
         COMMAND ${CMAKE_COMMAND} -E make_directory ${prefix}/include/luajit-2.1
         COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/src/libluajit.a ${prefix}/lib/libluajit-5.1.a
         COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/src/lua.h ${prefix}/include/luajit-2.1/lua.h
+        # TES3MP's LangLua.hpp includes the LuaJIT C++ convenience wrapper directly.
+        COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/src/lua.hpp ${prefix}/include/luajit-2.1/lua.hpp
         COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/src/lauxlib.h ${prefix}/include/luajit-2.1/lauxlib.h
         COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/src/lualib.h ${prefix}/include/luajit-2.1/lualib.h
         COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/src/luaconf.h ${prefix}/include/luajit-2.1/luaconf.h

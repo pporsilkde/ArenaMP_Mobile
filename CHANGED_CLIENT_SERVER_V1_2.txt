@@ -1,0 +1,12 @@
+ArenaMP Mobile Client + Server V1.2
+
+Changed:
+- CMakeLists.txt
+- buildscripts/CMakeLists.txt
+  * install LuaJIT src/lua.hpp into prefix/include/luajit-2.1/lua.hpp
+- .github/workflows/android.yml
+  * native cache v8-luajit-v21-luacpp-nolto
+  * verify LuaJIT C++ wrapper before ArenaMP build
+  * incremental epoch client-server-v1-2
+- README.md
+- FIX_CLIENT_SERVER_V1_2_RU.txt

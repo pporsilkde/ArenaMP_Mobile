@@ -1,4 +1,4 @@
-> Client+Server V1.1: LuaJIT ref fixed to rolling `v2.1` branch.
+> Client+Server V1.2: LuaJIT `v2.1` server SDK now installs the required C++ wrapper `lua.hpp`; native dependency cache is invalidated accordingly.
 
 # ArenaMP Mobile Client + Server V1
 

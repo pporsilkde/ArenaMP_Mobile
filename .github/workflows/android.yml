@@ -35,7 +35,7 @@ jobs:
       ARENAMP_GIT_TAG: ${{ inputs.arenamp_ref || '0f659371bcbaf9e7e6b94bd6bcb7a81970082234' }}
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-1-incremental-v1
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-2-incremental-v1
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -92,9 +92,9 @@ jobs:
             buildscripts/toolchain
             buildscripts/prefix/arm64
             buildscripts/build/arm64
-          key: arenamp-original-r21e-arm64-v7-luajit-v21-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          key: arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
           restore-keys: |
-            arenamp-original-r21e-arm64-v7-luajit-v21-nolto-
+            arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -127,7 +127,18 @@ jobs:
             buildscripts/toolchain
             buildscripts/prefix/arm64
             buildscripts/build/arm64
-          key: arenamp-original-r21e-arm64-v7-luajit-v21-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          key: arenamp-original-r21e-arm64-v8-luajit-v21-luacpp-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+
+      - name: Verify LuaJIT server SDK
+        shell: bash
+        run: |
+          test -f buildscripts/prefix/arm64/lib/libluajit-5.1.a
+          test -f buildscripts/prefix/arm64/include/luajit-2.1/lua.h
+          test -f buildscripts/prefix/arm64/include/luajit-2.1/lua.hpp
+          test -f buildscripts/prefix/arm64/include/luajit-2.1/lauxlib.h
+          test -f buildscripts/prefix/arm64/include/luajit-2.1/lualib.h
+          test -f buildscripts/prefix/arm64/include/luajit-2.1/luajit.h
+          echo 'LuaJIT C/C++ headers + static library validated.'
 
       - name: Drop ArenaMP incremental tree on request
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.clean_arenamp_build == true }}
@@ -420,6 +431,7 @@ jobs:
           test -f app/src/main/jniLibs/arm64-v8a/libarenamp_server.so
           test -f buildscripts/prefix/arm64/lib/libRakNetLibStatic.a
           test -f buildscripts/prefix/arm64/lib/libluajit-5.1.a
+          test -f buildscripts/prefix/arm64/include/luajit-2.1/lua.hpp
           test -f app/src/main/assets/libopenmw/openmw/tes3mp-client-default.cfg
           test -f app/src/main/assets/arenamp-server/tes3mp-server-default.cfg
           test -f app/src/main/assets/arenamp-server/server/scripts/serverCore.lua
