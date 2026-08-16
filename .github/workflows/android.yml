@@ -30,7 +30,7 @@ jobs:
       ARENAMP_GIT_TAG: main
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2-4
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -172,7 +172,11 @@ jobs:
             exit 1
           fi
 
-          PATCH_STAMP="$STAMP/arenamp-patch"
+          # UPDATE_DISCONNECTED=TRUE changes ExternalProject step stamp names.
+          # The actual patch/update stamps are *_disconnected; checking the old
+          # arenamp-patch name caused a refreshed upstream checkout to skip all
+          # Android patches (including the NDK r21e sse2neon compatibility fix).
+          PATCH_STAMP="$STAMP/arenamp-patch_disconnected"
           echo "==> Cached ArenaMP base: $LOCAL_SHA"
           echo "==> Upstream ArenaMP base: $REMOTE_SHA"
 
@@ -191,11 +195,19 @@ jobs:
           git -C "$SRC" checkout --detach "$REMOTE_SHA"
 
           rm -f \
+            "$STAMP/arenamp-update_disconnected" \
+            "$STAMP/arenamp-patch_disconnected" \
+            "$STAMP/arenamp-update" \
             "$STAMP/arenamp-patch" \
             "$STAMP/arenamp-configure" \
             "$STAMP/arenamp-build" \
             "$STAMP/arenamp-install" \
             "$STAMP/arenamp-done"
+
+          # CMake also writes a top-level ExternalProject completion stamp.
+          # Drop it whenever upstream moves so patch/configure are guaranteed
+          # to run again while keeping the binary tree for incremental objects.
+          rm -f buildscripts/build/arm64/CMakeFiles/arenamp-complete
 
       - name: Ensure linker safety swap
         shell: bash

@@ -1,0 +1,8 @@
+ArenaMP Mobile Client V1.2.4
+Исправление CI при обновлении pporsilkde/AMP main:
+- UPDATE_DISCONNECTED использует stamp arenamp-patch_disconnected.
+- workflow теперь инвалидирует update_disconnected/patch_disconnected/configure/build/install/done.
+- удаляется CMakeFiles/arenamp-complete при смене upstream SHA.
+- MOC не отключается; patch-sse2neon.sh снова гарантированно выполняется после обновления исходников.
+- incremental cache epoch поднят до v1-2-4; кэш сторонних native dependencies не менялся.
+- Иконка V1.2.3 и прозрачный фон сохранены.
