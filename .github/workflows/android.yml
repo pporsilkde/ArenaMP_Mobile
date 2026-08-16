@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      arenamp_ref:
+        description: ArenaMP branch/tag/SHA to build. Keep the default SHA for the current PC server; use main only after the server is updated too.
+        required: false
+        default: 0f659371bcbaf9e7e6b94bd6bcb7a81970082234
+        type: string
   push:
     branches: [ main, master ]
     paths-ignore:
@@ -27,10 +32,10 @@ jobs:
       LTO_JOBS: 1
       GENERATE_DEBUG_SYMBOLS: "false"
       ARENAMP_REPOSITORY: https://github.com/pporsilkde/AMP.git
-      ARENAMP_GIT_TAG: 0f659371bcbaf9e7e6b94bd6bcb7a81970082234
+      ARENAMP_GIT_TAG: ${{ inputs.arenamp_ref || '0f659371bcbaf9e7e6b94bd6bcb7a81970082234' }}
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2-9-pin-0f659371bc
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2-10-incremental-v1
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -138,78 +143,147 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: buildscripts/build/arm64/arenamp-prefix
-          key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-
+            ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh') }}-
+            arenamp-android-arm64-client-v1-2-9-pin-0f659371bc-
 
       # ExternalProject keeps the checked-out AMP repository inside arenamp-prefix.
-      # The ArenaMP client is pinned to a parent PC-compatible commit. If the
-# pinned commit did not change, leave the cached tree completely untouched so its
-      # mtimes match the cached object files.  If upstream changed, reset only the
-      # patched working tree, fetch the new commit and invalidate patch/configure
-      # stamps without deleting the binary directory.  Make/CMake then rebuilds
-      # only source files affected by the Git update (plus Android-patched files).
-      - name: Update cached ArenaMP source from pporsilkde/AMP
+      # This step compares the cached ArenaMP revision against ARENAMP_GIT_TAG,
+      # fetches only when the requested ref moved, and keeps the binary directory.
+      # CMake/Ninja then recompiles only changed .cpp files and translation units
+      # affected by changed headers instead of rebuilding the whole TES3MP client.
+      - name: Check ArenaMP repository and prepare incremental source update
+        id: arenamp-source
         shell: bash
         run: |
           set -euo pipefail
-          SRC="buildscripts/build/arm64/arenamp-prefix/src/arenamp"
-          STAMP="buildscripts/build/arm64/arenamp-prefix/src/arenamp-stamp"
+          PREFIX="buildscripts/build/arm64/arenamp-prefix"
+          SRC="$PREFIX/src/arenamp"
+          STAMP="$PREFIX/src/arenamp-stamp"
+          PATCH_HASH_FILE="$PREFIX/.arenamp-android-patch-hash"
+          CHANGED_FILE_LIST="$GITHUB_WORKSPACE/arenamp-changed-files.txt"
+          CHANGED_CPP_LIST="$GITHUB_WORKSPACE/arenamp-changed-cpp.txt"
+          : > "$CHANGED_FILE_LIST"
+          : > "$CHANGED_CPP_LIST"
+
+          PATCH_HASH="$({
+            find buildscripts/patches/openmw -type f -print0 | sort -z | xargs -0 sha256sum
+          } | sha256sum | awk '{print $1}')"
+          echo "ARENAMP_PATCH_HASH=$PATCH_HASH" >> "$GITHUB_ENV"
+
+          REQUESTED_REF="$ARENAMP_GIT_TAG"
+          if [[ "$REQUESTED_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            TARGET_SHA="${REQUESTED_REF,,}"
+          else
+            TARGET_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "refs/heads/$REQUESTED_REF" | awk 'NR==1 {print $1}')"
+            if [[ -z "$TARGET_SHA" ]]; then
+              TARGET_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "$REQUESTED_REF" | awk 'NR==1 {print $1}')"
+            fi
+            if [[ -z "$TARGET_SHA" ]]; then
+              echo "::error::Could not resolve ArenaMP ref '$REQUESTED_REF' from $ARENAMP_REPOSITORY"
+              exit 1
+            fi
+          fi
+
+          LATEST_MAIN_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" refs/heads/main | awk 'NR==1 {print $1}')"
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "latest_main_sha=$LATEST_MAIN_SHA" >> "$GITHUB_OUTPUT"
+
+          {
+            echo '## ArenaMP repository check'
+            echo
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Build revision: \`$TARGET_SHA\`"
+            if [[ -n "$LATEST_MAIN_SHA" ]]; then
+              echo "- Current AMP/main: \`$LATEST_MAIN_SHA\`"
+              if [[ "$TARGET_SHA" != "$LATEST_MAIN_SHA" ]]; then
+                echo '- The build remains pinned/selected intentionally; set **arenamp_ref = main** only when the PC server is updated to the same code base.'
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
           if [[ ! -d "$SRC/.git" ]]; then
-            echo '==> No cached ArenaMP checkout; ExternalProject will clone pinned AMP commit 0f659371bc'
-            if [[ -e "$SRC" || -d "buildscripts/build/arm64/arenamp-prefix" ]]; then
-              # A partial/corrupt cache must not block ExternalProject's first clone.
-              rm -rf buildscripts/build/arm64/arenamp-prefix
+            echo "==> No cached ArenaMP checkout; ExternalProject will clone $REQUESTED_REF ($TARGET_SHA)"
+            # A partial source cache can prevent ExternalProject from cloning cleanly.
+            if [[ -e "$SRC" && ! -d "$SRC/.git" ]]; then
+              rm -rf "$PREFIX"
             fi
+            echo "source_changed=true" >> "$GITHUB_OUTPUT"
+            echo "cpp_changed=cold-build" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git -C "$SRC" remote set-url origin "$ARENAMP_REPOSITORY"
           LOCAL_SHA="$(git -C "$SRC" rev-parse HEAD)"
-          if [[ "$ARENAMP_GIT_TAG" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            # Exact parent commit: do not follow AMP/main. This keeps the Android
-            # engine code and TES3MP network identity on the same PC baseline.
-            REMOTE_SHA="${ARENAMP_GIT_TAG,,}"
-          else
-            REMOTE_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "refs/heads/$ARENAMP_GIT_TAG" | awk 'NR==1 {print $1}')"
-            if [[ -z "$REMOTE_SHA" ]]; then
-              REMOTE_SHA="$(git ls-remote "$ARENAMP_REPOSITORY" "$ARENAMP_GIT_TAG" | awk 'NR==1 {print $1}')"
-            fi
-            if [[ -z "$REMOTE_SHA" ]]; then
-              echo "Could not resolve $ARENAMP_REPOSITORY $ARENAMP_GIT_TAG" >&2
-              exit 1
+          OLD_PATCH_HASH=""
+          [[ -f "$PATCH_HASH_FILE" ]] && OLD_PATCH_HASH="$(cat "$PATCH_HASH_FILE")"
+
+          echo "==> Cached ArenaMP base:    $LOCAL_SHA"
+          echo "==> Requested ArenaMP base: $TARGET_SHA"
+          echo "==> Cached patch hash:       ${OLD_PATCH_HASH:-none}"
+          echo "==> Current patch hash:      $PATCH_HASH"
+
+          # Make the target object available locally so git diff can enumerate the
+          # exact C/C++ files changed between CI runs before checkout.
+          if ! git -C "$SRC" cat-file -e "$TARGET_SHA^{commit}" 2>/dev/null; then
+            if [[ "$REQUESTED_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              git -C "$SRC" fetch --depth=1 origin "$TARGET_SHA" || git -C "$SRC" fetch origin "$TARGET_SHA"
+            else
+              git -C "$SRC" fetch --depth=100 origin "$REQUESTED_REF"
             fi
           fi
 
-          # UPDATE_DISCONNECTED=TRUE changes ExternalProject step stamp names.
-          # The actual patch/update stamps are *_disconnected; checking the old
-          # arenamp-patch name caused a refreshed upstream checkout to skip all
-          # Android patches (including the NDK r21e sse2neon compatibility fix).
-          PATCH_STAMP="$STAMP/arenamp-patch_disconnected"
-          echo "==> Cached ArenaMP base: $LOCAL_SHA"
-          echo "==> Required ArenaMP base: $REMOTE_SHA"
+          SOURCE_CHANGED=false
+          PATCH_CHANGED=false
+          if [[ "$LOCAL_SHA" != "$TARGET_SHA" ]]; then
+            SOURCE_CHANGED=true
+            git -C "$SRC" diff --name-only "$LOCAL_SHA" "$TARGET_SHA" > "$CHANGED_FILE_LIST" || true
+            git -C "$SRC" diff --name-only "$LOCAL_SHA" "$TARGET_SHA" -- \
+              '*.c' '*.cc' '*.cpp' '*.cxx' '*.m' '*.mm' > "$CHANGED_CPP_LIST" || true
+          fi
+          if [[ "$OLD_PATCH_HASH" != "$PATCH_HASH" ]]; then
+            PATCH_CHANGED=true
+          fi
 
-          if [[ "$LOCAL_SHA" == "$REMOTE_SHA" && -f "$PATCH_STAMP" ]]; then
-            echo '==> ArenaMP source is unchanged; preserving source/object mtimes for a true incremental build'
+          CPP_COUNT="$(grep -c . "$CHANGED_CPP_LIST" || true)"
+          FILE_COUNT="$(grep -c . "$CHANGED_FILE_LIST" || true)"
+          echo "source_changed=$SOURCE_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "patch_changed=$PATCH_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "cpp_changed=$CPP_COUNT" >> "$GITHUB_OUTPUT"
+          echo "files_changed=$FILE_COUNT" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "- Cached revision: \`$LOCAL_SHA\`"
+            echo "- Repository files changed: **$FILE_COUNT**"
+            echo "- Directly changed C/C++ sources: **$CPP_COUNT**"
+            if [[ "$CPP_COUNT" -gt 0 ]]; then
+              echo
+              echo '<details><summary>Changed C/C++ files</summary>'
+              echo
+              echo '```text'
+              sed -n '1,200p' "$CHANGED_CPP_LIST"
+              echo '```'
+              echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$SOURCE_CHANGED" == false && "$PATCH_CHANGED" == false && -f "$STAMP/arenamp-patch_disconnected" ]]; then
+            echo '==> ArenaMP source and Android patches are unchanged; preserving source/object mtimes'
             exit 0
           fi
 
-          echo '==> ArenaMP source or patch state changed; updating checkout without deleting the build tree'
-          # Android compatibility patches leave the checkout dirty by design. Revert
-          # them before moving to the new upstream commit, then let ExternalProject
-          # apply them once again via the invalidated patch stamp.
+          echo '==> Updating ArenaMP source/patch state while preserving the existing binary tree'
+          # Android patches intentionally leave SOURCE_DIR dirty. Return to its
+          # clean upstream commit before moving revisions or applying a new patch set.
           git -C "$SRC" reset --hard HEAD
           git -C "$SRC" clean -fdx
-          if [[ "$ARENAMP_GIT_TAG" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            # GitHub accepts fetching an exact reachable commit by object id. Use
-            # a one-commit fetch first, then fall back to a normal fetch if needed.
-            git -C "$SRC" fetch --depth=1 origin "$REMOTE_SHA" || git -C "$SRC" fetch origin "$REMOTE_SHA"
-          else
-            git -C "$SRC" fetch --depth=50 origin "$ARENAMP_GIT_TAG"
+          if [[ "$LOCAL_SHA" != "$TARGET_SHA" ]]; then
+            git -C "$SRC" checkout --detach "$TARGET_SHA"
           fi
-          git -C "$SRC" checkout --detach "$REMOTE_SHA"
 
+          # UPDATE_DISCONNECTED=TRUE creates *_disconnected stamps. Removing only
+          # these steps preserves <BINARY_DIR> and all valid object files.
           rm -f \
             "$STAMP/arenamp-update_disconnected" \
             "$STAMP/arenamp-patch_disconnected" \
@@ -218,12 +292,21 @@ jobs:
             "$STAMP/arenamp-configure" \
             "$STAMP/arenamp-build" \
             "$STAMP/arenamp-install" \
-            "$STAMP/arenamp-done"
+            "$STAMP/arenamp-done" \
+            buildscripts/build/arm64/CMakeFiles/arenamp-complete
 
-          # CMake also writes a top-level ExternalProject completion stamp.
-          # Drop it whenever upstream moves so patch/configure are guaranteed
-          # to run again while keeping the binary tree for incremental objects.
-          rm -f buildscripts/build/arm64/CMakeFiles/arenamp-complete
+          echo '==> Binary tree kept. CMake/Ninja will rebuild changed/affected translation units only.'
+
+      - name: Show ArenaMP changed C++ files
+        if: always()
+        shell: bash
+        run: |
+          echo '=== ArenaMP changed C/C++ files for this source update ==='
+          if [[ -s arenamp-changed-cpp.txt ]]; then
+            cat arenamp-changed-cpp.txt
+          else
+            echo '(none, or cold build without a previous cached revision)'
+          fi
 
       - name: Ensure linker safety swap
         shell: bash
@@ -270,6 +353,15 @@ jobs:
         working-directory: buildscripts
         run: bash ./build.sh --arch arm64 --ccache --release --client-only
 
+      - name: Record successful ArenaMP incremental state
+        if: success()
+        shell: bash
+        run: |
+          PREFIX="buildscripts/build/arm64/arenamp-prefix"
+          mkdir -p "$PREFIX"
+          printf '%s\n' "$ARENAMP_PATCH_HASH" > "$PREFIX/.arenamp-android-patch-hash"
+          printf '%s\n' "${{ steps.arenamp-source.outputs.target_sha }}" > "$PREFIX/.arenamp-upstream-sha"
+
       # GitHub cache entries are immutable, therefore every run writes a new key
       # and the next run restores the newest compatible prefix via restore-keys.
       # Save even after a compiler error: successfully produced .o files remain
@@ -279,7 +371,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: buildscripts/build/arm64/arenamp-prefix
-          key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/openmw/**', '.github/workflows/android.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ env.ARENAMP_INCREMENTAL_CACHE_EPOCH }}-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Keep the complete compiler/linker log even when the native step fails.
       # This avoids the GitHub UI ending at "100%" with the real linker error hidden.
@@ -291,6 +383,8 @@ jobs:
           cp -f buildscripts/build/arm64/arenamp-build.full.log native-diagnostics/ 2>/dev/null || true
           cp -f buildscripts/build/arm64/arenamp-prefix/src/arenamp-build/CMakeFiles/CMakeError.log native-diagnostics/ 2>/dev/null || true
           cp -f buildscripts/build/arm64/arenamp-prefix/src/arenamp-build/CMakeFiles/CMakeOutput.log native-diagnostics/ 2>/dev/null || true
+          cp -f arenamp-changed-files.txt native-diagnostics/ 2>/dev/null || true
+          cp -f arenamp-changed-cpp.txt native-diagnostics/ 2>/dev/null || true
           {
             echo '=== system ==='
             uname -a || true
