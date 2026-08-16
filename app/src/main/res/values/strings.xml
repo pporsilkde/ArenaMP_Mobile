@@ -799,4 +799,29 @@
 
     <string name="gfx_scene_section">World and streaming</string>
     <string name="gfx_render_section">Rendering</string>
+
+    <!-- ArenaMP Android dedicated server -->
+    <string name="server_title">ArenaMP server</string>
+    <string name="server_manage_summary">Start, stop and configure the local dedicated server</string>
+    <string name="server_status_starting">Starting…</string>
+    <string name="server_status_running">Server is running</string>
+    <string name="server_status_restarting">Restarting server…</string>
+    <string name="server_status_stopped">Server is stopped</string>
+    <string name="server_status_error">Server error</string>
+    <string name="server_endpoint">LAN: %1$s:%2$s</string>
+    <string name="server_start">Start</string>
+    <string name="server_stop">Stop</string>
+    <string name="server_auto_start">Start local server with the game</string>
+    <string name="server_auto_restart">Automatically restart server after a crash</string>
+    <string name="server_settings">Server settings</string>
+    <string name="server_password_hint">Password (optional)</string>
+    <string name="server_save">Save server settings</string>
+    <string name="server_saved">Server settings saved</string>
+    <string name="server_console">Server console</string>
+    <string name="server_clear_log">Clear</string>
+    <string name="server_notification_channel">ArenaMP server</string>
+    <string name="server_notification_title">ArenaMP dedicated server</string>
+    <string name="server_update_hashes">Update server data-file hashes</string>
+    <string name="server_hashes_updated">Server manifest updated: %1$d required, %2$d groundcover. %3$s</string>
+    <string name="server_hashes_failed">Could not update server manifest: %1$s</string>
 </resources>

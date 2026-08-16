@@ -27,6 +27,7 @@ usage() {
 	echo "	--ccache: use ccache to speed up repeated builds"
 	echo "	--dependencies-only: build Android native dependencies and stop"
 	echo "	--client-only: build the ArenaMP Android client and deploy it"
+	echo "	--client-server: build/deploy ArenaMP Android client + dedicated server"
 	echo "	--ng-gl4es-only: rebuild/deploy only Sisah2 NG-GL4ES (keeps OpenMW and other deps cached)"
 	echo "	--debug: produce a debug build without optimizations"
 	echo "	--release: produce a release build with optimizations (default)"
@@ -64,6 +65,10 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--client-only)
 			BUILD_STAGE="client"
+			shift
+			;;
+		--client-server)
+			BUILD_STAGE="client-server"
 			shift
 			;;
 		--ng-gl4es-only)
@@ -225,11 +230,11 @@ cmake ../.. \
 	-DGL4ES_GIT_REPOSITORY="$GL4ES_REPO" \
 	-DGL4ES_GIT_TAG="$GL4ES_TAG"
 
-# Native dependency caches are restored by CI. ArenaMP has no master/server target.
+# Native dependency caches are restored by CI. Master/browser stay disabled; client and server are built together.
 
 run_compact_client_build() {
 	local full_log="$DIR/build/$ARCH/arenamp-build.full.log"
-	echo "==> Compact ArenaMP build output enabled"
+	echo "==> Compact ArenaMP client/server build output enabled"
 	echo "==> Complete output will be stored in: $full_log"
 
 	set +e
@@ -239,7 +244,7 @@ run_compact_client_build() {
 	set -e
 
 	if (( build_status != 0 )); then
-		echo "==> ArenaMP client build failed with exit code $build_status"
+		echo "==> ArenaMP native client/server build failed with exit code $build_status"
 		echo "==> Full compiler output: $full_log"
 		if [[ -f "$full_log" ]]; then
 			echo "==> Last 160 lines:"
@@ -254,6 +259,9 @@ case "$BUILD_STAGE" in
 		cmake --build . --target android-dependencies --parallel "$NCPU"
 		;;
 	client)
+		run_compact_client_build
+		;;
+	client-server)
 		run_compact_client_build
 		;;
 	ng-gl4es)
@@ -298,6 +306,17 @@ if [[ ! -f "$TES3MP_SO" ]]; then
 	exit 1
 fi
 cp "$TES3MP_SO" ../app/src/main/jniLibs/$ABI/libtes3mp.so
+
+# Dedicated ArenaMP server is compiled as an Android shared library and owned
+# by ArenaServerService in a separate process.
+SERVER_SO="build/$ARCH/arenamp-prefix/src/arenamp-build/libarenamp_server.so"
+if [[ "$BUILD_STAGE" == "client-server" || "$BUILD_STAGE" == "all" ]]; then
+	if [[ ! -f "$SERVER_SO" ]]; then
+		echo "ArenaMP Android server output not found: $SERVER_SO" >&2
+		exit 1
+	fi
+	cp "$SERVER_SO" ../app/src/main/jniLibs/$ABI/libarenamp_server.so
+fi
 
 # copy over libs we compiled, but report the exact missing file instead of a generic cp failure.
 # Sisah2/Openmw3 links SPIRV-Cross into libng_gl4es.so; only that shared wrapper is packaged.
@@ -358,6 +377,20 @@ if [[ $DEPLOY_RESOURCES = "true" ]]; then
 
 	# licensing info
 	cp "$DIR/../3rdparty-licenses.txt" "$DST"
+
+	if [[ "$BUILD_STAGE" == "client-server" || "$BUILD_STAGE" == "all" ]]; then
+		echo "==> Deploying ArenaMP dedicated-server runtime assets"
+		SERVER_DST="$DIR/../app/src/main/assets/arenamp-server"
+		rm -rf "$SERVER_DST"
+		mkdir -p "$SERVER_DST/server" "$SERVER_DST/resources"
+		cp -a "$ARENAMP_SOURCE/server/." "$SERVER_DST/server/"
+		# Windows-only Lua modules cannot load on Android. CoreScripts use the
+		# standard Lua io/json fallback on non-Windows hosts, so omit DLLs.
+		find "$SERVER_DST/server" -type f -name '*.dll' -delete
+		cp "$SRC/tes3mp-server-default.cfg" "$SERVER_DST/tes3mp-server-default.cfg"
+		cp "$DST/resources/version" "$SERVER_DST/resources/version"
+		printf '%s\n' "$EXPECTED_AMP_SHA" > "$SERVER_DST/runtime-stamp.txt"
+	fi
 fi
 
 if [ $ASAN = true ]; then
@@ -376,6 +409,9 @@ if [[ "$GENERATE_DEBUG_SYMBOLS" == "true" ]]; then
 	cp "./build/$ARCH/sdl2-prefix/src/sdl2-build/obj/local/$ABI/libSDL2.so" "./symbols/$ABI/"
 	cp "./build/$ARCH/sdl2-prefix/src/sdl2-build/obj/local/$ABI/libhidapi.so" "./symbols/$ABI/"
 	cp "./build/$ARCH/arenamp-prefix/src/arenamp-build/libtes3mp.so" "./symbols/$ABI/libtes3mp.so"
+	if [[ -f "./build/$ARCH/arenamp-prefix/src/arenamp-build/libarenamp_server.so" ]]; then
+		cp "./build/$ARCH/arenamp-prefix/src/arenamp-build/libarenamp_server.so" "./symbols/$ABI/libarenamp_server.so"
+	fi
 	# Unstripped NG-GL4ES artifact from the mandatory out-of-source CMake build.
 	cp "./build/$ARCH/NG-GL4ES-build/libng_gl4es.so" "./symbols/$ABI/"
 	cp "../app/src/main/jniLibs/$ABI/libc++_shared.so" "./symbols/$ABI/"

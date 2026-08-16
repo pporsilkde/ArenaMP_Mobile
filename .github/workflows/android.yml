@@ -35,7 +35,7 @@ jobs:
       ARENAMP_GIT_TAG: ${{ inputs.arenamp_ref || '0f659371bcbaf9e7e6b94bd6bcb7a81970082234' }}
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-v1-2-10-incremental-v1
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-incremental-v1
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -351,7 +351,7 @@ jobs:
 
       - name: Build ArenaMP native arm64
         working-directory: buildscripts
-        run: bash ./build.sh --arch arm64 --ccache --release --client-only
+        run: bash ./build.sh --arch arm64 --ccache --release --client-server
 
       - name: Record successful ArenaMP incremental state
         if: success()
@@ -397,7 +397,7 @@ jobs:
             echo
             echo '=== native outputs ==='
             find buildscripts/build/arm64/arenamp-prefix/src/arenamp-build -maxdepth 2 -type f \
-              \( -name 'libtes3mp.so' -o -name 'CMakeError.log' -o -name 'CMakeOutput.log' \) \
+              \( -name 'libtes3mp.so' -o -name 'libarenamp_server.so' -o -name 'CMakeError.log' -o -name 'CMakeOutput.log' \) \
               -printf '%p %s bytes\n' 2>/dev/null || true
             echo
             echo '=== packaged jniLibs ==='
@@ -413,13 +413,19 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Verify ArenaMP client native payload
+      - name: Verify ArenaMP client + server native payload
         shell: bash
         run: |
           test -f app/src/main/jniLibs/arm64-v8a/libtes3mp.so
+          test -f app/src/main/jniLibs/arm64-v8a/libarenamp_server.so
           test -f buildscripts/prefix/arm64/lib/libRakNetLibStatic.a
+          test -f buildscripts/prefix/arm64/lib/libluajit-5.1.a
           test -f app/src/main/assets/libopenmw/openmw/tes3mp-client-default.cfg
-          echo 'ArenaMP client + RakNet checkpoint validated; server artifacts are intentionally not packaged.' 
+          test -f app/src/main/assets/arenamp-server/tes3mp-server-default.cfg
+          test -f app/src/main/assets/arenamp-server/server/scripts/serverCore.lua
+          test -f app/src/main/assets/arenamp-server/resources/version
+          test -f app/src/main/assets/arenamp-server/runtime-stamp.txt
+          echo 'ArenaMP Android client + dedicated server + RakNet + LuaJIT payload validated.'
 
       - name: Build APK with original Gradle project
         run: |
@@ -432,8 +438,8 @@ jobs:
           mkdir -p dist
           APK="$(find app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" dist/ArenaMP-arm64-client.apk
-          sha256sum dist/ArenaMP-arm64-client.apk > dist/ArenaMP-arm64-client.apk.sha256
+          cp "$APK" dist/ArenaMP-arm64-client-server.apk
+          sha256sum dist/ArenaMP-arm64-client-server.apk > dist/ArenaMP-arm64-client-server.apk.sha256
 
       - name: Show ccache statistics
         if: always()
@@ -442,6 +448,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaMP-Android-arm64
+          name: ArenaMP-Android-arm64-ClientServer
           path: dist/*
           if-no-files-found: error

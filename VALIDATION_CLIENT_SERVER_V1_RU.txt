@@ -1,0 +1,22 @@
+ArenaMP Mobile Client + Server V1 — validation
+
+PASS:
+- Android versionCode = 47.
+- Outer builder CMake configures for arm64/release.
+- Outer targets present: arenamp, luajit, raknet, android-dependencies, NG-GL4ES.
+- Server Android patcher is syntactically valid and applies to the local AMP parent source.
+- The exact pinned 0f659371 server sources were checked online for the patterns used by
+  the Android server patcher (tes3mp-server CMake target, main(), Kbhit/mainLoop).
+- Android XML resources parse successfully.
+- GitHub Actions YAML parses successfully.
+- Shell scripts pass bash -n.
+- Mirrored root/buildscripts server patch files are identical.
+- Mirrored root/buildscripts CMakeLists.txt and build.sh are identical.
+
+NOT EXECUTED LOCALLY:
+- Full NDK native compile of libarenamp_server.so.
+- Full Gradle APK build.
+
+Reason: this execution environment cannot download the required Android/Gradle/native
+network dependencies. The included GitHub Actions workflow is the intended full build
+validation path.

@@ -563,4 +563,29 @@
 
     <string name="gfx_scene_section">Мир и подгрузка</string>
     <string name="gfx_render_section">Рендеринг</string>
+
+    <!-- Локальный выделенный сервер ArenaMP -->
+    <string name="server_title">Сервер ArenaMP</string>
+    <string name="server_manage_summary">Запуск, остановка и настройка локального выделенного сервера</string>
+    <string name="server_status_starting">Запуск…</string>
+    <string name="server_status_running">Сервер запущен</string>
+    <string name="server_status_restarting">Перезапуск сервера…</string>
+    <string name="server_status_stopped">Сервер остановлен</string>
+    <string name="server_status_error">Ошибка сервера</string>
+    <string name="server_endpoint">LAN: %1$s:%2$s</string>
+    <string name="server_start">Запустить</string>
+    <string name="server_stop">Остановить</string>
+    <string name="server_auto_start">Запускать локальный сервер вместе с игрой</string>
+    <string name="server_auto_restart">Автоматически перезапускать сервер после сбоя</string>
+    <string name="server_settings">Настройки сервера</string>
+    <string name="server_password_hint">Пароль (необязательно)</string>
+    <string name="server_save">Сохранить настройки сервера</string>
+    <string name="server_saved">Настройки сервера сохранены</string>
+    <string name="server_console">Консоль сервера</string>
+    <string name="server_clear_log">Очистить</string>
+    <string name="server_notification_channel">Сервер ArenaMP</string>
+    <string name="server_notification_title">Выделенный сервер ArenaMP</string>
+    <string name="server_update_hashes">Обновить хэши модов сервера</string>
+    <string name="server_hashes_updated">Манифест сервера обновлён: обязательных файлов %1$d, groundcover %2$d. %3$s</string>
+    <string name="server_hashes_failed">Не удалось обновить манифест сервера: %1$s</string>
 </resources>

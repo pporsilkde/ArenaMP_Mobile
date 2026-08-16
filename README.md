@@ -1,144 +1,121 @@
-# ArenaMP Mobile Client V1.2
+# ArenaMP Mobile Client + Server V1
 
-Android builder for the ArenaMP client from `https://github.com/pporsilkde/AMP` (`main` by default).
+Android builder for the ArenaMP/TES3MP fork from `pporsilkde/AMP`.
 
-This package builds **the client only** (`tes3mp` -> `libtes3mp.so`). The ArenaMP/TES3MP server, master server and server browser are intentionally disabled in the Android CMake configuration.
+This branch is based on **ArenaMP Mobile Client V1.2.10** and builds both:
 
-## What was ported
+- `tes3mp` → `libtes3mp.so` — Android client;
+- `tes3mp-server` → `libarenamp_server.so` — dedicated ArenaMP server hosted by an Android foreground service.
 
-- Current ArenaMW Mobile Android/NG-GL4ES builder base.
-- RakNet/CrabNet Android dependency checkpoint from the older working ArenaMP Android builder.
-- Rebased Android engine patch set as one deterministic AMP cumulative patch.
-- Sisah2/NG-GL4ES `Openmw3` renderer path and NDK r21e compatibility.
-- Android touch controls, UI fixes, mobile graphics limits/presets, shadow fixes, simple-water mobile policy, quick-loot/collision fixes and the current Android performance tuning from the donor builder.
-- ArenaMP/TES3MP network client startup through `libtes3mp.so`.
-- Desktop-compatible `build.ini` server endpoint handling.
+The default ArenaMP source revision remains pinned to the PC-compatible commit:
 
-## Native build
+`0f659371bcbaf9e7e6b94bd6bcb7a81970082234`
+
+Android `versionCode` remains **47**.
+
+## Build
 
 ```bash
 cd buildscripts
-./build.sh --arch arm64 --ccache --release --client-only
+./build.sh --arch arm64 --ccache --release --client-server
 ```
 
-The root `./build.sh` is a convenience wrapper for the same command.
+The GitHub Actions workflow does the same and publishes an arm64 Client+Server APK.
+The existing incremental ArenaMP source/object cache is retained, so changed C/C++
+translation units are rebuilt without intentionally discarding the whole native tree.
 
-Expected client artifact before Gradle packaging:
+Expected native outputs before Gradle packaging:
 
 ```text
 app/src/main/jniLibs/arm64-v8a/libtes3mp.so
+app/src/main/jniLibs/arm64-v8a/libarenamp_server.so
 ```
 
-RakNet checkpoint:
+## Server runtime on Android
+
+The APK contains the ArenaMP CoreScripts, server default configuration and the matching
+`resources/version`. On first use they are installed into private application storage:
 
 ```text
-buildscripts/prefix/arm64/lib/libRakNetLibStatic.a
+files/arenamp-server/
+├── resources/version
+├── server/
+│   ├── scripts/
+│   ├── lib/lua/
+│   └── data/
+├── userdata/
+│   ├── tes3mp-server.cfg
+│   └── tes3mp-server.log
+└── Backup/
 ```
 
-## APK build
+`server/data` is preserved when the packaged server runtime is refreshed.
 
-The included GitHub Actions workflow builds arm64 and publishes:
+The server itself runs in a dedicated Android process `:arenamp_server` as a foreground
+service with a partial WakeLock. Closing the SDL game activity therefore does not
+intentionally stop the hosted server.
+
+## Launcher integration
+
+Open **Settings → ArenaMP Server** to manage the local server. The Android server page
+provides:
+
+- start / stop;
+- bind IPv4 address;
+- UDP port;
+- maximum players;
+- hostname and password;
+- automatic start;
+- automatic restart + backup;
+- local LAN address display;
+- PC-compatible **Update Hash** generation of `server/data/requiredDataFiles.json` using CRC32;
+- live tail of the server log and log clearing.
+
+The launcher mirrors the important PC host-mode behaviour:
+
+- an explicit remote endpoint in `build.ini` makes local auto-start default to off;
+- without an explicit remote endpoint, local auto-start / auto-restart default to on;
+- local host mode overrides the endpoint only for that launch and does not rewrite the
+  remote endpoint in `build.ini`;
+- the local server port is synchronized with the Play endpoint;
+- the client starts about 900 ms after the server start request;
+- stop first requests a graceful native shutdown and uses a 2-second force-stop guard;
+- repeated rapid crashes disable the restart loop after three quick failures;
+- auto-restart mode creates ZIP backups of the portable server tree.
+
+## Network identity
+
+When the bundled local Android server is used, client and server are built from the same
+`arenamp_ref` and use their native/resource network identity.
+
+For a remote PC server the existing independent Parent Network Compatibility fields in
+`build.ini` are still supported, so Android application versioning remains separate from
+the TES3MP handshake identity.
+
+## Lua runtime
+
+The Android dedicated server links a static LuaJIT 2.1 runtime. The bundled pure-Lua
+modules are packaged with the server. Windows-only `.dll` modules are omitted from the
+Android assets; the default JSON CoreScripts can use the bundled `dkjson` / regular Lua
+`io` fallback. Native Lua SQL modules are not ported in V1.
+
+## Important files
+
+Native server adaptation:
 
 ```text
-ArenaMP-arm64-client.apk
-ArenaMP-arm64-client.apk.sha256
+buildscripts/patches/openmw/09-enable-android-server-host.py
+buildscripts/patches/openmw/android_server_jni.cpp
 ```
 
-The Android/Gradle baseline is deliberately kept compatible with the existing builder: NDK r21e, compileSdk 29, targetSdk 28, AGP 4.0.2 / Gradle 6.1.1.
-
-## build.ini / server endpoint
-
-Android uses the same portable keys as the current ArenaMP desktop launcher. Example:
-
-```ini
-[Build]
-format=1
-name="ArenaMP"
-data-path="Data Files"
-language="Russian"
-complete=false
-
-[Server]
-address="192.168.1.10"
-port="25565"
-vanilla-build-server=false
-
-[Content]
-content="Morrowind.esm"
-content="Tribunal.esm"
-content="Bloodmoon.esm"
-
-[Archives]
-archive="Morrowind.bsa"
-archive="Tribunal.bsa"
-archive="Bloodmoon.bsa"
-```
-
-Accepted server address aliases: `address`, `ip`, `host`.
-Accepted complete aliases: `complete`, `locked`, `read-only`.
-Accepted vanilla compatibility aliases: `vanilla-build-server`, `vanilla`, `legacy-client`.
-
-### complete=false
-
-- Server IP/host and port are editable in the Android launcher.
-- Changes are written back to `build.ini`.
-- Mod enabled state and load order are written back to the same manifest.
-
-### complete=true
-
-- The endpoint from `build.ini` is authoritative and cannot be overwritten from Android server fields.
-- The selected endpoint is still shown in the launcher for diagnostics.
-- Mods/Data Files remain available, matching the current desktop ArenaMP launcher behavior where deliberate content-order changes can still be written to the manifest.
-- `vanilla-build-server` is taken from `build.ini` and passed to the client when enabled.
-
-## Client arguments
-
-At launch Android invokes the TES3MP client with:
+Android server frontend:
 
 ```text
---connect=<address>:<port>
+app/src/main/java/server/ArenaServerService.kt
+app/src/main/java/server/ServerActivity.kt
+app/src/main/java/server/ServerConfig.kt
+app/src/main/java/server/ServerController.kt
+app/src/main/java/server/ServerRuntime.kt
 ```
 
-and, when requested by the manifest:
-
-```text
---vanilla-build-server
-```
-
-No local server is started or packaged in V1.
-
-## Patch layout
-
-The active AMP engine patch is:
-
-```text
-buildscripts/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch
-```
-
-It is rebased for the supplied AMP snapshot and replaces the conflicting ArenaMW patch chain during the Android build. The original donor patches are retained under:
-
-```text
-buildscripts/patches/openmw/legacy-arenamw/
-```
-
-for audit/reference only; CMake does not apply them individually.
-
-## Source override
-
-```bash
-ARENAMP_REPOSITORY=https://github.com/pporsilkde/AMP.git \
-ARENAMP_GIT_TAG=0f659371bcbaf9e7e6b94bd6bcb7a81970082234 \
-./buildscripts/build.sh --arch arm64 --ccache --release --client-only
-```
-
-A future upstream `AMP:main` change can legitimately make the cumulative patch fail. In that case rebase the cumulative patch against the new AMP revision instead of forcing partial hunks.
-
-
-## V1.2 render/input fix
-
-- Android now hard-disables the complete ArenaMP native fullscreen post-processing chain (SMAA, Bloom, atmospheric fog, god rays, sharpening and dithering). This prevents the NG-GL4ES black-world/visible-GUI failure after the first rendered frame.
-- Launcher also writes sharpening/dithering disabled, so stale settings cannot reactivate the chain.
-- The former Wait/T button keeps its stored OSC position, uses `save.png`, sends `Y` on a short tap and `F2` on a 650 ms hold.
-- Holding the scroll-wheel control for 650 ms without dragging sends `TAB`; normal scroll gestures are unchanged.
-- The combined keyboard/F11/F12 control is at virtual `(12, 528)`, directly below the scroll wheel and X-aligned with Pause.
-- Pause default alpha is 0.52 (less transparent).
+Detailed Russian notes are in `ARENAMP_CLIENT_SERVER_V1_NOTES_RU.md`.

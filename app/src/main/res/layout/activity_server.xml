@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/bgPrimary">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/server_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:text="@string/server_status_stopped" />
+
+        <TextView
+            android:id="@+id/server_endpoint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/server_start"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/server_start" />
+
+            <Button
+                android:id="@+id/server_stop"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/server_stop" />
+        </LinearLayout>
+
+        <CheckBox
+            android:id="@+id/server_auto_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/server_auto_start" />
+
+        <CheckBox
+            android:id="@+id/server_auto_restart"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/server_auto_restart" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/server_settings"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/server_local_address"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="0.0.0.0"
+            android:inputType="textUri" />
+
+        <EditText
+            android:id="@+id/server_port"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="25565"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/server_max_players"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="100"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/server_hostname"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="ArenaMP server"
+            android:inputType="text" />
+
+        <EditText
+            android:id="@+id/server_password"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/server_password_hint"
+            android:inputType="textPassword" />
+
+        <Button
+            android:id="@+id/server_save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/server_save" />
+
+        <Button
+            android:id="@+id/server_update_hashes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/server_update_hashes" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/server_console"
+                android:textStyle="bold" />
+            <Button
+                android:id="@+id/server_log_clear"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/server_clear_log" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/server_log"
+            android:layout_width="match_parent"
+            android:layout_height="360dp"
+            android:background="#14000000"
+            android:fontFamily="monospace"
+            android:gravity="bottom|start"
+            android:padding="8dp"
+            android:textIsSelectable="true"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+</ScrollView>

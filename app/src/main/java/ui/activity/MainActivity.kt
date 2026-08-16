@@ -28,6 +28,7 @@ import android.app.ProgressDialog
 import android.content.*
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import android.preference.PreferenceManager
 import android.system.ErrnoException
 import android.system.Os
@@ -48,6 +49,9 @@ import file.GameInstaller
 import file.GraphicsPresets
 import file.BuildManifest
 import file.UpdateDownloader
+import server.ServerConfig
+import server.ServerController
+import server.ServerRuntime
 import android.widget.ImageButton
 
 import java.io.BufferedReader
@@ -69,6 +73,9 @@ import java.util.*
 @Suppress("DEPRECATION")
 class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
+    @Volatile private var launchLocalServer = false
+    @Volatile private var launchLocalServerPort = BuildManifest.DEFAULT_SERVER_PORT
+    @Volatile private var restartLocalServerBeforeLaunch = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +84,7 @@ class MainActivity : AppCompatActivity() {
         PermissionHelper.getWriteExternalStoragePermission(this@MainActivity)
         setContentView(R.layout.main)
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        ServerController.initializeDesktopCompatibleDefaults(this)
 
         fragmentManager.beginTransaction()
             .replace(R.id.content_frame, FragmentSettings()).commit()
@@ -258,11 +266,36 @@ class MainActivity : AppCompatActivity() {
 
     private fun runGame() {
         logConfig()
-        val intent = Intent(this@MainActivity,
-            GameActivity::class.java)
-        finish()
+        val intent = Intent(this@MainActivity, GameActivity::class.java)
 
-        this@MainActivity.startActivityForResult(intent, 1)
+        if (launchLocalServer) {
+            // Match the desktop launcher host mode: start the dedicated server
+            // first, then connect this client to loopback without rewriting the
+            // build.ini endpoint selected for normal/remote play.
+            intent.putExtra(GameActivity.EXTRA_CONNECT_ADDRESS, "127.0.0.1")
+            intent.putExtra(GameActivity.EXTRA_CONNECT_PORT, launchLocalServerPort)
+            intent.putExtra(GameActivity.EXTRA_LOCAL_HOST_MODE, true)
+
+            val startAndLaunch = {
+                ServerController.start(this, prefs.getBoolean(ServerController.PREF_AUTO_RESTART, true))
+                Handler().postDelayed({
+                    finish()
+                    this@MainActivity.startActivityForResult(intent, 1)
+                }, 900L)
+            }
+
+            if (restartLocalServerBeforeLaunch) {
+                // A running server cannot change its bound UDP port live. Stop it
+                // gracefully (2 s force-stop guard in the Service), then relaunch.
+                ServerController.stop(this)
+                Handler().postDelayed({ startAndLaunch() }, 2300L)
+            } else {
+                startAndLaunch()
+            }
+        } else {
+            finish()
+            this@MainActivity.startActivityForResult(intent, 1)
+        }
     }
 
 
@@ -505,7 +538,26 @@ class MainActivity : AppCompatActivity() {
 
                 // Persist editable IP/port and current content order. complete=true
                 // preserves the endpoint supplied by the package manifest.
-                BuildManifest.writeFromDatabase(this)
+                val launchManifest = BuildManifest.writeFromDatabase(this)
+
+                // Desktop-compatible local host mode. A build.ini endpoint keeps
+                // its value on disk; when auto-start is selected it is overridden
+                // only for this launch and the local server is assigned the same
+                // port that the play page/client would use.
+                launchLocalServer = prefs.getBoolean(ServerController.PREF_AUTO_START, false)
+                launchLocalServerPort = launchManifest.serverPort.trim()
+                    .toIntOrNull()?.takeIf { it in 1..65535 }?.toString()
+                    ?: BuildManifest.DEFAULT_SERVER_PORT
+                restartLocalServerBeforeLaunch = false
+                if (launchLocalServer) {
+                    ServerRuntime.ensureInstalled(this)
+                    val serverConfigFile = ServerRuntime.userConfig(this)
+                    val previousPort = ServerConfig.load(serverConfigFile).port
+                    restartLocalServerBeforeLaunch = ServerRuntime.readStatus(this) == "running"
+                        && previousPort != launchLocalServerPort
+                    ServerConfig.setPort(serverConfigFile, launchLocalServerPort)
+                }
+
                 generateOpenmwCfg()
 
                 // openmw.cfg: data, resources

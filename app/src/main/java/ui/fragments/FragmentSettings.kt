@@ -46,6 +46,8 @@ import ui.activity.ConfigureControls
 import ui.activity.MainActivity
 import ui.activity.ModsActivity
 import ui.activity.GraphicsSettingsActivity
+import server.ServerActivity
+import server.ServerController
 
 class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener {
 
@@ -56,6 +58,7 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         // Desktop-compatible build.ini is authoritative on first load. Import the
         // endpoint before registering the listener so this sync is not written back.
         BuildManifest.syncConnectionPreferences(activity)
+        ServerController.initializeDesktopCompatibleDefaults(activity)
         preferenceScreen.sharedPreferences.registerOnSharedPreferenceChangeListener(this)
 
         updateGammaState()
@@ -75,6 +78,12 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
 
         findPreference("pref_graphics_settings").setOnPreferenceClickListener {
             val intent = Intent(activity, GraphicsSettingsActivity::class.java)
+            this.startActivity(intent)
+            true
+        }
+
+        findPreference("pref_server_manage").setOnPreferenceClickListener {
+            val intent = Intent(activity, ServerActivity::class.java)
             this.startActivity(intent)
             true
         }

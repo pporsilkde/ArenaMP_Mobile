@@ -225,29 +225,38 @@ class GameActivity : SDLActivity() {
 
     override fun getArguments(): Array<String> {
         val manifest = BuildManifest.ensure(this)
-        val serverIp = manifest.serverAddress.trim().ifEmpty { BuildManifest.DEFAULT_SERVER_ADDRESS }
-        val serverPort = manifest.serverPort.trim().ifEmpty { BuildManifest.DEFAULT_SERVER_PORT }
+        val localHostMode = intent?.getBooleanExtra(EXTRA_LOCAL_HOST_MODE, false) == true
+        val serverIp = intent?.getStringExtra(EXTRA_CONNECT_ADDRESS)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: manifest.serverAddress.trim().ifEmpty { BuildManifest.DEFAULT_SERVER_ADDRESS }
+        val serverPort = intent?.getStringExtra(EXTRA_CONNECT_PORT)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: manifest.serverPort.trim().ifEmpty { BuildManifest.DEFAULT_SERVER_PORT }
         val connectTarget = if (serverPort.isEmpty()) serverIp else "$serverIp:$serverPort"
 
         val cmd = buildString {
             if (connectTarget.isNotEmpty()) append("--connect=").append(connectTarget)
-            if (manifest.vanillaServerCompatibility) {
-                if (isNotEmpty()) append(' ')
-                append("--vanilla-build-server")
-            } else {
-                // Android application version is independent from the parent PC ArenaMP
-                // network identity. The server only sees these handshake values.
-                if (manifest.networkVersion.isNotBlank()) {
+            // Local-host mode deliberately advertises the native client's own
+            // compiled/resource identity. The packaged Android server is built from
+            // the exact same ArenaMP source revision, so this stays compatible even
+            // when workflow_dispatch builds a newer arenamp_ref.
+            if (!localHostMode) {
+                if (manifest.vanillaServerCompatibility) {
                     if (isNotEmpty()) append(' ')
-                    append("--network-version=").append(manifest.networkVersion.trim())
-                }
-                val networkProtocol = manifest.networkProtocol.trim().toIntOrNull()
-                    ?.takeIf { it > 0 } ?: BuildManifest.DEFAULT_NETWORK_PROTOCOL.toInt()
-                if (isNotEmpty()) append(' ')
-                append("--network-protocol=").append(networkProtocol)
-                if (manifest.networkCommitHash.isNotBlank()) {
+                    append("--vanilla-build-server")
+                } else {
+                    // Android application version is independent from the parent PC ArenaMP
+                    // network identity. Remote servers only see these handshake values.
+                    if (manifest.networkVersion.isNotBlank()) {
+                        if (isNotEmpty()) append(' ')
+                        append("--network-version=").append(manifest.networkVersion.trim())
+                    }
+                    val networkProtocol = manifest.networkProtocol.trim().toIntOrNull()
+                        ?.takeIf { it > 0 } ?: BuildManifest.DEFAULT_NETWORK_PROTOCOL.toInt()
                     if (isNotEmpty()) append(' ')
-                    append("--network-commit-hash=").append(manifest.networkCommitHash.trim())
+                    append("--network-protocol=").append(networkProtocol)
+                    if (manifest.networkCommitHash.isNotBlank()) {
+                        if (isNotEmpty()) append(' ')
+                        append("--network-commit-hash=").append(manifest.networkCommitHash.trim())
+                    }
                 }
             }
         }
@@ -257,6 +266,10 @@ class GameActivity : SDLActivity() {
     private external fun getPathToJni(path_global: String, path_user: String)
 
     companion object {
+        const val EXTRA_CONNECT_ADDRESS = "arenamp.connect.address"
+        const val EXTRA_CONNECT_PORT = "arenamp.connect.port"
+        const val EXTRA_LOCAL_HOST_MODE = "arenamp.local.host.mode"
+
         var mouseMode = MouseMode.Hybrid
         @JvmStatic var activeOsc: Osc? = null
 
