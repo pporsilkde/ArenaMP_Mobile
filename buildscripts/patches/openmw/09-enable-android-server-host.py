@@ -7,7 +7,8 @@ root = pathlib.Path(sys.argv[1]).resolve()
 cmake = root / 'apps/openmw-mp/CMakeLists.txt'
 main = root / 'apps/openmw-mp/main.cpp'
 networking = root / 'apps/openmw-mp/Networking.cpp'
-if not cmake.is_file() or not main.is_file() or not networking.is_file():
+script_functions = root / 'apps/openmw-mp/Script/ScriptFunctions.hpp'
+if not cmake.is_file() or not main.is_file() or not networking.is_file() or not script_functions.is_file():
     raise SystemExit('ArenaMP server sources not found')
 
 # Turn only the Android dedicated-server target into a shared library. Desktop
@@ -105,6 +106,57 @@ if 'ARENAMP_ANDROID_SERVER_RESTART_CLEANUP' not in src:
     src = src.replace(cleanup_old, cleanup_new, 1)
 
 main.write_text(src, encoding='utf-8')
+
+# Android/AArch64 defines va_list as an ABI structure (__va_list, currently 32
+# bytes), not as a pointer. The legacy native-script signature table tries to
+# encode every argument through TypeChar<T, sizeof(T)> and therefore rejects
+# CreateTimerEx/CallPublic at compile time on arm64. Lua does not use this table
+# for these functions: LangLua registers CreateTimerEx and CallPublic separately
+# as lua_CFunction bindings, so keep the Lua API intact and omit only the two
+# va_list entries from the optional native C++ script export table on Android.
+sf = script_functions.read_text(encoding='utf-8')
+if 'ARENAMP_ANDROID_VA_LIST_NATIVE_TABLE' not in sf:
+    old_functions = '''    static constexpr ScriptFunctionData functions[]{
+            {"CreateTimer",         ScriptFunctions::CreateTimer},
+            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
+            {"MakePublic",          ScriptFunctions::MakePublic},
+            {"CallPublic",          ScriptFunctions::CallPublic},
+'''
+    new_functions = '''    static constexpr ScriptFunctionData functions[]{
+            {"CreateTimer",         ScriptFunctions::CreateTimer},
+#ifndef __ANDROID__
+            // ARENAMP_ANDROID_VA_LIST_NATIVE_TABLE: AArch64 va_list is not a pointer.
+            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
+#endif
+            {"MakePublic",          ScriptFunctions::MakePublic},
+#ifndef __ANDROID__
+            {"CallPublic",          ScriptFunctions::CallPublic},
+#endif
+'''
+    if old_functions not in sf:
+        raise SystemExit('Could not locate ScriptFunctions::functions va_list entries')
+    sf = sf.replace(old_functions, new_functions, 1)
+
+    old_addresses = '''    inline static const ScriptFunctionAddress functionAddresses[]{
+            {"CreateTimer",         ScriptFunctions::CreateTimer},
+            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
+            {"MakePublic",          ScriptFunctions::MakePublic},
+            {"CallPublic",          ScriptFunctions::CallPublic},
+'''
+    new_addresses = '''    inline static const ScriptFunctionAddress functionAddresses[]{
+            {"CreateTimer",         ScriptFunctions::CreateTimer},
+#ifndef __ANDROID__
+            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
+#endif
+            {"MakePublic",          ScriptFunctions::MakePublic},
+#ifndef __ANDROID__
+            {"CallPublic",          ScriptFunctions::CallPublic},
+#endif
+'''
+    if old_addresses not in sf:
+        raise SystemExit('Could not locate ScriptFunctions::functionAddresses va_list entries')
+    sf = sf.replace(old_addresses, new_addresses, 1)
+    script_functions.write_text(sf, encoding='utf-8')
 
 # A foreground Service has no terminal. RakNet's legacy Kbhit helper attempts
 # tcgetattr()/select() on stdin and can touch invalid termios state when fd 0 is
