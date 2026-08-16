@@ -15,12 +15,33 @@ object ServerRuntime {
     private const val ASSET_ROOT = "arenamp-server"
     private const val TAG = "ArenaMPServer"
     private const val PUBLIC_ROOT_NAME = "ArenaMP"
+    private val REQUIRED_DATA_DIRS = arrayOf("player", "cell", "world", "map", "custom", "recordstore")
+
+    private fun probeWritable(directory: File): Boolean {
+        return try {
+            if (!(directory.isDirectory || directory.mkdirs())) return false
+            val probe = File(directory, ".arenamp-write-probe-${android.os.Process.myPid()}")
+            probe.writeText("ok\n", Charsets.UTF_8)
+            val ok = probe.isFile && probe.length() > 0L
+            probe.delete()
+            ok
+        } catch (_: Throwable) {
+            false
+        }
+    }
 
     fun root(ctx: Context): File {
+        // Prefer the desktop-like /storage/emulated/0/ArenaMP directory, but
+        // canWrite() alone is not a reliable scoped-storage test. Perform an
+        // actual create/write/delete probe before giving the native server the path.
         val publicRoot = File(Environment.getExternalStorageDirectory(), PUBLIC_ROOT_NAME)
-        if ((publicRoot.isDirectory || publicRoot.mkdirs()) && publicRoot.canWrite())
-            return publicRoot
-        return File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, PUBLIC_ROOT_NAME).apply { mkdirs() }
+        if (probeWritable(publicRoot)) return publicRoot
+
+        // Guaranteed writable external application storage fallback. This is
+        // still on shared/external storage rather than /data/user/0.
+        val fallback = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, PUBLIC_ROOT_NAME)
+        if (probeWritable(fallback)) return fallback
+        throw IllegalStateException("No writable ArenaMP server storage is available")
     }
 
     fun serverHome(ctx: Context) = File(root(ctx), "server")
@@ -98,6 +119,11 @@ object ServerRuntime {
         val runtime = root(ctx)
         runtime.mkdirs()
         configDir(ctx).mkdirs()
+
+        // CoreScripts expect these default folders to exist before the first
+        // player/cell/world JSON is written. Android assets do not preserve
+        // empty directories, so create them explicitly on every install/start.
+        ensureDefaultDataDirectories(ctx)
         migrateLegacyPrivateRuntime(ctx)
 
         val packagedStamp = ctx.assets.open("$ASSET_ROOT/runtime-stamp.txt")
@@ -130,7 +156,52 @@ object ServerRuntime {
         }
 
         ensureCjsonCompatibilityModule(ctx)
-        File(serverHome(ctx), "data").mkdirs()
+        ensureDefaultDataDirectories(ctx)
+        ensureWritableDataTree(ctx)
+    }
+
+    private fun ensureDefaultDataDirectories(ctx: Context) {
+        val data = File(serverHome(ctx), "data")
+        if (!(data.isDirectory || data.mkdirs()))
+            throw IllegalStateException("Could not create server data directory: ${data.absolutePath}")
+        REQUIRED_DATA_DIRS.forEach { name ->
+            val dir = File(data, name)
+            if (!(dir.isDirectory || dir.mkdirs()))
+                throw IllegalStateException("Could not create default server data directory: ${dir.absolutePath}")
+        }
+    }
+
+    /**
+     * Android's asset packaging does not preserve empty directories reliably.
+     * CoreScripts write directly to data/player, data/cell, etc., so create
+     * every writable directory explicitly instead of relying on .gitkeep.
+     */
+    private fun ensureWritableDataTree(ctx: Context) {
+        val data = File(serverHome(ctx), "data")
+        if (!probeWritable(data))
+            throw IllegalStateException("Server data directory is not writable: ${data.absolutePath}")
+        REQUIRED_DATA_DIRS.forEach { name ->
+            val dir = File(data, name)
+            if (!probeWritable(dir))
+                throw IllegalStateException("Server data directory is not writable: ${dir.absolutePath}")
+        }
+        if (!probeWritable(configDir(ctx)))
+            throw IllegalStateException("Server config directory is not writable: ${configDir(ctx).absolutePath}")
+    }
+
+    fun verifyWritableRuntime(ctx: Context): String {
+        ensureInstalled(ctx)
+        val checks = arrayOf(
+            root(ctx), configDir(ctx), serverHome(ctx), File(serverHome(ctx), "data"),
+            File(serverHome(ctx), "data/player"), File(serverHome(ctx), "data/cell"),
+            File(serverHome(ctx), "data/world"), File(serverHome(ctx), "data/map"),
+            File(serverHome(ctx), "data/custom"), File(serverHome(ctx), "data/recordstore")
+        )
+        checks.forEach { dir ->
+            if (!probeWritable(dir))
+                throw IllegalStateException("ArenaMP server cannot write to ${dir.absolutePath}")
+        }
+        return root(ctx).absolutePath
     }
 
     fun syncPersistentScriptConfig(ctx: Context) {

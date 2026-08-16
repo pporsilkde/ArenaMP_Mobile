@@ -7,6 +7,7 @@ import android.os.Handler
 import android.preference.PreferenceManager
 import android.text.InputType
 import android.view.ViewGroup
+import android.view.MenuItem
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.libopenmw.openmw.R
@@ -42,7 +43,9 @@ class ServerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_server)
-        title = getString(R.string.server_title)
+        setSupportActionBar(findViewById(R.id.server_toolbar))
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.title = getString(R.string.server_title)
 
         // MainActivity requests legacy storage permission before this screen is
         // reachable. ensureInstalled then deploys the writable portable runtime
@@ -298,4 +301,11 @@ class ServerActivity : AppCompatActivity() {
         try { unregisterReceiver(receiver) } catch (_: Throwable) {}
         super.onStop()
     }
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return if (item.itemId == android.R.id.home) {
+            onBackPressed()
+            true
+        } else super.onOptionsItemSelected(item)
+    }
+
 }

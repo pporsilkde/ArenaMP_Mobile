@@ -32,15 +32,33 @@ import file.BuildManifest
 import kotlinx.android.synthetic.main.activity_mods.*
 import mods.*
 import android.view.MenuItem
+import android.app.AlertDialog
+import android.preference.PreferenceManager
 
 
 class ModsActivity : AppCompatActivity() {
+    private var modsReady = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_mods)
 
         setSupportActionBar(findViewById(R.id.mods_toolbar))
+
+        // Do not touch ModsDatabase/Data Files before the resources directory
+        // has been selected. Previously opening Mods on a fresh install could
+        // construct collections around an invalid path and crash the launcher.
+        val gamePath = PreferenceManager.getDefaultSharedPreferences(this)
+            .getString("game_files", "").orEmpty()
+        if (gamePath.isBlank() || !GameInstaller(gamePath).check()) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.no_data_files_title)
+                .setMessage(R.string.no_data_files_message)
+                .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
+                .setOnCancelListener { finish() }
+                .show()
+            return
+        }
 
         // Enable the "back" icon in the action bar
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -66,6 +84,7 @@ class ModsActivity : AppCompatActivity() {
         setupModList(findViewById(R.id.list_mods), ModType.Plugin)
         setupModList(findViewById(R.id.list_resources), ModType.Resource)
         setupModList(findViewById(R.id.list_groundcovers), ModType.Groundcover)
+        modsReady = true
     }
 
     /**
@@ -96,8 +115,9 @@ class ModsActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Persist enabled state and exact load order to portable build.ini.
-        BuildManifest.writeFromDatabase(this)
+        // Persist enabled state and exact load order only after a valid
+        // resources folder initialized the mod database.
+        if (modsReady) BuildManifest.writeFromDatabase(this)
     }
 
     /**
