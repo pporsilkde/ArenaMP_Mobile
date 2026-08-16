@@ -1,0 +1,8 @@
+ArenaMP Mobile Client + Server V1.1
+
+Исправление LuaJIT dependency:
+- Удалён устаревший/удалённый ref v2.1.0-beta3.
+- LuaJIT теперь клонируется из https://github.com/LuaJIT/LuaJIT.git с ref v2.1.
+- Native dependency cache epoch поднят до v7-luajit-v21, чтобы не восстанавливать старый/неполный LuaJIT ExternalProject.
+- Incremental ArenaMP cache epoch поднят до client-server-v1-1.
+- Остальная логика Client+Server V1 сохранена.

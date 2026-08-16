@@ -52,7 +52,7 @@ set(LZ4_HASH SHA256=030644df4611007ff7dc962d981f390361e6c97a34e5cbc393ddfbe019ff
 # own make system as recommended upstream, then linked statically into the
 # server shared library.
 set(LUAJIT_GIT_REPOSITORY "https://github.com/LuaJIT/LuaJIT.git" CACHE STRING "LuaJIT repository")
-set(LUAJIT_GIT_TAG "v2.1.0-beta3" CACHE STRING "LuaJIT tag")
+set(LUAJIT_GIT_TAG "v2.1" CACHE STRING "LuaJIT branch/ref (rolling 2.1)")
 
 
 set(BUILD_JOBS "1" CACHE STRING "Maximum parallel jobs for nested Android builds")

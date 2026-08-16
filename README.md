@@ -1,3 +1,5 @@
+> Client+Server V1.1: LuaJIT ref fixed to rolling `v2.1` branch.
+
 # ArenaMP Mobile Client + Server V1
 
 Android builder for the ArenaMP/TES3MP fork from `pporsilkde/AMP`.

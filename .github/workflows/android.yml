@@ -35,7 +35,7 @@ jobs:
       ARENAMP_GIT_TAG: ${{ inputs.arenamp_ref || '0f659371bcbaf9e7e6b94bd6bcb7a81970082234' }}
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-incremental-v1
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-arm64-client-server-v1-1-incremental-v1
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
@@ -92,9 +92,9 @@ jobs:
             buildscripts/toolchain
             buildscripts/prefix/arm64
             buildscripts/build/arm64
-          key: arenamp-original-r21e-arm64-v6-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          key: arenamp-original-r21e-arm64-v7-luajit-v21-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
           restore-keys: |
-            arenamp-original-r21e-arm64-v6-nolto-
+            arenamp-original-r21e-arm64-v7-luajit-v21-nolto-
 
       - name: Restore ccache
         uses: actions/cache@v4
@@ -127,7 +127,7 @@ jobs:
             buildscripts/toolchain
             buildscripts/prefix/arm64
             buildscripts/build/arm64
-          key: arenamp-original-r21e-arm64-v6-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
+          key: arenamp-original-r21e-arm64-v7-luajit-v21-nolto-${{ hashFiles('buildscripts/build.sh', 'buildscripts/CMakeLists.txt', 'buildscripts/include/version.sh', 'buildscripts/patches/**') }}
 
       - name: Drop ArenaMP incremental tree on request
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.clean_arenamp_build == true }}
