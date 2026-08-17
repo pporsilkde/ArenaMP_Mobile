@@ -34,6 +34,19 @@ class GameInstaller(path: String) {
 
     val dir = File(path)
 
+    data class IniDataFilesSelection(
+        val content: List<String>,
+        val archives: List<String>
+    )
+
+    private fun charsetForEncoding(encoding: String): Charset {
+        return when (encoding) {
+            "win1250" -> Charset.forName("windows-1250")
+            "win1251" -> Charset.forName("windows-1251")
+            else -> Charset.forName("windows-1252")
+        }
+    }
+
     /**
      * Lists the root directory and finds a file or directory named "name",
      * doing case-insensitive checks
@@ -91,13 +104,7 @@ class GameInstaller(path: String) {
     fun convertIni(encoding: String): Boolean {
         val file = findCaseInsensitive(INI_NAME) ?: return false
 
-        val charset = when (encoding) {
-            "win1250" -> Charset.forName("windows-1250")
-            "win1251" -> Charset.forName("windows-1251")
-            else -> Charset.forName("windows-1252")
-        }
-
-        val contents = file.readText(charset)
+        val contents = file.readText(charsetForEncoding(encoding))
         if (contents.isEmpty())
             return false
 
@@ -111,6 +118,64 @@ class GameInstaller(path: String) {
         File(Constants.OPENMW_FALLBACK_CFG).writeText(output)
 
         return true
+    }
+
+    /**
+     * Reads the original Morrowind.ini [Game Files] / [Archives] selection.
+     * This is used only as a first-run fallback when the selected game folder
+     * does not already contain an ArenaMP build.ini.
+     */
+    fun readDataFilesSelection(encoding: String): IniDataFilesSelection? {
+        val file = findCaseInsensitive(INI_NAME) ?: return null
+        val contents = try {
+            file.readText(charsetForEncoding(encoding))
+        } catch (_: IOException) {
+            return null
+        }
+
+        data class OrderedEntry(val order: Int, val sequence: Int, val value: String)
+
+        val content = arrayListOf<OrderedEntry>()
+        val archives = arrayListOf<OrderedEntry>()
+        var section = ""
+        var sequence = 0
+
+        contents.lines().forEach { raw ->
+            val line = raw.trim()
+            if (line.isEmpty() || line.startsWith(";"))
+                return@forEach
+
+            if (line.startsWith("[") && line.endsWith("]")) {
+                section = line.substring(1, line.length - 1).trim().toLowerCase()
+                return@forEach
+            }
+
+            val eq = line.indexOf('=')
+            if (eq <= 0)
+                return@forEach
+
+            val key = line.substring(0, eq).trim()
+            var value = line.substring(eq + 1).trim()
+            if (value.length >= 2 && value.first() == '"' && value.last() == '"')
+                value = value.substring(1, value.length - 1)
+            if (value.isBlank())
+                return@forEach
+
+            val normalizedKey = key.replace(" ", "").toLowerCase()
+            val numericOrder = normalizedKey.filter { it.isDigit() }.toIntOrNull() ?: Int.MAX_VALUE
+            when (section) {
+                "game files", "gamefiles" -> if (normalizedKey.startsWith("gamefile"))
+                    content.add(OrderedEntry(numericOrder, sequence++, value))
+                "archives" -> if (normalizedKey.startsWith("archive"))
+                    archives.add(OrderedEntry(numericOrder, sequence++, value))
+            }
+        }
+
+        val ordering = compareBy<OrderedEntry> { it.order }.thenBy { it.sequence }
+        return IniDataFilesSelection(
+            content.sortedWith(ordering).map { it.value },
+            archives.sortedWith(ordering).map { it.value }
+        )
     }
 
     companion object {

@@ -9,10 +9,6 @@
             android:title="@string/action_reset_config"
             app:showAsAction="never" />
 
-        <item
-            android:id="@+id/action_change_update_server"
-            android:title="@string/action_change_update_server"
-            app:showAsAction="never" />
 
         <item
             android:id="@+id/action_bugsnag_consent"

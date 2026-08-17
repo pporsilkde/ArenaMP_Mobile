@@ -144,11 +144,15 @@ class ServerActivity : AppCompatActivity() {
             }
         }
         findViewById<Button>(R.id.server_stop).setOnClickListener {
-            if (autoStart.isChecked) autoStart.isChecked = false
-            else {
-                ServerController.stop(this)
-                refresh()
-            }
+            // Stop is explicit and unconditional. Do not rely on the checkbox
+            // listener as an indirect side effect: always send ACTION_STOP.
+            syncingServerToggle = true
+            autoStart.isChecked = false
+            syncingServerToggle = false
+            PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
+            ServerController.stop(this)
+            refresh()
         }
         findViewById<Button>(R.id.server_log_clear).setOnClickListener {
             try { ServerRuntime.logFile(this).writeText("") } catch (_: Throwable) {}

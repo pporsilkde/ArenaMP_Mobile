@@ -1,0 +1,26 @@
+ArenaMP Mobile — build.ini order + Android server endpoint fix
+Date: 2026-08-17
+
+1) build.ini is authoritative again
+- Main launcher imports an existing build.ini into ModsDatabase on resume.
+- Changing Server IP/port now updates only [Server] endpoint fields and preserves
+  [Content]/[Archives] exactly instead of rebuilding the whole manifest from a
+  potentially stale Android mods database.
+- Update Hash reads an existing build.ini first and imports its exact order before
+  generating requiredDataFiles.json.
+- ModsActivity still writes user checkbox/drag changes back to build.ini intentionally.
+
+2) Android server displayed IP
+- Server still binds to localAddress=0.0.0.0 by default (all local interfaces).
+- Displayed endpoint now says Local/VPN IP rather than implying it is a public LAN/Internet IP.
+- Address selection prefers Wi-Fi/Ethernet, then tunnel/VPN, then carrier/mobile interfaces.
+  This avoids advertising a mobile-provider CGNAT address when a usable VPN address exists.
+
+Important networking note
+- 127.0.0.1 works only on the same Android device.
+- 192.168.x.x is normally reachable only from the same Wi-Fi/LAN.
+- Mobile data commonly assigns a private/CGNAT address (10.x.x.x or 100.64.0.0/10).
+  That address is not reachable from the public Internet even though the server is listening.
+- For players outside the local network, use a genuinely reachable public IPv4/forwarded
+  UDP port, IPv6 where end-to-end inbound traffic is allowed, or an overlay/mesh VPN.
+- Keep localAddress=0.0.0.0 unless you specifically need to bind the server to one interface.

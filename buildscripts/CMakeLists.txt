@@ -66,10 +66,10 @@ endif()
 
 project(arenamp-android)
 
-# ArenaMP source can be overridden from the command line. The Android client and dedicated server are pinned to the parent PC-compatible
-# AMP commit 0f659371bc by default so both sides share one network identity.
+# ArenaMP Android always builds current upstream source by default. Network
+# compatibility identity is packaged separately and must never pin source checkout.
 set(ARENAMP_REPOSITORY "https://github.com/pporsilkde/AMP.git" CACHE STRING "ArenaMP Git repository or local source path")
-set(ARENAMP_GIT_TAG "0f659371bcbaf9e7e6b94bd6bcb7a81970082234" CACHE STRING "ArenaMP branch, tag or commit")
+set(ARENAMP_GIT_TAG "main" CACHE STRING "ArenaMP source branch/tag/commit (default: current main)")
 
 include(ExternalProject)
 
@@ -598,7 +598,8 @@ ExternalProject_Add(arenamp
 
     GIT_REPOSITORY ${ARENAMP_REPOSITORY}
     GIT_TAG ${ARENAMP_GIT_TAG}
-    # A fixed historical SHA must always be fetchable even after AMP/main moves.
+    # Keep full history so the cached checkout can move with AMP/main and CI can
+    # diff revisions incrementally when upstream advances.
     GIT_SHALLOW FALSE
     UPDATE_DISCONNECTED TRUE
     DOWNLOAD_DIR ${download_dir}

@@ -39,6 +39,7 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.View
 import android.widget.Toast
 import com.bugsnag.android.Bugsnag
 
@@ -52,6 +53,7 @@ import file.UpdateDownloader
 import server.ServerConfig
 import server.ServerController
 import server.ServerRuntime
+import server.ServerScriptConfig
 import android.widget.ImageButton
 
 import java.io.BufferedReader
@@ -86,6 +88,16 @@ class MainActivity : AppCompatActivity() {
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
         ServerController.initializeDesktopCompatibleDefaults(this)
 
+        // Localization is explicit on every launcher start. The persistent
+        // server config and portable build manifest never keep an undefined or
+        // stale language: Russian UI -> RU, everything else -> EN.
+        try {
+            val language = ServerScriptConfig.applyLauncherLanguage(this)
+            BuildManifest.syncLanguageAtStartup(this, language)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Could not synchronize launcher/server language", e)
+        }
+
         fragmentManager.beginTransaction()
             .replace(R.id.content_frame, FragmentSettings()).commit()
 
@@ -115,15 +127,29 @@ class MainActivity : AppCompatActivity() {
         }
         fab.setOnClickListener { checkStartGame() }
 
-        // Update button (download arrow) - right next to the toolbar overflow 3-dots
+        // build.ini is authoritative for distributed updates. The update
+        // button is only shown when [Build] update= contains a direct ZIP URL.
         findViewById<ImageButton?>(R.id.btn_update)?.setOnClickListener {
-            val url = prefs.getString(
-                UpdateDownloader.PREF_UPDATE_URL,
-                UpdateDownloader.DEFAULT_UPDATE_URL
-            )!!
+            val manifest = BuildManifest.read(this)
             val gameFiles = prefs.getString("game_files", "") ?: ""
-            UpdateDownloader.startUpdate(this, gameFiles, url)
+            UpdateDownloader.startUpdate(this, gameFiles, manifest?.updateUrl.orEmpty()) {
+                // The ZIP is extracted into the build root and may contain a
+                // new build.ini, Data Files content and a new launcher name.
+                // Re-import everything immediately without requiring restart.
+                try {
+                    val encoding = prefs.getString(
+                        "pref_encoding", GameInstaller.DEFAULT_CHARSET_PREF
+                    ) ?: GameInstaller.DEFAULT_CHARSET_PREF
+                    BuildManifest.syncSelectedGame(this, encoding)
+                    val language = ServerScriptConfig.applyLauncherLanguage(this)
+                    BuildManifest.syncLanguageAtStartup(this, language)
+                } catch (e: Throwable) {
+                    Log.w(TAG, "Could not resynchronize updated build", e)
+                }
+                refreshManifestUi()
+            }
         }
+        refreshManifestUi()
 
         // Globe icon -> opens morrowind.site
         findViewById<ImageButton?>(R.id.btn_globe)?.setOnClickListener {
@@ -133,6 +159,35 @@ class MainActivity : AppCompatActivity() {
         if (prefs.getString("bugsnag_consent", "")!! == "") {
             askBugsnagConsent()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Keep the Android mod database aligned with an externally supplied
+        // desktop build.ini as soon as the launcher becomes active. This also
+        // covers replacing/editing build.ini while the app was in background;
+        // opening the Mods screen or pressing Play is no longer required first.
+        try {
+            val gamePath = prefs.getString("game_files", "").orEmpty()
+            if (gamePath.isNotBlank() && GameInstaller(gamePath).check() && BuildManifest.read(this) != null)
+                BuildManifest.applyToDatabase(this)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Could not import build.ini load order on resume", e)
+        }
+        refreshManifestUi()
+    }
+
+    /** Refresh build-distributed launcher metadata without restarting the activity. */
+    fun refreshManifestUi() {
+        val manifest = try { BuildManifest.read(this) } catch (_: Throwable) { null }
+        val launcherName = manifest?.name?.trim().orEmpty().ifBlank { "ArenaMP" }
+        supportActionBar?.title = launcherName
+        title = launcherName
+
+        val updateButton = findViewById<ImageButton?>(R.id.btn_update)
+        val hasUpdate = !manifest?.updateUrl.isNullOrBlank()
+        updateButton?.visibility = if (hasUpdate) View.VISIBLE else View.GONE
+        updateButton?.isEnabled = hasUpdate
     }
 
     /**
@@ -524,9 +579,9 @@ class MainActivity : AppCompatActivity() {
         val th = Thread {
             var launchOk = false
             try {
-                // Keep the deployed resources/version synchronized with the native
-                // ArenaMP build. This commit hash is part of the TES3MP connection
-                // identity, so stale resources cause a misleading "Version mismatch".
+                // Keep deployed resources/version synchronized with the packaged
+                // ArenaMP network identity. Source revision and compatibility commit
+                // are intentionally separate in the Android builder.
                 if (staticFilesNeedReinstall()) {
                     reinstallStaticFiles()
                 }
@@ -808,59 +863,11 @@ class MainActivity : AppCompatActivity() {
                 true
             }
 
-            R.id.action_change_update_server -> {
-                showChangeUpdateServerDialog()
-                true
-            }
 
             else -> super.onOptionsItemSelected(item)
         }
     }
 
-    /**
-     * Shows a dialog to change the update-server URL.
-     */
-    private fun showChangeUpdateServerDialog() {
-        val input = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-            setText(
-                prefs.getString(
-                    UpdateDownloader.PREF_UPDATE_URL,
-                    UpdateDownloader.DEFAULT_UPDATE_URL
-                )
-            )
-            setSelection(text.length)
-        }
-
-        val container = android.widget.FrameLayout(this).apply {
-            val pad = (resources.displayMetrics.density * 16).toInt()
-            setPadding(pad, pad / 2, pad, 0)
-            addView(input)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.update_server_dialog_title)
-            .setMessage(R.string.update_server_dialog_message)
-            .setView(container)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val raw = input.text.toString().trim()
-                val finalUrl = if (raw.isEmpty()) UpdateDownloader.DEFAULT_UPDATE_URL else raw
-                with (prefs.edit()) {
-                    putString(UpdateDownloader.PREF_UPDATE_URL, finalUrl)
-                    apply()
-                }
-                Toast.makeText(this, getString(R.string.update_server_saved, finalUrl), Toast.LENGTH_SHORT).show()
-            }
-            .setNeutralButton(R.string.update_server_reset) { _, _ ->
-                with (prefs.edit()) {
-                    putString(UpdateDownloader.PREF_UPDATE_URL, UpdateDownloader.DEFAULT_UPDATE_URL)
-                    apply()
-                }
-                Toast.makeText(this, getString(R.string.update_server_saved, UpdateDownloader.DEFAULT_UPDATE_URL), Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
 
     companion object {
         private const val TAG = "OpenMW-Launcher"

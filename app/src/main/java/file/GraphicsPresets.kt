@@ -93,11 +93,14 @@ object GraphicsPresets {
         // Large preload radii caused visible I/O / upload bursts during abrupt camera turns.
         val preloadDistance = 1000
         val preloadThreads = 1
-        // V13.7.4: Android exposes only the stable simple water path.
-        // Ignore stale PBR water preferences from older launcher versions.
+        // Android keeps the stable simple-water shader path, but exposes
+        // independent mobile-safe RTT/refraction presets. Older values such as
+        // "simple" migrate to RTT 256 without refraction.
+        val waterPreset = prefs.getString("pref_gfx_water", "rtt256_no_refraction")
+            ?: "rtt256_no_refraction"
         val waterMode = "simple"
-        val waterRtt = 256
-        val waterRefraction = false
+        val waterRtt = if (waterPreset == "rtt512_refraction") 512 else 256
+        val waterRefraction = waterPreset == "rtt256_refraction" || waterPreset == "rtt512_refraction"
         val waterReflection = 2
         val grass = prefs.getString("pref_gfx_grass", "balanced") ?: "balanced"
         val grassEnabled = grass != "off"
@@ -215,8 +218,8 @@ object GraphicsPresets {
         w("Shaders", "sharpening enabled", "false")
         w("Shaders", "dithering enabled", "false")
 
-        // V13.7.4: simple shader water is authoritative on Android. This also
-        // overwrites stale "new"/PBR values left by older launcher builds.
+        // Simple shader water remains authoritative on Android; only RTT size and
+        // refraction vary between launcher presets. Stale "new"/PBR values are overwritten.
         w("Water", "shader mode", p.waterMode)
         w("Water", "shader", b(p.waterMode != "off"))
         w("Water", "rtt size", p.waterRtt)

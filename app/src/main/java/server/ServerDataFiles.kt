@@ -59,9 +59,17 @@ object ServerDataFiles {
 
     fun update(ctx: Context): Result {
         ServerRuntime.ensureInstalled(ctx)
-        // Pull the current Android Mods database order into build.ini first,
-        // matching the desktop launcher's Data Files -> manifest order.
-        val manifest = BuildManifest.writeFromDatabase(ctx)
+        // An existing desktop build.ini is authoritative. Import its exact
+        // enable/order state into the Android Mods database before generating
+        // requiredDataFiles.json. Only create build.ini from the database when
+        // no manifest exists yet.
+        val existingManifest = BuildManifest.read(ctx)
+        val manifest = if (existingManifest != null) {
+            BuildManifest.applyToDatabase(ctx)
+            existingManifest
+        } else {
+            BuildManifest.writeFromDatabase(ctx)
+        }
         if (manifest.content.isEmpty())
             throw IllegalStateException("No content files are selected")
 

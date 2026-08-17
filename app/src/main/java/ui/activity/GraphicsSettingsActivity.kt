@@ -29,7 +29,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
     private val presetValues = listOf("very_low", "performance", "balanced", "quality", "battery", "custom")
     private val distanceValues = listOf("4096", "5120", "6144", "8192", "12288", "16384", "24576", "32768", "40960")
     private val terrainValues = listOf("very_low", "low", "balanced", "medium")
-    private val waterValues = listOf("simple")
+    private val waterValues = listOf("rtt256_no_refraction", "rtt256_refraction", "rtt512_refraction")
     private val shadowValues = listOf("off", "characters", "objects")
     private val shadowMapValues = listOf("512", "1024")
     private val shadowDistanceValues = listOf("1024", "2048", "4096", "6144", "8192")
@@ -67,7 +67,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         if (value(preset, presetValues) == "custom") {
             select(distance, distanceValues, prefs.getString("pref_gfx_view_distance", "12288") ?: "12288")
             select(terrain, terrainValues, prefs.getString("pref_gfx_terrain", "balanced") ?: "balanced")
-            select(water, waterValues, "simple")
+            select(water, waterValues, prefs.getString("pref_gfx_water", "rtt256_no_refraction") ?: "rtt256_no_refraction")
             select(shadows, shadowValues, prefs.getString("pref_gfx_shadows", "characters") ?: "characters")
             select(shadowMap, shadowMapValues, prefs.getString("pref_gfx_shadow_map", "512") ?: "512")
             select(shadowDistance, shadowDistanceValues, prefs.getString("pref_gfx_shadow_distance", "5120") ?: "5120")
@@ -100,7 +100,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
                 .putString("pref_gfx_view_distance", value(distance, distanceValues))
                 .putString("pref_gfx_terrain", value(terrain, terrainValues))
                 .putString("pref_gfx_preload", "safe")
-                .putString("pref_gfx_water", "simple")
+                .putString("pref_gfx_water", value(water, waterValues))
                 .putString("pref_gfx_shadows", value(shadows, shadowValues))
                 .putString("pref_gfx_shadow_map", value(shadowMap, shadowMapValues))
                 .putString("pref_gfx_shadow_distance", value(shadowDistance, shadowDistanceValues))
@@ -127,7 +127,11 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         select(distance, distanceValues, p.viewingDistance.toString())
         val terrainId = when { p.lodFactor <= .40f -> "very_low"; p.lodFactor <= .50f -> "low"; p.lodFactor >= .80f -> "medium"; else -> "balanced" }
         select(terrain, terrainValues, terrainId)
-        select(water, waterValues, "simple")
+        select(water, waterValues, when {
+            p.waterRefraction && p.waterRtt >= 512 -> "rtt512_refraction"
+            p.waterRefraction -> "rtt256_refraction"
+            else -> "rtt256_no_refraction"
+        })
         select(shadows, shadowValues, p.shadowScope)
         select(shadowMap, shadowMapValues, p.shadowResolution.toString())
         select(shadowDistance, shadowDistanceValues, p.shadowDistance.toString())

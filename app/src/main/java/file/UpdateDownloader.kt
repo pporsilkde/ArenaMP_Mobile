@@ -39,7 +39,12 @@ object UpdateDownloader {
      * @param gameFilesPath the path currently saved in "game_files" pref (may be empty)
      * @param updateUrl URL to the .zip archive
      */
-    fun startUpdate(activity: Activity, gameFilesPath: String, updateUrl: String) {
+    fun startUpdate(
+        activity: Activity,
+        gameFilesPath: String,
+        updateUrl: String,
+        onCompleted: (() -> Unit)? = null
+    ) {
         if (gameFilesPath.isBlank()) {
             // user requested: english-only message telling to pick resources first
             Toast.makeText(
@@ -50,8 +55,8 @@ object UpdateDownloader {
             return
         }
 
-        val target = File(gameFilesPath)
-        if (!target.exists() || !target.isDirectory) {
+        val selectedRoot = File(gameFilesPath)
+        if (!selectedRoot.exists() || !selectedRoot.isDirectory) {
             Toast.makeText(
                 activity,
                 activity.getString(R.string.update_invalid_folder),
@@ -60,18 +65,39 @@ object UpdateDownloader {
             return
         }
 
-        // Confirm with the user before overwriting files
+        if (updateUrl.isBlank()) {
+            Toast.makeText(activity, activity.getString(R.string.update_not_configured), Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // game_files is the build root selected by the launcher: Morrowind.ini
+        // and Data Files live inside it. Updates are build-level archives, so
+        // extract into this root, not into Data Files itself. This allows one
+        // ZIP to update Data Files/, server/, build.ini and other build files.
+        val installer = GameInstaller(gameFilesPath)
+        val dataFiles = try { File(installer.findDataFiles()) } catch (_: Throwable) { File(selectedRoot, "Data Files") }
+        if (!dataFiles.exists() || !dataFiles.isDirectory) {
+            Toast.makeText(activity, activity.getString(R.string.update_invalid_data_files), Toast.LENGTH_LONG).show()
+            return
+        }
+        val target = selectedRoot
+
         AlertDialog.Builder(activity)
             .setTitle(R.string.update_confirm_title)
-            .setMessage(activity.getString(R.string.update_confirm_message, updateUrl, gameFilesPath))
+            .setMessage(activity.getString(R.string.update_confirm_message, updateUrl, target.absolutePath))
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                runDownload(activity, target, updateUrl)
+                runDownload(activity, target, updateUrl, onCompleted)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun runDownload(activity: Activity, targetDir: File, updateUrl: String) {
+    private fun runDownload(
+        activity: Activity,
+        targetDir: File,
+        updateUrl: String,
+        onCompleted: (() -> Unit)?
+    ) {
         val dialog = ProgressDialog(activity).apply {
             setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
             setTitle(activity.getString(R.string.update_downloading_title))
@@ -112,6 +138,11 @@ object UpdateDownloader {
                     }
                 }
 
+                // A direct update= URL must really return a ZIP. HTML error
+                // pages and empty downloads must not be reported as installed.
+                if (!hasZipEntries(tmpZip))
+                    throw RuntimeException(activity.getString(R.string.update_invalid_zip))
+
                 // 2) extract
                 ui.post {
                     dialog.progress = 0
@@ -131,6 +162,11 @@ object UpdateDownloader {
                 }
 
                 ui.post {
+                    try {
+                        onCompleted?.invoke()
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "Post-update launcher refresh failed", e)
+                    }
                     try { dialog.dismiss() } catch (_: Exception) {}
                     AlertDialog.Builder(activity)
                         .setTitle(R.string.update_done_title)
@@ -193,6 +229,18 @@ object UpdateDownloader {
             }
         } finally {
             try { conn.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+
+    private fun hasZipEntries(zipFile: File): Boolean {
+        if (!zipFile.isFile || zipFile.length() < 4L) return false
+        return try {
+            ZipInputStream(zipFile.inputStream().buffered()).use { zi ->
+                zi.nextEntry != null
+            }
+        } catch (_: Throwable) {
+            false
         }
     }
 

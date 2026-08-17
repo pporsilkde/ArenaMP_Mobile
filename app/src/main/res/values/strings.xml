@@ -755,6 +755,9 @@
     <!-- toast shown when the user hits update without selecting game files (EN always per spec) -->
     <string name="update_no_game_files">Please select game resources folder first (Game files).</string>
     <string name="update_invalid_folder">Selected game folder does not exist. Re-select it in Game files.</string>
+    <string name="update_not_configured">build.ini does not contain a direct update= ZIP URL.</string>
+    <string name="update_invalid_data_files">Data Files folder was not found for update installation.</string>
+    <string name="update_invalid_zip">The downloaded update is not a valid ZIP archive.</string>
 
     <!-- confirm dialog -->
     <string name="update_confirm_title">Download update</string>
@@ -791,7 +794,11 @@
     <string-array name="gfx_distance_entries"><item>4096</item><item>5120</item><item>6144</item><item>8192</item><item>12288</item><item>16384</item><item>24576</item><item>32768</item><item>40960</item></string-array>
     <string-array name="gfx_terrain_entries"><item>Very Low</item><item>Low</item><item>Balanced</item><item>Medium (maximum mobile)</item></string-array>
     <string-array name="gfx_preload_entries"><item>Fixed safe distance — 1000 / 1 worker</item></string-array>
-    <string-array name="gfx_water_entries"><item>Simple water — 256, no refraction</item></string-array>
+    <string-array name="gfx_water_entries">
+        <item>RTT 256 — no refraction</item>
+        <item>RTT 256 — with refraction</item>
+        <item>RTT 512 — with refraction</item>
+    </string-array>
     <string-array name="gfx_shadow_entries"><item>Off</item><item>Player + actors</item><item>Player + actors + objects</item></string-array>
     <string-array name="gfx_shadow_map_entries"><item>512</item><item>1024 (maximum mobile)</item></string-array><string-array name="gfx_shadow_distance_entries"><item>1024</item><item>2048</item><item>4096</item><item>6144</item><item>8192 (maximum)</item></string-array>
     <string-array name="gfx_grass_entries"><item>Off</item><item>Low</item><item>Balanced</item><item>High</item></string-array>
@@ -808,7 +815,7 @@
     <string name="server_status_restarting">Restarting server…</string>
     <string name="server_status_stopped">Server is stopped</string>
     <string name="server_status_error">Server error</string>
-    <string name="server_endpoint">LAN: %1$s:%2$s</string>
+    <string name="server_endpoint">LAN/VPN: %1$s:%2$s</string>
     <string name="server_start">Start</string>
     <string name="server_stop">Stop</string>
     <string name="server_auto_start">Run server</string>
@@ -855,7 +862,7 @@
     <string name="server_run_toggle_summary">Checked: server is running; unchecked: server is stopped</string>
     <string name="server_run_toggle_on">Server enabled — local play uses the running Android server</string>
     <string name="server_run_toggle_off">Server disabled — play uses the endpoint from build.ini / launcher</string>
-    <string name="pref_server_local_ip">127.0.0.1 (LAN: %1$s)</string>
+    <string name="pref_server_local_ip">127.0.0.1 (LAN/VPN: %1$s)</string>
     <string name="pref_server_local_port">Local server port: %1$s</string>
     <string name="server_start_failed">Could not start ArenaMP server: %1$s</string>
     <string name="build_manifest_save_failed">Could not save build.ini: %1$s</string>

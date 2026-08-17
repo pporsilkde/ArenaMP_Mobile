@@ -175,7 +175,15 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             apply()
         }
         if (gameFiles.isNotEmpty()) {
-            BuildManifest.syncConnectionPreferences(activity)
+            // Selecting a new resources folder must immediately import both the
+            // exact plugin order and enabled state. Previously only the server
+            // endpoint was synchronized here, leaving ModsDatabase stale until a
+            // later Activity lifecycle event.
+            val encoding = sharedPref.getString(
+                "pref_encoding", GameInstaller.DEFAULT_CHARSET_PREF
+            ) ?: GameInstaller.DEFAULT_CHARSET_PREF
+            BuildManifest.syncSelectedGame(activity, encoding)
+            (activity as? MainActivity)?.refreshManifestUi()
             updateServerLockState()
         }
     }

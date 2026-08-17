@@ -1,6 +1,7 @@
 package server
 
 import android.content.Context
+import android.os.Build
 import java.io.File
 
 object ServerScriptConfig {
@@ -21,6 +22,32 @@ object ServerScriptConfig {
         return if (returnRegex.containsMatchIn(text))
             returnRegex.replaceFirst(text, "config.$key = $value\n\nreturn config")
         else text.trimEnd() + "\nconfig.$key = $value\n"
+    }
+
+    fun launcherLanguage(ctx: Context): String {
+        val language = if (Build.VERSION.SDK_INT >= 24)
+            ctx.resources.configuration.locales[0]?.language.orEmpty()
+        else
+            @Suppress("DEPRECATION") ctx.resources.configuration.locale?.language.orEmpty()
+        return if (language.equals("ru", ignoreCase = true)) "RU" else "EN"
+    }
+
+    /**
+     * Keep the persistent and runtime server config deterministic on every
+     * launcher start. Server localization accepts only RU/EN here; any stale
+     * value from a copied desktop config is replaced.
+     */
+    fun applyLauncherLanguage(ctx: Context): String {
+        val language = launcherLanguage(ctx)
+        ServerRuntime.ensureInstalled(ctx)
+        val file = ServerRuntime.persistentScriptConfig(ctx)
+        var text = if (file.isFile) file.readText(Charsets.UTF_8)
+        else ServerRuntime.runtimeScriptConfig(ctx).readText(Charsets.UTF_8)
+        text = replaceAssignment(text, "language", "\"$language\"")
+        file.parentFile?.mkdirs()
+        file.writeText(text, Charsets.UTF_8)
+        ServerRuntime.syncPersistentScriptConfig(ctx)
+        return language
     }
 
     fun detect(ctx: Context): Mode {

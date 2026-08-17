@@ -233,16 +233,29 @@ object ServerRuntime {
             val candidates = mutableListOf<Pair<Int, String>>()
             interfaces.forEach { iface ->
                 if (!iface.isUp || iface.isLoopback) return@forEach
-                val virtual = (iface.displayName + " " + iface.name).toLowerCase().let {
-                    it.contains("virtual") || it.contains("docker") || it.contains("tun") || it.contains("vpn")
-                }
+                val tag = (iface.displayName + " " + iface.name).toLowerCase()
                 iface.inetAddresses.toList().forEach { address ->
                     if (address !is Inet4Address || address.isLoopbackAddress || address.isLinkLocalAddress) return@forEach
                     val value = address.hostAddress ?: return@forEach
-                    var score = if (virtual) 0 else 100
+
+                    // Prefer addresses another player can realistically use:
+                    // Wi-Fi/Ethernet first, then overlay/tunnel VPN, and only
+                    // then carrier/mobile interfaces. The previous code heavily
+                    // penalised tun/vpn, so on mobile data it advertised a CGNAT
+                    // 10.x carrier address even when a usable mesh-VPN address existed.
+                    var score = when {
+                        tag.contains("wlan") || tag.contains("wifi") -> 400
+                        tag.contains("eth") -> 380
+                        tag.contains("tun") || tag.contains("tap") || tag.contains("vpn") -> 330
+                        tag.contains("rmnet") || tag.contains("ccmni") || tag.contains("wwan") ||
+                            tag.contains("pdp") || tag.contains("cell") -> 100
+                        tag.contains("docker") || tag.contains("virtual") -> 20
+                        else -> 220
+                    }
                     if (value.startsWith("192.168.")) score += 30
-                    else if (value.startsWith("10.")) score += 20
-                    else if (value.startsWith("172.")) score += 10
+                    else if (value.startsWith("100.")) score += 15
+                    else if (value.startsWith("10.")) score += 10
+                    else if (value.startsWith("172.")) score += 5
                     candidates += score to value
                 }
             }

@@ -81,12 +81,10 @@ class ArenaServerService : Service() {
 
         val active = worker?.isAlive == true
         if (!active) {
-            stopRequested = false
-            currentState = "stopped"
-            releaseWakeLock()
-            ServerRuntime.writeStatus(this, "stopped")
-            updateNotification(getString(R.string.server_status_stopped))
-            sendState("stopped")
+            // No native worker remains, so tear down the dedicated process too.
+            // This prevents a stale foreground service from being mistaken for
+            // a still-running server and makes Stop idempotent.
+            finishStop()
             return
         }
 
@@ -213,6 +211,15 @@ class ArenaServerService : Service() {
                     return@Thread
                 }
 
+                // A user Stop is stronger than a passive stopped state: once
+                // nativeRun has returned, terminate the dedicated Android
+                // process as well. If nativeRun never returns, requestStop's
+                // watchdog kills this process after 2.5 seconds.
+                if (stopRequested) {
+                    finishStop()
+                    return@Thread
+                }
+
                 stopRequested = false
                 PreferenceManager.getDefaultSharedPreferences(this).edit()
                     .putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
@@ -250,6 +257,24 @@ class ArenaServerService : Service() {
     private fun releaseWakeLock() {
         if (wakeLock?.isHeld == true) wakeLock?.release()
         wakeLock = null
+    }
+
+    private fun finishStop() {
+        releaseWakeLock()
+        stopRequested = false
+        restartRequested = false
+        currentState = "stopped"
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+            .putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
+        ServerRuntime.writeStatus(this, "stopped")
+        sendState("stopped")
+        stopForeground(true)
+        stopSelf()
+
+        // The server service has its own :arenamp_server process. Killing this
+        // process cannot kill the launcher UI, and guarantees that no native
+        // RakNet socket/thread survives a completed Stop request.
+        android.os.Process.killProcess(android.os.Process.myPid())
     }
 
     private fun finishExit() {

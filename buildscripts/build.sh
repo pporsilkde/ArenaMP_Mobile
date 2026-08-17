@@ -226,7 +226,7 @@ cmake ../.. \
 	-DFFMPEG_CPU=$FFMPEG_CPU \
 	-DBUILD_JOBS="$NCPU" \
 	-DARENAMP_REPOSITORY="${ARENAMP_REPOSITORY:-https://github.com/pporsilkde/AMP.git}" \
-	-DARENAMP_GIT_TAG="${ARENAMP_GIT_TAG:-0f659371bcbaf9e7e6b94bd6bcb7a81970082234}" \
+	-DARENAMP_GIT_TAG="${ARENAMP_GIT_TAG:-main}" \
 	-DGL4ES_GIT_REPOSITORY="$GL4ES_REPO" \
 	-DGL4ES_GIT_TAG="$GL4ES_TAG"
 
@@ -349,17 +349,28 @@ if [[ $DEPLOY_RESOURCES = "true" ]]; then
 	# resources
 	cp -r "$SRC/resources" "$DST"
 
-	# TES3MP uses resources/version commit hash in the low-level RakNet
-	# connection identity. Never package stale CMake resources next to a newer
-	# libtes3mp.so: that produces ID_INVALID_PASSWORD / "Version mismatch".
+	# Source revision and network identity are intentionally decoupled. Build the
+	# newest AMP/main code, but advertise the parent compatibility commit expected
+	# by existing ArenaMP PC servers. TES3MP reads line 2 of resources/version.
 	ARENAMP_SOURCE=build/$ARCH/arenamp-prefix/src/arenamp
-	EXPECTED_AMP_SHA=$(git -C "$ARENAMP_SOURCE" rev-parse HEAD | tr -d '\r\n')
-	PACKAGED_AMP_SHA=$(sed -n '2p' "$DST/resources/version" | tr -d '\r\n')
-	if [[ -z "$PACKAGED_AMP_SHA" || "$PACKAGED_AMP_SHA" != "$EXPECTED_AMP_SHA" ]]; then
-		echo "ArenaMP resources/version is stale: packaged=$PACKAGED_AMP_SHA expected=$EXPECTED_AMP_SHA" >&2
+	ACTUAL_AMP_SHA=$(git -C "$ARENAMP_SOURCE" rev-parse HEAD | tr -d '\r\n')
+	COMPAT_AMP_SHA="${ARENAMP_NETWORK_COMMIT:-0f659371bcbaf9e7e6b94bd6bcb7a81970082234}"
+	if [[ ! "$COMPAT_AMP_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+		echo "Invalid ARENAMP_NETWORK_COMMIT: '$COMPAT_AMP_SHA' (expected 40 hex characters)" >&2
 		exit 1
 	fi
-	echo "==> ArenaMP network build identity: ${PACKAGED_AMP_SHA:0:10}"
+	COMPAT_AMP_SHA="${COMPAT_AMP_SHA,,}"
+	VERSION_NAME=$(sed -n '1p' "$DST/resources/version" | tr -d '\r\n')
+	VERSION_TAG_HASH=$(sed -n '3p' "$DST/resources/version" | tr -d '\r\n')
+	printf '%s\n%s\n%s\n' "$VERSION_NAME" "$COMPAT_AMP_SHA" "$VERSION_TAG_HASH" > "$DST/resources/version"
+	PACKAGED_AMP_SHA=$(sed -n '2p' "$DST/resources/version" | tr -d '\r\n')
+	if [[ "$PACKAGED_AMP_SHA" != "$COMPAT_AMP_SHA" ]]; then
+		echo "ArenaMP compatibility identity packaging failed: packaged=$PACKAGED_AMP_SHA expected=$COMPAT_AMP_SHA" >&2
+		exit 1
+	fi
+	printf '%s\n' "$ACTUAL_AMP_SHA" > "$DST/arenamp-source-revision.txt"
+	echo "==> ArenaMP source revision:       ${ACTUAL_AMP_SHA:0:10}"
+	echo "==> ArenaMP network compatibility: ${PACKAGED_AMP_SHA:0:10}"
 
 	# global config
 	mkdir -p "$DST/openmw/"
@@ -393,7 +404,7 @@ if [[ $DEPLOY_RESOURCES = "true" ]]; then
 		cp "$DIR/../app/server-cjson-compat.lua" "$SERVER_DST/server/lib/lua/cjson.lua"
 		cp "$SRC/tes3mp-server-default.cfg" "$SERVER_DST/tes3mp-server-default.cfg"
 		cp "$DST/resources/version" "$SERVER_DST/resources/version"
-		printf '%s\n' "$EXPECTED_AMP_SHA-android-server-v1-4" > "$SERVER_DST/runtime-stamp.txt"
+		printf 'source=%s\ncompat=%s\nandroid-server-v1-5\n' "$ACTUAL_AMP_SHA" "$COMPAT_AMP_SHA" > "$SERVER_DST/runtime-stamp.txt"
 	fi
 fi
 

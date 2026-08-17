@@ -22,6 +22,7 @@ object BuildManifest {
     data class Data(
         var formatVersion: Int = 1,
         var name: String = "ArenaMP",
+        var updateUrl: String = "",
         var dataPath: String = "",
         var language: String = "English",
         var complete: Boolean = false,
@@ -38,18 +39,25 @@ object BuildManifest {
         val archives: MutableList<String> = mutableListOf()
     )
 
+    private fun findCaseInsensitive(parent: File, name: String): File? {
+        if (!parent.isDirectory) return null
+        val wanted = name.toLowerCase()
+        return parent.listFiles()?.firstOrNull { it.name.toLowerCase() == wanted }
+    }
+
     private fun manifestFile(ctx: Context): File? {
         val rootPath = PreferenceManager.getDefaultSharedPreferences(ctx).getString("game_files", "") ?: ""
         if (rootPath.isBlank()) return null
         val root = File(rootPath)
-        val canonical = File(root, "build.ini")
         val data = File(GameInstaller(rootPath).findDataFiles())
-        val nested = File(data, "build.ini")
-        return when {
-            canonical.exists() -> canonical
-            nested.exists() -> nested
-            else -> canonical
-        }
+
+        // Windows is case-insensitive, Android/Linux is not. A manifest copied
+        // from PC as Build.ini / BUILD.INI must still be discovered here.
+        findCaseInsensitive(root, "build.ini")?.let { return it }
+        findCaseInsensitive(data, "build.ini")?.let { return it }
+
+        // Keep a deterministic write destination for a new manifest.
+        return File(root, "build.ini")
     }
 
     private fun unquote(v: String): String {
@@ -95,16 +103,19 @@ object BuildManifest {
 
     private fun canonicalLanguage(v: String): String {
         return when (v.trim().toLowerCase()) {
-            "", "english", "английский", "anglais" -> "English"
+            "", "en", "eng", "english", "английский", "anglais" -> "English"
             "french", "французский", "français" -> "French"
             "german", "немецкий", "deutsch" -> "German"
             "italian", "итальянский", "italiano" -> "Italian"
             "polish", "польский", "polski" -> "Polish"
-            "russian", "русский", "русский язык" -> "Russian"
+            "ru", "rus", "russian", "русский", "русский язык" -> "Russian"
             "spanish", "испанский", "español" -> "Spanish"
             else -> v.trim()
         }
     }
+
+    private fun languageCode(v: String): String =
+        if (canonicalLanguage(v).equals("Russian", ignoreCase = true)) "RU" else "EN"
 
     fun read(ctx: Context): Data? {
         val f = manifestFile(ctx) ?: return null
@@ -127,6 +138,7 @@ object BuildManifest {
                 isBuildSection(section) && (key == "format" || key == "version") ->
                     value.toIntOrNull()?.takeIf { it > 0 }?.let { out.formatVersion = it }
                 isBuildSection(section) && (key == "name" || key == "build-name") -> out.name = value
+                isBuildSection(section) && (key == "update" || key == "update-url" || key == "update_url") -> out.updateUrl = value.trim()
                 isBuildSection(section) && (key == "data" || key == "data-path" || key == "datafiles") -> out.dataPath = value
                 key == "language" || key == "locale"
                     || ((section == "language" || section == "locale")
@@ -187,6 +199,7 @@ object BuildManifest {
         val out = Data(
             formatVersion = existing?.formatVersion?.takeIf { it > 0 } ?: 1,
             name = existing?.name?.takeIf { it.isNotBlank() } ?: "ArenaMP",
+            updateUrl = existing?.updateUrl?.trim().orEmpty(),
             dataPath = existing?.dataPath?.takeIf { it.isNotBlank() } ?: defaultPortablePath,
             language = canonicalLanguage(existing?.language?.takeIf { it.isNotBlank() } ?: encodingLanguage),
             complete = locked,
@@ -208,9 +221,7 @@ object BuildManifest {
         return out
     }
 
-    fun writeFromDatabase(ctx: Context): Data {
-        val existing = read(ctx)
-        val out = collect(ctx, existing)
+    private fun writeData(ctx: Context, out: Data): Data {
         val f = manifestFile(ctx) ?: return out
         f.parentFile?.mkdirs()
         val text = buildString {
@@ -218,9 +229,10 @@ object BuildManifest {
             append("# Ordered entries are applied exactly as written.\n\n")
             append("[Build]\n")
             append("format=").append(if (out.formatVersion > 0) out.formatVersion else 1).append('\n')
-            append("name=").append(quote(out.name)).append('\n')
+            append("name=").append(quote(out.name.ifBlank { "ArenaMP" })).append('\n')
+            if (out.updateUrl.isNotBlank()) append("update=").append(quote(out.updateUrl.trim())).append('\n')
             append("data-path=").append(quote(out.dataPath)).append('\n')
-            append("language=").append(quote(canonicalLanguage(out.language))).append('\n')
+            append("language=").append(quote(languageCode(out.language))).append('\n')
             append("complete=").append(if (out.complete) "true" else "false").append("\n\n")
             append("[Server]\n")
             if (out.serverAddressSpecified) append("address=").append(quote(out.serverAddress)).append('\n')
@@ -239,7 +251,66 @@ object BuildManifest {
         return out
     }
 
+    fun writeFromDatabase(ctx: Context): Data {
+        val existing = read(ctx)
+        val out = collect(ctx, existing)
+        return writeData(ctx, out)
+    }
+
     fun ensure(ctx: Context): Data = read(ctx) ?: writeFromDatabase(ctx)
+
+    /**
+     * Update only the launcher language scalar in build.ini. Do not regenerate
+     * the manifest here: distributed builds may contain newer/custom keys that
+     * this Android launcher does not know about yet.
+     */
+    fun syncLanguageAtStartup(ctx: Context, language: String): Data? {
+        val f = manifestFile(ctx) ?: return null
+        if (!f.isFile) return null
+        val code = if (language.equals("RU", ignoreCase = true)) "RU" else "EN"
+        val lines = f.readLines().toMutableList()
+        var section = ""
+        var buildHeader = -1
+        var buildEnd = lines.size
+        var replaced = false
+
+        for (i in lines.indices) {
+            val trimmed = lines[i].trim()
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                val next = trimmed.substring(1, trimmed.length - 1).trim().toLowerCase()
+                if (section == "build" && buildEnd == lines.size) buildEnd = i
+                section = next
+                if (section == "build" && buildHeader < 0) buildHeader = i
+                continue
+            }
+            if (section == "build") {
+                val eq = trimmed.indexOf('=')
+                if (eq > 0) {
+                    val key = trimmed.substring(0, eq).trim().toLowerCase()
+                    if (key == "language" || key == "locale") {
+                        val indent = lines[i].takeWhile { it == ' ' || it == '\t' }
+                        lines[i] = indent + key + "=" + quote(code)
+                        replaced = true
+                        break
+                    }
+                }
+            }
+        }
+
+        if (!replaced) {
+            if (buildHeader >= 0) {
+                val at = buildEnd.coerceIn(buildHeader + 1, lines.size)
+                lines.add(at, "language=" + quote(code))
+            } else {
+                if (lines.isNotEmpty() && lines.last().isNotBlank()) lines.add("")
+                lines.add("[Build]")
+                lines.add("language=" + quote(code))
+            }
+        }
+
+        f.writeText(lines.joinToString("\n") + "\n")
+        return read(ctx)
+    }
 
     /** Import desktop build.ini endpoint into Android preferences. */
     fun syncConnectionPreferences(ctx: Context): Data? {
@@ -251,7 +322,14 @@ object BuildManifest {
         return m
     }
 
-    /** Persist editable endpoint back to build.ini; complete=true leaves it untouched. */
+    /**
+     * Persist only the editable endpoint back to build.ini.
+     *
+     * IMPORTANT: build.ini is authoritative for content/load order. Updating an
+     * IP/port preference must never rebuild the manifest from a possibly stale
+     * ModsDatabase, otherwise merely opening/changing launcher settings can
+     * silently replace the order supplied by the desktop build.ini.
+     */
     fun updateConnectionFromPreferences(ctx: Context) {
         val existing = read(ctx)
         if (existing?.complete == true) {
@@ -261,11 +339,30 @@ object BuildManifest {
             syncConnectionPreferences(ctx)
             return
         }
-        writeFromDatabase(ctx)
+
+        if (existing == null) {
+            // No portable manifest exists yet: creating it from the current mod
+            // database is the only sensible first-run behaviour.
+            writeFromDatabase(ctx)
+            return
+        }
+
+        val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+        existing.serverAddress = prefs.getString("pref_server_ip", DEFAULT_SERVER_ADDRESS)
+            ?.trim().orEmpty().ifBlank { DEFAULT_SERVER_ADDRESS }
+        existing.serverPort = prefs.getString("pref_server_port", DEFAULT_SERVER_PORT)
+            ?.trim().orEmpty().ifBlank { DEFAULT_SERVER_PORT }
+        existing.serverAddressSpecified = true
+        existing.serverPortSpecified = true
+        writeData(ctx, existing)
     }
 
-    fun applyToDatabase(ctx: Context) {
-        val m = read(ctx) ?: return
+    private fun applySelectionToDatabase(
+        ctx: Context,
+        content: List<String>,
+        groundcover: List<String>,
+        archives: List<String>
+    ) {
         val dataFiles = GameInstaller.getDataFiles(ctx)
         val db = ModsDatabaseOpenHelper.getInstance(ctx)
         fun apply(type: ModType, wanted: List<String>) {
@@ -281,8 +378,54 @@ object BuildManifest {
             c.mods.sortBy { it.order }
             c.update()
         }
-        apply(ModType.Plugin, m.content)
-        apply(ModType.Groundcover, m.groundcover)
-        apply(ModType.Resource, m.archives)
+        apply(ModType.Plugin, content)
+        apply(ModType.Groundcover, groundcover)
+        apply(ModType.Resource, archives)
+    }
+
+    fun applyToDatabase(ctx: Context) {
+        val m = read(ctx) ?: return
+        applySelectionToDatabase(ctx, m.content, m.groundcover, m.archives)
+    }
+
+    /**
+     * Synchronize the mod database immediately after the user selects a game
+     * folder. Existing build.ini is authoritative. If there is no build.ini yet,
+     * bootstrap the initial plugin order/enabled state from Morrowind.ini and
+     * create a portable manifest so subsequent launches are deterministic.
+     */
+    fun syncSelectedGame(ctx: Context, encoding: String): Data? {
+        val existing = read(ctx)
+        if (existing != null) {
+            applySelectionToDatabase(ctx, existing.content, existing.groundcover, existing.archives)
+            syncConnectionPreferences(ctx)
+            return existing
+        }
+
+        val rootPath = PreferenceManager.getDefaultSharedPreferences(ctx)
+            .getString("game_files", "").orEmpty()
+        if (rootPath.isBlank()) return null
+
+        val installer = GameInstaller(rootPath)
+        val selection = installer.readDataFilesSelection(encoding)
+        val dataFiles = installer.findDataFiles()
+
+        // Morrowind.ini may omit Morrowind.bsa because the original engine loads
+        // it implicitly. Keep installed vanilla archives enabled and add any
+        // explicitly registered archives from the INI in their original order.
+        val vanillaArchives = listOf("Morrowind.bsa", "Tribunal.bsa", "Bloodmoon.bsa")
+            .filter { File(dataFiles, it).exists() }
+        val iniArchives = selection?.archives ?: emptyList()
+        val archives = (vanillaArchives + iniArchives).fold(arrayListOf<String>()) { acc, value ->
+            if (acc.none { it.equals(value, ignoreCase = true) }) acc.add(value)
+            acc
+        }
+
+        val installedVanillaPlugins = listOf("Morrowind.esm", "Tribunal.esm", "Bloodmoon.esm")
+            .filter { File(dataFiles, it).exists() }
+        val content = selection?.content?.takeIf { it.isNotEmpty() } ?: installedVanillaPlugins
+
+        applySelectionToDatabase(ctx, content, emptyList(), archives)
+        return writeFromDatabase(ctx)
     }
 }

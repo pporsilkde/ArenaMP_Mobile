@@ -519,6 +519,9 @@
 
     <string name="update_no_game_files">Сначала выберите папку с ресурсами игры (Game files).</string>
     <string name="update_invalid_folder">Выбранная папка игры не существует. Укажите её заново в «Game files».</string>
+    <string name="update_not_configured">В build.ini не указана прямая ссылка update= на ZIP-обновление.</string>
+    <string name="update_invalid_data_files">Не найдена папка Data Files для установки обновления.</string>
+    <string name="update_invalid_zip">Скачанное обновление не является корректным ZIP-архивом.</string>
 
     <!-- диалог подтверждения -->
     <string name="update_confirm_title">Загрузка обновления</string>
@@ -555,7 +558,11 @@
     <string-array name="gfx_distance_entries"><item>4096</item><item>5120</item><item>6144</item><item>8192</item><item>12288</item><item>16384</item><item>24576</item><item>32768</item><item>40960</item></string-array>
     <string-array name="gfx_terrain_entries"><item>Очень низкое</item><item>Низкое</item><item>Баланс</item><item>Среднее (максимум Android)</item></string-array>
     <string-array name="gfx_preload_entries"><item>Безопасная дистанция — 1000 / 1 поток</item></string-array>
-    <string-array name="gfx_water_entries"><item>Простая вода — 256, без преломления</item></string-array>
+    <string-array name="gfx_water_entries">
+        <item>RTT 256 — без преломления</item>
+        <item>RTT 256 — с преломлением</item>
+        <item>RTT 512 — с преломлением</item>
+    </string-array>
     <string-array name="gfx_shadow_entries"><item>Выключены</item><item>Игрок + персонажи</item><item>Игрок + персонажи + объекты</item></string-array>
     <string-array name="gfx_shadow_map_entries"><item>512</item><item>1024 (максимум Android)</item></string-array><string-array name="gfx_shadow_distance_entries"><item>1024</item><item>2048</item><item>4096</item><item>6144</item><item>8192 (максимум)</item></string-array>
     <string-array name="gfx_grass_entries"><item>Выключена</item><item>Низко</item><item>Баланс</item><item>Высоко</item></string-array>
@@ -572,7 +579,7 @@
     <string name="server_status_restarting">Перезапуск сервера…</string>
     <string name="server_status_stopped">Сервер остановлен</string>
     <string name="server_status_error">Ошибка сервера</string>
-    <string name="server_endpoint">LAN: %1$s:%2$s</string>
+    <string name="server_endpoint">LAN/VPN: %1$s:%2$s</string>
     <string name="server_start">Запустить</string>
     <string name="server_stop">Остановить</string>
     <string name="server_auto_start">Запустить сервер</string>
@@ -619,7 +626,7 @@
     <string name="server_run_toggle_summary">Галочка стоит — сервер работает; снята — сервер остановлен</string>
     <string name="server_run_toggle_on">Сервер включён — клиент подключается к локальному Android-серверу</string>
     <string name="server_run_toggle_off">Сервер выключен — используется адрес из build.ini / лаунчера</string>
-    <string name="pref_server_local_ip">127.0.0.1 (LAN: %1$s)</string>
+    <string name="pref_server_local_ip">127.0.0.1 (LAN/VPN: %1$s)</string>
     <string name="pref_server_local_port">Порт локального сервера: %1$s</string>
     <string name="server_start_failed">Не удалось запустить сервер ArenaMP: %1$s</string>
     <string name="build_manifest_save_failed">Не удалось сохранить build.ini: %1$s</string>

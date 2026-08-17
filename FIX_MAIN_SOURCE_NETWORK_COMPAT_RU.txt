@@ -1,0 +1,36 @@
+ArenaMP Mobile — FIX: актуальный AMP/main + отдельный compatibility commit
+Дата: 2026-08-17
+
+Проблема
+========
+Поле workflow_dispatch `arenamp_ref` одновременно использовалось как:
+1) ревизия исходников для git checkout;
+2) сетевой commit hash TES3MP/ArenaMP.
+
+Из-за значения 0f659371bcbaf9e7e6b94bd6bcb7a81970082234 Android-сборщик
+физически checkout'ил старый commit AMP. Поэтому APK содержал старую версию server/,
+хотя требовалось собирать актуальные исходники основной ветки.
+
+Исправление
+===========
+- исходники клиента и сервера всегда берутся из актуальной ветки AMP/main;
+- в начале каждой CI-сборки main резолвится в текущий SHA и только на время этой
+  конкретной сборки фиксируется этот SHA, чтобы main не мог сдвинуться посреди job;
+- `arenamp_ref` теперь означает только network compatibility commit;
+- по умолчанию compatibility commit остаётся:
+  0f659371bcbaf9e7e6b94bd6bcb7a81970082234
+- после компиляции реальный SHA main сохраняется в:
+  app/src/main/assets/libopenmw/arenamp-source-revision.txt
+- строка 2 resources/version клиента и встроенного сервера заменяется на compatibility SHA;
+- CI отдельно проверяет, что APK содержит именно resolved AMP/main, но client/server
+  рекламируют указанный compatibility SHA;
+- cache epoch обновлён, чтобы первая сборка после патча не восстановила старый
+  arenamp-prefix с историческим checkout;
+- runtime-stamp встроенного Android-сервера теперь содержит source SHA + compatibility SHA,
+  поэтому новый server/ из AMP/main распаковывается даже при неизменном compatibility commit.
+
+Итог
+====
+Код/содержимое server/ = актуальный AMP/main.
+Сетевая совместимость = commit, указанный в arenamp_ref/build manifest
+(по умолчанию 0f659371bcbaf9e7e6b94bd6bcb7a81970082234).

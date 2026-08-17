@@ -25,6 +25,9 @@ object ServerController {
 
     fun start(ctx: Context, autoRestart: Boolean = PreferenceManager.getDefaultSharedPreferences(ctx).getBoolean(PREF_AUTO_RESTART, true)) {
         ServerRuntime.ensureInstalled(ctx)
+        // Re-assert RU/EN immediately before every start as well, so a manually
+        // edited/stale config cannot launch the server with an undefined locale.
+        ServerScriptConfig.applyLauncherLanguage(ctx)
         val intent = Intent(ctx, ArenaServerService::class.java)
             .setAction(ArenaServerService.ACTION_START)
             .putExtra(ArenaServerService.EXTRA_AUTO_RESTART, autoRestart)

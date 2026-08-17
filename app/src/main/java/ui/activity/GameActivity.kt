@@ -234,10 +234,10 @@ class GameActivity : SDLActivity() {
 
         val cmd = buildString {
             if (connectTarget.isNotEmpty()) append("--connect=").append(connectTarget)
-            // Local-host mode deliberately advertises the native client's own
-            // compiled/resource identity. The packaged Android server is built from
-            // the exact same ArenaMP source revision, so this stays compatible even
-            // when workflow_dispatch builds a newer arenamp_ref.
+            // Local-host mode deliberately uses the packaged resources/version
+            // identity. Client and bundled server are both compiled from current
+            // AMP/main, while packaging assigns the same compatibility commit to
+            // both resources/version files.
             if (!localHostMode) {
                 if (manifest.vanillaServerCompatibility) {
                     if (isNotEmpty()) append(' ')
