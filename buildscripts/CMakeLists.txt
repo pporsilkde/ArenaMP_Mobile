@@ -579,7 +579,7 @@ set(ARENAMP_PATCH
     # one deterministic cumulative patch. Individual originals are preserved in
     # patches/openmw/legacy-arenamw for audit/reference.
     git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch &&
-    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/07-arenamp-parent-network-identity-v1-2-6.patch &&
+    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/07-enable-network-identity-overrides.py <SOURCE_DIR> $ENV{ARENAMP_NETWORK_COMMIT} &&
     git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/08-arenamp-android-compact-display-v1-2-7.patch &&
     cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_main.cpp <SOURCE_DIR>/apps/openmw/android_main.cpp &&
     sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR> &&
