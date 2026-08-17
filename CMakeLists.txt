@@ -585,7 +585,8 @@ set(ARENAMP_PATCH
     sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR> &&
     cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_server_jni.cpp <SOURCE_DIR>/apps/openmw-mp/android_server_jni.cpp &&
     python3 ${CMAKE_SOURCE_DIR}/patches/openmw/09-enable-android-server-host.py <SOURCE_DIR> &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/10-arenamp-auth-map-inventory-stability.py <SOURCE_DIR>
+    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/10-arenamp-auth-map-inventory-stability.py <SOURCE_DIR> &&
+    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/11-arenamp-aoi-localmap-android.patch
 )
 
 set(ANDROID_NATIVE_DEPENDENCIES

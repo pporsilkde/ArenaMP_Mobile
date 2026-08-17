@@ -1,0 +1,209 @@
+diff --git a/apps/openmw-mp/Player.cpp b/apps/openmw-mp/Player.cpp
+index f3e1ba7..a2938b6 100644
+--- a/apps/openmw-mp/Player.cpp
++++ b/apps/openmw-mp/Player.cpp
+@@ -176,6 +176,58 @@ void Player::sendToLoaded(mwmp::PlayerPacket *myPacket)
+     }
+ }
+ 
++std::set<RakNet::RakNetGUID> Player::getLoadedPlayerGuids() const
++{
++    std::set<RakNet::RakNetGUID> result;
++
++    for (auto cell : cells)
++    {
++        if (cell == nullptr)
++            continue;
++
++        for (auto pl : *cell)
++        {
++            if (pl == nullptr || pl == this || !pl->isVisibleToOthers())
++                continue;
++            result.insert(pl->guid);
++        }
++    }
++
++    return result;
++}
++
++void Player::queueCellChangeRecipient(RakNet::RakNetGUID guid)
++{
++    if (guid == this->guid || guid == RakNet::UNASSIGNED_CRABNET_GUID)
++        return;
++    pendingCellChangeRecipients.insert(guid);
++}
++
++void Player::sendToQueuedCellChangeRecipients(mwmp::PlayerPacket *myPacket)
++{
++    if (pendingCellChangeRecipients.empty())
++        return;
++
++    // If AOI overlap was restored before the CellChange arrived, sendToLoaded()
++    // has already covered that peer and we should not send a duplicate.
++    const std::set<RakNet::RakNetGUID> currentRecipients = getLoadedPlayerGuids();
++
++    for (const RakNet::RakNetGUID& recipientGuid : pendingCellChangeRecipients)
++    {
++        if (currentRecipients.count(recipientGuid) != 0)
++            continue;
++
++        Player* recipient = Players::getPlayer(recipientGuid);
++        if (recipient == nullptr || !recipient->isVisibleToOthers())
++            continue;
++
++        myPacket->setPlayer(this);
++        myPacket->Send(recipientGuid);
++    }
++
++    pendingCellChangeRecipients.clear();
++}
++
+ void Player::forEachLoaded(std::function<void(Player *pl, Player *other)> func)
+ {
+     if (!visibleToOthers)
+diff --git a/apps/openmw-mp/Player.hpp b/apps/openmw-mp/Player.hpp
+index 48b45cb..a36fc74 100644
+--- a/apps/openmw-mp/Player.hpp
++++ b/apps/openmw-mp/Player.hpp
+@@ -2,6 +2,7 @@
+ #define OPENMW_PLAYER_HPP
+ 
+ #include <map>
++#include <set>
+ #include <string>
+ #include <chrono>
+ #include <RakNetTypes.h>
+@@ -73,6 +74,12 @@ public:
+     CellController::TContainer *getCells();
+     void sendToLoaded(mwmp::PlayerPacket *myPacket);
+ 
++    // Snapshot the current AOI recipients. This is also used to remember
++    // players that were sharing a cell immediately before a CellState unload.
++    std::set<RakNet::RakNetGUID> getLoadedPlayerGuids() const;
++    void queueCellChangeRecipient(RakNet::RakNetGUID guid);
++    void sendToQueuedCellChangeRecipients(mwmp::PlayerPacket *myPacket);
++
+     void forEachLoaded(std::function<void(Player *pl, Player *other)> func);
+ 
+ private:
+@@ -82,6 +89,12 @@ private:
+     bool visibleToOthers;
+     bool appearanceAuthoritative;
+ 
++    // A PlayerCellState packet can remove the old-cell observers before the
++    // following PlayerCellChange packet is processed. Keep those departed AOI
++    // recipients long enough to send them the cell change that despawns the
++    // remote representation from their old active cell.
++    std::set<RakNet::RakNetGUID> pendingCellChangeRecipients;
++
+ };
+ 
+ #endif //OPENMW_PLAYER_HPP
+diff --git a/apps/openmw-mp/processors/player/ProcessorPlayerCellChange.hpp b/apps/openmw-mp/processors/player/ProcessorPlayerCellChange.hpp
+index 821620b..555802a 100644
+--- a/apps/openmw-mp/processors/player/ProcessorPlayerCellChange.hpp
++++ b/apps/openmw-mp/processors/player/ProcessorPlayerCellChange.hpp
+@@ -37,6 +37,13 @@ namespace mwmp
+                 // clients sharing a loaded-cell AOI may move this DedicatedPlayer.
+                 packet.setPlayer(&player);
+                 player.sendToLoaded(&packet);
++
++                // CellState is processed first during a scene transition. It may
++                // have already removed players that remained in the previous room
++                // from this player's loaded-cell AOI. Send the same reliable cell
++                // change to those departed observers so their DedicatedPlayer is
++                // moved out of the old active scene instead of remaining at the door.
++                player.sendToQueuedCellChangeRecipients(&packet);
+             }
+ 
+             LOG_APPEND(TimedLog::LOG_INFO, "- Finished processing ID_PLAYER_CELL_CHANGE", player.cell.getShortDescription().c_str());
+diff --git a/apps/openmw-mp/processors/player/ProcessorPlayerCellState.hpp b/apps/openmw-mp/processors/player/ProcessorPlayerCellState.hpp
+index 45ec0c8..2be15c2 100644
+--- a/apps/openmw-mp/processors/player/ProcessorPlayerCellState.hpp
++++ b/apps/openmw-mp/processors/player/ProcessorPlayerCellState.hpp
+@@ -21,12 +21,62 @@ namespace mwmp
+         {
+             LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "Received %s from %s", strPacketID.c_str(), player.npc.mName.c_str());
+ 
++            // Remember who could see this player before the CellState update.
++            // Scene transitions send CellState before the subsequent CellChange;
++            // without this snapshot the old-room observers disappear from
++            // sendToLoaded() too early and never learn that the player left.
++            const std::set<RakNet::RakNetGUID> recipientsBefore = player.getLoadedPlayerGuids();
++
++            bool currentCellIsBeingUnloaded = false;
++            const std::string currentCellDescription = player.cell.getShortDescription();
++            if (!currentCellDescription.empty())
++            {
++                for (const auto& cellState : player.cellStateChanges)
++                {
++                    if (cellState.type == mwmp::CellState::UNLOAD
++                        && cellState.cell.getShortDescription() == currentCellDescription)
++                    {
++                        currentCellIsBeingUnloaded = true;
++                        break;
++                    }
++                }
++            }
++
+             CellController::get()->update(&player);
+ 
+-            // Cell-state packets are the authoritative AOI boundary. A login
+-            // teleport can finish after SetPlayerVisible(), so repeat the safe
+-            // bidirectional snapshot exchange once the shared loaded cell is known.
+-            Networking::getPtr()->exchangePlayerSnapshots(&player);
++            const std::set<RakNet::RakNetGUID> recipientsAfter = player.getLoadedPlayerGuids();
++            PlayerPacket* cellChangePacket = playerController->GetPacket(ID_PLAYER_CELL_CHANGE);
++
++            for (const RakNet::RakNetGUID& recipientGuid : recipientsBefore)
++            {
++                if (recipientsAfter.count(recipientGuid) != 0)
++                    continue;
++
++                if (currentCellIsBeingUnloaded)
++                {
++                    // The authoritative player.cell still describes the old room
++                    // until ProcessorPlayerCellChange runs. Defer these recipients
++                    // so that processor can send them the real destination cell.
++                    player.queueCellChangeRecipient(recipientGuid);
++                }
++                else
++                {
++                    // AOI can also shrink because a surrounding exterior cell was
++                    // unloaded while the player's authoritative cell stayed the
++                    // same. In that case the current cell is already correct, so
++                    // a targeted CellChange safely removes the stale remote now.
++                    cellChangePacket->setPlayer(&player);
++                    cellChangePacket->Send(recipientGuid);
++                }
++            }
++
++            // Cell-state packets are the authoritative AOI boundary. If the
++            // player's authoritative cell itself is being unloaded, PlayerCellChange
++            // has not updated player.cell yet; exchanging a full snapshot here would
++            // publish the old room to the newly loaded AOI. Defer that exchange to
++            // ProcessorPlayerCellChange, which already repeats it with the real cell.
++            if (!currentCellIsBeingUnloaded)
++                Networking::getPtr()->exchangePlayerSnapshots(&player);
+         }
+     };
+ }
+diff --git a/apps/openmw/mwrender/localmap.cpp b/apps/openmw/mwrender/localmap.cpp
+index 6860788..9f60e1a 100644
+--- a/apps/openmw/mwrender/localmap.cpp
++++ b/apps/openmw/mwrender/localmap.cpp
+@@ -695,8 +695,13 @@ void LocalMap::MapSegment::createFogOfWarTexture()
+ void LocalMap::MapSegment::initFogOfWar()
+ {
+     mFogOfWarImage = new osg::Image;
+-    // Assign a PixelBufferObject for asynchronous transfer of data to the GPU
++    // Desktop benefits from asynchronous PBO uploads. On Android the renderer
++    // runs through NG-GL4ES, where the dynamic fog image's PBO path can leave the
++    // alpha texture permanently opaque. The large local-map window then becomes
++    // a black rectangle even though the underlying RTT (and HUD minimap) is fine.
++#ifndef __ANDROID__
+     mFogOfWarImage->setPixelBufferObject(new osg::PixelBufferObject);
++#endif
+     mFogOfWarImage->allocateImage(sFogOfWarResolution, sFogOfWarResolution, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+     assert(mFogOfWarImage->isDataContiguous());
+     std::vector<uint32_t> data;
