@@ -14,7 +14,7 @@ if [ -z "$SRC" ] || [ ! -d "$SRC/.git" ]; then
 fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PATCHSET_ID="arenamp-android-v1.3-robust-patch-driver-06-12"
+PATCHSET_ID="arenamp-android-v1.4-robust-patch-driver-06-12-vfx"
 MARKER="$SRC/.arenamp_android_patchset"
 
 copy_if_changed() {

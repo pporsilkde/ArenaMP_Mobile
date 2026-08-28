@@ -144,7 +144,48 @@ new = '''                    const ESM::Static* castStatic = nullptr;
                     if (anim && castStatic && !castStatic->mModel.empty())
                         anim->addEffect("meshes\\\\" + castStatic->mModel, magicEffect->mIndex, loop, "", magicEffect->mParticle);
 '''
-text = replace_once(text, old, new, 'spellcasting.cpp hit VFX guard')
+# Current ArenaMP keeps an empty line between the fallback VFX lookup and
+# the loop flag, so an old byte-for-byte block anchor is too fragile here.
+# Patch the semantic VFX block by its local start/end statements instead.
+def patch_hit_vfx_guard(text: str) -> str:
+    marker = '                    // Add VFX\n'
+    marker_pos = text.find(marker)
+    if marker_pos < 0:
+        raise SystemExit('spellcasting.cpp hit VFX guard: VFX block marker not found')
+
+    window_end = min(len(text), marker_pos + 2400)
+    window = text[marker_pos:window_end]
+    if ('const ESM::Static* castStatic = nullptr;' in window
+            and 'if (anim && castStatic && !castStatic->mModel.empty())' in window):
+        return text
+
+    start_token = '                    const ESM::Static* castStatic;'
+    start = text.find(start_token, marker_pos, window_end)
+
+    end = -1
+    search_from = start if start >= 0 else marker_pos
+    candidate_pos = text.find('anim->addEffect(', search_from, window_end)
+    while candidate_pos >= 0:
+        line_start = text.rfind('\n', search_from, candidate_pos) + 1
+        line_end = text.find('\n', candidate_pos, window_end)
+        if line_end < 0:
+            line_end = window_end
+        line = text[line_start:line_end]
+        if 'castStatic->mModel' in line and 'magicEffect->mIndex' in line:
+            end = line_end
+            break
+        candidate_pos = text.find('anim->addEffect(', candidate_pos + 1, window_end)
+
+    if start < 0 or end < 0:
+        raise SystemExit('spellcasting.cpp hit VFX guard: unsupported VFX block shape')
+    # Consume one line ending only; preserve the surrounding block indentation.
+    if text.startswith('\r\n', end):
+        end += 2
+    elif text.startswith('\n', end):
+        end += 1
+    return text[:start] + new + text[end:]
+
+text = patch_hit_vfx_guard(text)
 text = replace_once(
     text,
     '            MWRender::Animation* anim = MWBase::Environment::get().getWorld()->getAnimation(mCaster);\n',
@@ -203,12 +244,40 @@ text = replace_once(
     '''            NodeMap::const_iterator found = getNodeMap().find(Misc::StringUtils::lowerCase(bonename));\n            if (found == getNodeMap().end() || !found->second)\n            {\n                Log(Debug::Warning) << "Skipping VFX '" << model << "': missing bone " << bonename;\n                return;\n            }\n\n            parentNode = found->second;\n''',
     'animation.cpp missing VFX bone',
 )
-text = replace_once(
-    text,
-    '''        parentNode->addChild(trans);\n        osg::ref_ptr<osg::Node> node = mResourceSystem->getSceneManager()->getInstance(model, trans);\n        node->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);\n''',
-    '''        parentNode->addChild(trans);\n        osg::ref_ptr<osg::Node> node;\n        try\n        {\n            node = mResourceSystem->getSceneManager()->getInstance(model, trans);\n        }\n        catch (const std::exception& e)\n        {\n            parentNode->removeChild(trans);\n            Log(Debug::Warning) << "Skipping VFX '" << model << "': " << e.what();\n            return;\n        }\n        if (!node)\n        {\n            parentNode->removeChild(trans);\n            Log(Debug::Warning) << "Skipping VFX '" << model << "': scene instance is null";\n            return;\n        }\n        node->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);\n''',
-    'animation.cpp VFX instance exception guard',
-)
+# Patch the scene-instance block by unique statements rather than blank-line layout.
+patched_vfx_instance = '''        parentNode->addChild(trans);
+        osg::ref_ptr<osg::Node> node;
+        try
+        {
+            node = mResourceSystem->getSceneManager()->getInstance(model, trans);
+        }
+        catch (const std::exception& e)
+        {
+            parentNode->removeChild(trans);
+            Log(Debug::Warning) << "Skipping VFX '" << model << "': " << e.what();
+            return;
+        }
+        if (!node)
+        {
+            parentNode->removeChild(trans);
+            Log(Debug::Warning) << "Skipping VFX '" << model << "': scene instance is null";
+            return;
+        }
+        node->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+'''
+if "Skipping VFX '" not in text or "scene instance is null" not in text:
+    start_token = '        parentNode->addChild(trans);'
+    end_token = '        node->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);'
+    block_start = text.find(start_token)
+    block_end = text.find(end_token, block_start + 1) if block_start >= 0 else -1
+    if block_start < 0 or block_end < 0:
+        raise SystemExit('animation.cpp VFX instance exception guard: unsupported scene-instance block')
+    block_end += len(end_token)
+    if text.startswith('\r\n', block_end):
+        block_end += 2
+    elif text.startswith('\n', block_end):
+        block_end += 1
+    text = text[:block_start] + patched_vfx_instance + text[block_end:]
 text = replace_once(
     text,
     '''    void Animation::removeEffect(int effectId)\n    {\n        RemoveCallbackVisitor visitor(effectId);\n''',
