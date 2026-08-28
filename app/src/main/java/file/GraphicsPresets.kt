@@ -38,29 +38,34 @@ object GraphicsPresets {
         val asyncNumThreads: Int = 1
     )
 
+    // Android/NG-GL4ES stability: spell, particle and summon code mutates the
+    // OSG scene graph during the mechanics update. CullDrawThreadPerContext lets
+    // cull/draw traverse nodes while they are being attached/removed, which is
+    // a known crash pattern on Mali drivers. Keep rendering traversal on the
+    // main thread; paging/database workers remain independently limited below.
     val PRESETS: Map<String, Preset> = mapOf(
         // Mobile profiles keep paging/preload workers deliberately low. A quick camera turn
         // should pull from warmed caches rather than start several competing loaders at once.
         "very_low" to Preset(
-            "CullDrawThreadPerContext", 1, 1, 1, 4, true,
+            "SingleThreaded", 1, 1, 1, 4, true,
             4096, .40f, -2, -3, 1024, true, true,
             1000, 1, 60, 45.03f, "simple", 256, false, 1,
             "off", 512, 4096, true, .80f, 7100, "compatibility", "performance"
         ),
         "performance" to Preset(
-            "CullDrawThreadPerContext", 1, 1, 1, 5, true,
+            "SingleThreaded", 1, 1, 1, 5, true,
             8192, .50f, -2, -3, 1024, true, true,
             1000, 1, 60, 45.0f, "simple", 256, false, 1,
             "off", 512, 4096, true, .65f, 5000, "compatibility", "performance"
         ),
         "balanced" to Preset(
-            "CullDrawThreadPerContext", 1, 1, 1, 6, true,
+            "SingleThreaded", 1, 1, 1, 6, true,
             12288, .65f, -1, -2, 1024, true, true,
             1000, 1, 60, 60.0f, "simple", 256, false, 2,
             "characters", 1024, 6144, true, .80f, 6000, "compatibility", "performance"
         ),
         "quality" to Preset(
-            "CullDrawThreadPerContext", 1, 1, 1, 8, true,
+            "SingleThreaded", 1, 1, 1, 8, true,
             24576, .80f, -1, -2, 2048, true, true,
             1000, 1, 60, 60.0f, "simple", 256, false, 2,
             "objects", 1024, 8192, true, 1.0f, 7100, "standard", "balance"

@@ -586,7 +586,8 @@ set(ARENAMP_PATCH
     cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_server_jni.cpp <SOURCE_DIR>/apps/openmw-mp/android_server_jni.cpp &&
     python3 ${CMAKE_SOURCE_DIR}/patches/openmw/09-enable-android-server-host.py <SOURCE_DIR> &&
     python3 ${CMAKE_SOURCE_DIR}/patches/openmw/10-arenamp-auth-map-inventory-stability.py <SOURCE_DIR> &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/11-arenamp-aoi-localmap-android.py <SOURCE_DIR>
+    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/11-arenamp-aoi-localmap-android.py <SOURCE_DIR> &&
+    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/12-arenamp-magic-mali-stability.py <SOURCE_DIR>
 )
 
 set(ANDROID_NATIVE_DEPENDENCIES
