@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Mali Magic Stability X002 — cumulative ArenaMP Android patch
 from pathlib import Path
 import sys
 
@@ -53,44 +54,42 @@ save(rel, text)
 
 
 # 2) Summon despawn: collect/use all local data before sending ObjectDelete.
-#    This keeps a network-driven deletion from invalidating the Ptr while VFX or
-#    nested summon state is still being read on the same client.
+#    X002 deliberately patches only the cleanupSummonedCreature() function range
+#    instead of matching its entire body byte-for-byte. ArenaMP main and local
+#    cumulative patches may change comments/whitespace around this code; a full
+#    1.3 KB text anchor made X001 fail before compilation with "found 0".
 rel = 'apps/openmw/mwmechanics/actors.cpp'
 text = load(rel)
-old = '''        if (!ptr.isEmpty() &&
-            (casterStats.getActorId() == getPlayer().getClass().getCreatureStats(getPlayer()).getActorId() || mwmp::Main::get().getCellController()->hasLocalAuthority(*ptr.getCell()->getCell())))
-        {
-            mwmp::ObjectList *objectList = mwmp::Main::get().getNetworking()->getObjectList();
-            objectList->reset();
-            objectList->packetOrigin = mwmp::CLIENT_GAMEPLAY;
-            objectList->addObjectGeneric(ptr);
-            objectList->sendObjectDelete();
-        /*
-            End of tes3mp change (major)
-        */
-            const ESM::Static* fx = MWBase::Environment::get().getWorld()->getStore().get<ESM::Static>()
-                    .search("VFX_Summon_End");
-            if (fx)
-                MWBase::Environment::get().getWorld()->spawnEffect("meshes\\\\" + fx->mModel,
-                    "", ptr.getRefData().getPosition().asVec3());
-            // Remove the summoned creature's summoned creatures as well
-            MWMechanics::CreatureStats& stats = ptr.getClass().getCreatureStats(ptr);
-            std::map<ESM::SummonKey, int>& creatureMap = stats.getSummonedCreatureMap();
-            for (const auto& creature : creatureMap)
-                cleanupSummonedCreature(stats, creature.second);
-            creatureMap.clear();
-        }
-'''
-new = '''        if (!ptr.isEmpty() && ptr.isInCell() && ptr.getCell() &&
-            (casterStats.getActorId() == getPlayer().getClass().getCreatureStats(getPlayer()).getActorId()
+fn_start_marker = '    void Actors::cleanupSummonedCreature (MWMechanics::CreatureStats& casterStats, int creatureActorId)\n'
+fn_end_marker = '    void Actors::purgeSpellEffects(int casterActorId)\n'
+fn_start = text.find(fn_start_marker)
+fn_end = text.find(fn_end_marker, fn_start + 1) if fn_start >= 0 else -1
+if fn_start < 0 or fn_end < 0:
+    raise SystemExit('actors.cpp network summon lifetime: cleanupSummonedCreature function boundaries not found')
+
+fn = text[fn_start:fn_end]
+patched_marker = '// X002: Send ObjectDelete last. Do not dereference ptr afterwards.'
+if patched_marker not in fn:
+    if_start = fn.find('        if (!ptr.isEmpty()')
+    else_marker = '        else if (creatureActorId != -1)\n'
+    else_pos = fn.find(else_marker, if_start + 1) if if_start >= 0 else -1
+    required = (
+        'objectList->sendObjectDelete();',
+        '.search("VFX_Summon_End")',
+        'creatureMap.clear();',
+    )
+    if if_start < 0 or else_pos < 0 or any(item not in fn[if_start:else_pos] for item in required):
+        raise SystemExit('actors.cpp network summon lifetime: function shape is unsupported; refusing unsafe partial patch')
+
+    replacement = r'''        if (!ptr.isEmpty() && ptr.isInCell() && ptr.getCell() && ptr.getCell()->getCell()
+            && mwmp::Main::get().getCellController()
+            && (casterStats.getActorId() == getPlayer().getClass().getCreatureStats(getPlayer()).getActorId()
                 || mwmp::Main::get().getCellController()->hasLocalAuthority(*ptr.getCell()->getCell())))
         {
-            // Do not send the delete while code below still needs the actor.
-            // Cache position and finish nested cleanup first; the server may echo
-            // deletion/actor updates very quickly on a local/low-latency session.
+            // Finish every read/recursive cleanup before the network delete can
+            // invalidate this Ptr on a fast local/server echo path.
             const osg::Vec3f despawnPosition = ptr.getRefData().getPosition().asVec3();
 
-            // Remove the summoned creature's summoned creatures as well.
             MWMechanics::CreatureStats& stats = ptr.getClass().getCreatureStats(ptr);
             std::map<ESM::SummonKey, int>& creatureMap = stats.getSummonedCreatureMap();
             for (const auto& creature : creatureMap)
@@ -99,11 +98,11 @@ new = '''        if (!ptr.isEmpty() && ptr.isInCell() && ptr.getCell() &&
 
             const ESM::Static* fx = MWBase::Environment::get().getWorld()->getStore().get<ESM::Static>()
                     .search("VFX_Summon_End");
-            if (fx)
-                MWBase::Environment::get().getWorld()->spawnEffect("meshes\\\\" + fx->mModel,
+            if (fx && !fx->mModel.empty())
+                MWBase::Environment::get().getWorld()->spawnEffect("meshes\\" + fx->mModel,
                     "", despawnPosition);
 
-            // Send ObjectDelete last. Do not dereference ptr afterwards.
+            // X002: Send ObjectDelete last. Do not dereference ptr afterwards.
             mwmp::ObjectList *objectList = mwmp::Main::get().getNetworking()->getObjectList();
             objectList->reset();
             objectList->packetOrigin = mwmp::CLIENT_GAMEPLAY;
@@ -114,7 +113,9 @@ new = '''        if (!ptr.isEmpty() && ptr.isInCell() && ptr.getCell() &&
         */
         }
 '''
-text = replace_once(text, old, new, 'actors.cpp network summon lifetime')
+    fn = fn[:if_start] + replacement + fn[else_pos:]
+    text = text[:fn_start] + fn + text[fn_end:]
+
 save(rel, text)
 
 
@@ -249,4 +250,4 @@ new = '''void EffectManager::addEffect(const std::string &model, const std::stri
 text = replace_once(text, old, new, 'effectmanager.cpp safe addEffect')
 save(rel, text)
 
-print('ArenaMP Android magic/Mali stability patch applied')
+print('ArenaMP Android magic/Mali stability patch X002 applied')
