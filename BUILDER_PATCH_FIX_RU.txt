@@ -1,0 +1,10 @@
+ArenaMP Mobile builder patch reliability fix
+
+1. Raw ExternalProject "patch -N" calls replaced by an idempotent helper.
+2. Every third-party patch gets a checksum marker in its source tree, so CMake may rerun PATCH_COMMAND safely.
+3. Helper accepts: apply now / already present / clean git 3-way merge.
+4. ArenaMP patches 06-12 are applied by one idempotent transactional driver.
+5. If an old CI run left ArenaMP half-patched, the disposable source checkout is reset automatically.
+6. If an ArenaMP engine patch really conflicts, the source is restored clean before exit, so the next cached run is not poisoned.
+7. android_main.cpp/android_server_jni.cpp are copied only when changed.
+8. ARENAMP_NETWORK_COMMIT behavior is preserved.

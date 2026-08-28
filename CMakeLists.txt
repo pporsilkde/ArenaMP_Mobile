@@ -245,7 +245,7 @@ ExternalProject_Add(openal
 	URL_HASH ${OPENAL_HASH}
 	DOWNLOAD_DIR ${download_dir}
 
-	PATCH_COMMAND patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openal-unset-compiler.patch
+	PATCH_COMMAND sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/openal-unset-compiler.patch
 
 	CONFIGURE_COMMAND ${wrapper_command} cmake <SOURCE_DIR>
 	${COMMON_CMAKE_ARGS}
@@ -347,7 +347,7 @@ ExternalProject_Add(sdl2
 	URL_HASH ${SDL2_HASH}
 	DOWNLOAD_DIR ${download_dir}
 
-	PATCH_COMMAND patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/sdl2-android-120hz-gyroscope.patch
+	PATCH_COMMAND sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/sdl2-android-120hz-gyroscope.patch
 
 	CONFIGURE_COMMAND ""
 
@@ -366,7 +366,7 @@ ExternalProject_Add(bullet
 	URL_HASH ${BULLET_HASH}
 	DOWNLOAD_DIR ${download_dir}
 
-	PATCH_COMMAND patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/bullet-fix-cmake.patch
+	PATCH_COMMAND sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/bullet-fix-cmake.patch
 
 	CONFIGURE_COMMAND ${wrapper_command} cmake <SOURCE_DIR>
 	${COMMON_CMAKE_ARGS}
@@ -434,7 +434,7 @@ ExternalProject_Add(mygui
 	URL_HASH ${MYGUI_HASH}
 	DOWNLOAD_DIR ${download_dir}
 
-	PATCH_COMMAND patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/mygui-dont-set-debug-postfix.patch
+	PATCH_COMMAND sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/mygui-dont-set-debug-postfix.patch
 
 	CONFIGURE_COMMAND ${wrapper_command} cmake <SOURCE_DIR>
 	${COMMON_CMAKE_ARGS}
@@ -500,19 +500,19 @@ set(OSG_COMMON
 )
 
 set(OSG_PATCH
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/disable-polygon-offset.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/remove-lib-prefix-from-plugins.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/fix-freetype-include-dirs.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/0001-Replace-Atomic-impl-with-std-atomic.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/0002-BufferObject-make-numClients-atomic.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/0004-IncrementalCompileOperation-wrap-some-stuff-in-atomi.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/remove-zlib-dependency.patch &&
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/0005-CullSettings-make-inheritanceMask-atomic-to-silence-.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/disable-polygon-offset.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/remove-lib-prefix-from-plugins.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/fix-freetype-include-dirs.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/0001-Replace-Atomic-impl-with-std-atomic.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/0002-BufferObject-make-numClients-atomic.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/0004-IncrementalCompileOperation-wrap-some-stuff-in-atomi.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/remove-zlib-dependency.patch &&
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/0005-CullSettings-make-inheritanceMask-atomic-to-silence-.patch &&
 	# load-ng-gl4es.patch НЕ применяем — его единственный hunk (подмена
 	# dlopen("libGL.so") → dlopen("ng_gl4es.so") в src/osg/GLExtensions.cpp)
 	# уже включён в ng-gl4es.patch. Повторное применение роняет patch -N
 	# с "Reversed (or previously applied)" и exit code ≠ 0.
-	patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/osg/ng-gl4es.patch
+	sh ${CMAKE_SOURCE_DIR}/patches/apply-patch-idempotent.sh <SOURCE_DIR> ${CMAKE_SOURCE_DIR}/patches/osg/ng-gl4es.patch
 )
 
 ExternalProject_Add(osg
@@ -575,19 +575,7 @@ set(OPENMW_COMMON
 )
 
 set(ARENAMP_PATCH
-    # The old ArenaMW patch series was rebased onto current AMP and resolved as
-    # one deterministic cumulative patch. Individual originals are preserved in
-    # patches/openmw/legacy-arenamw for audit/reference.
-    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/06-arenamp-mobile-cumulative-v1-2.patch &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/07-enable-network-identity-overrides.py <SOURCE_DIR> $ENV{ARENAMP_NETWORK_COMMIT} &&
-    git -C <SOURCE_DIR> apply --whitespace=nowarn ${CMAKE_SOURCE_DIR}/patches/openmw/08-arenamp-android-compact-display-v1-2-7.patch &&
-    cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_main.cpp <SOURCE_DIR>/apps/openmw/android_main.cpp &&
-    sh ${CMAKE_SOURCE_DIR}/patches/openmw/patch-sse2neon.sh <SOURCE_DIR> &&
-    cp ${CMAKE_SOURCE_DIR}/patches/openmw/android_server_jni.cpp <SOURCE_DIR>/apps/openmw-mp/android_server_jni.cpp &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/09-enable-android-server-host.py <SOURCE_DIR> &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/10-arenamp-auth-map-inventory-stability.py <SOURCE_DIR> &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/11-arenamp-aoi-localmap-android.py <SOURCE_DIR> &&
-    python3 ${CMAKE_SOURCE_DIR}/patches/openmw/12-arenamp-magic-mali-stability.py <SOURCE_DIR>
+    sh ${CMAKE_SOURCE_DIR}/patches/openmw/apply-arenamp-patches.sh <SOURCE_DIR>
 )
 
 set(ANDROID_NATIVE_DEPENDENCIES
