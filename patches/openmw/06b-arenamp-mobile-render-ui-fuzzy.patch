@@ -1,0 +1,47 @@
+diff --git a/apps/openmw/mwrender/renderingmanager.cpp b/apps/openmw/mwrender/renderingmanager.cpp
+index b2ad5d2..45556a4 100644
+--- a/apps/openmw/mwrender/renderingmanager.cpp
++++ b/apps/openmw/mwrender/renderingmanager.cpp
+@@ -104,3 +104,2 @@ namespace
+     constexpr float sLandOptimizationMinimumScale = 0.5f;
+-    constexpr float sLandOptimizationShadowDistanceRatio = 0.25f;
+     constexpr float sLandOptimizationGroundcoverDistanceRatio = 0.40f;
+@@ -239,3 +238,4 @@ namespace MWRender
+             {
+-                const int shadowMapResolution = std::max(1, Settings::Manager::getInt("shadow map resolution", "Shadows"));
++                const int shadowMapResolution
++                    = std::clamp(Settings::Manager::getInt("shadow map resolution", "Shadows"), 1, 1024);
+                 uniform->set(1.0f / static_cast<float>(shadowMapResolution));
+@@ -959,3 +959,3 @@ namespace MWRender
+         mNearClip = Settings::Manager::getFloat("near clip", "Camera");
+-        mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
++        mConfiguredViewDistance = std::clamp(Settings::Manager::getFloat("viewing distance", "Camera"), 2500.f, 40960.f);
+         mViewDistance = mConfiguredViewDistance;
+@@ -1794,6 +1794,9 @@ namespace MWRender
+         {
+-            const float shadowDistance = mLandOptimizationEnabled
+-                ? mConfiguredViewDistance * sLandOptimizationShadowDistanceRatio
+-                : std::max(0.f, Settings::Manager::getFloat("maximum shadow map distance", "Shadows"));
+-            mShadowManager->setMaximumShadowMapDistance(shadowDistance * adaptiveDistanceScale);
++            // Shadow distance is an explicit user setting. Land optimization must not
++            // replace 8192 with 25% of world distance or apply adaptive scaling again.
++            // Keep this independent from dynamic terrain distance; the mobile hard cap
++            // is already 8192, so the selected value remains predictable and safe.
++            const float configuredShadowDistance = std::clamp(
++                Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
++            mShadowManager->setMaximumShadowMapDistance(configuredShadowDistance);
+         }
+@@ -2032,3 +2035,3 @@ namespace MWRender
+             {
+-                mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
++                mConfiguredViewDistance = std::clamp(Settings::Manager::getFloat("viewing distance", "Camera"), 2500.f, 40960.f);
+                 updateLandOptimizationProfile();
+diff --git a/files/ui/graphicspage.ui b/files/ui/graphicspage.ui
+index a37f8e6..3660cb0 100644
+--- a/files/ui/graphicspage.ui
++++ b/files/ui/graphicspage.ui
+@@ -523,3 +523,3 @@
+             <property name="maximum">
+-             <number>81920</number>
++             <number>40960</number>
+             </property>

@@ -14,7 +14,7 @@ if [ -z "$SRC" ] || [ ! -d "$SRC/.git" ]; then
 fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PATCHSET_ID="arenamp-android-x057a-patchchain-06-15-x056-yhold-v1"
+PATCHSET_ID="arenamp-android-x057b-patchchain-06compat-15-x056-yhold-v1"
 MARKER="$SRC/.arenamp_android_patchset"
 
 copy_if_changed() {
@@ -27,6 +27,20 @@ copy_if_changed() {
     else
         echo "==> already current $(basename "$to")"
     fi
+}
+
+git_apply_3way_is_clean() {
+    p=$1
+    shift
+    log_file=$(mktemp)
+    status=0
+    git -C "$SRC" apply --3way --check --whitespace=nowarn "$@" "$p" >"$log_file" 2>&1 || status=$?
+    if [ "$status" -eq 0 ] && ! grep -q "with conflicts" "$log_file"; then
+        rm -f "$log_file"
+        return 0
+    fi
+    rm -f "$log_file"
+    return 1
 }
 
 apply_git_patch() {
@@ -44,9 +58,9 @@ apply_git_patch() {
         return 0
     fi
 
-    # Current AMP/main can move context around while the old blob is still in
-    # repository history. Let git reconstruct a clean merge when possible.
-    if git -C "$SRC" apply --3way --check --whitespace=nowarn "$p" >/dev/null 2>&1; then
+    # `git apply --3way --check` can return success while reporting
+    # "Applied patch ... with conflicts". Never treat that as a safe merge.
+    if git_apply_3way_is_clean "$p"; then
         echo "==> apply $name (git 3-way)"
         git -C "$SRC" apply --3way --whitespace=nowarn "$p"
         return 0
@@ -55,6 +69,56 @@ apply_git_patch() {
     echo "ERROR: ArenaMP patch neither applies nor is already present: $name" >&2
     git -C "$SRC" apply --check --whitespace=nowarn "$p" >&2 || true
     return 24
+}
+
+apply_mobile_06_core() {
+    p=$1
+    name=$(basename "$p")
+    # These two files drift independently in AMP/main. Their Android changes are
+    # applied immediately afterwards by the small context/fuzz patch 06b.
+    exclude_render="--exclude=apps/openmw/mwrender/renderingmanager.cpp"
+    exclude_ui="--exclude=files/ui/graphicspage.ui"
+
+    if git -C "$SRC" apply --check --whitespace=nowarn "$exclude_render" "$exclude_ui" "$p" >/dev/null 2>&1; then
+        echo "==> apply $name (render/UI split out)"
+        git -C "$SRC" apply --whitespace=nowarn "$exclude_render" "$exclude_ui" "$p"
+        return 0
+    fi
+
+    if git -C "$SRC" apply --reverse --check --whitespace=nowarn "$exclude_render" "$exclude_ui" "$p" >/dev/null 2>&1; then
+        echo "==> already present $name (render/UI split out)"
+        return 0
+    fi
+
+    if git_apply_3way_is_clean "$p" "$exclude_render" "$exclude_ui"; then
+        echo "==> apply $name (git 3-way, render/UI split out)"
+        git -C "$SRC" apply --3way --whitespace=nowarn "$exclude_render" "$exclude_ui" "$p"
+        return 0
+    fi
+
+    echo "ERROR: ArenaMP mobile core patch failed even with render/UI split out: $name" >&2
+    git -C "$SRC" apply --check --whitespace=nowarn "$exclude_render" "$exclude_ui" "$p" >&2 || true
+    return 25
+}
+
+apply_fuzzy_patch() {
+    p=$1
+    name=$(basename "$p")
+
+    if patch -d "$SRC" -p1 --forward --batch --fuzz=3 --dry-run < "$p" >/dev/null 2>&1; then
+        echo "==> apply $name (context/fuzz)"
+        patch -d "$SRC" -p1 --forward --batch --fuzz=3 < "$p"
+        return 0
+    fi
+
+    if patch -d "$SRC" -p1 --reverse --batch --fuzz=3 --dry-run < "$p" >/dev/null 2>&1; then
+        echo "==> already present $name"
+        return 0
+    fi
+
+    echo "ERROR: ArenaMP context/fuzz patch failed: $name" >&2
+    patch -d "$SRC" -p1 --forward --batch --fuzz=3 --dry-run < "$p" >&2 || true
+    return 26
 }
 
 verify_x056_patchset() {
@@ -111,7 +175,8 @@ cleanup_on_error() {
 }
 trap cleanup_on_error EXIT INT TERM HUP
 
-apply_git_patch "$SCRIPT_DIR/06-arenamp-mobile-cumulative-v1-2.patch"
+apply_mobile_06_core "$SCRIPT_DIR/06-arenamp-mobile-cumulative-v1-2.patch"
+apply_fuzzy_patch "$SCRIPT_DIR/06b-arenamp-mobile-render-ui-fuzzy.patch"
 if [ -n "${ARENAMP_NETWORK_COMMIT:-}" ]; then
     python3 "$SCRIPT_DIR/07-enable-network-identity-overrides.py" "$SRC" "$ARENAMP_NETWORK_COMMIT"
 else
