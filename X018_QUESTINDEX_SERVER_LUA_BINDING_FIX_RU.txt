@@ -1,0 +1,23 @@
+ArenaMP X018 cumulative NO_HEALTH_BARS — QuestIndex server Lua binding fix
+=======================================================================
+
+Причина, подтверждённая серверным логом:
+- server/scripts/questIndexStore.lua загружен и корректно fail-closed;
+- C++ QuestIndex API присутствовал в ScriptFunctions.hpp;
+- но apps/openmw-mp/Script/LangLua/LangLua.cpp имеет отдельный явный список
+  API-макросов, который используется для публикации функций в таблицу tes3mp;
+- QUESTINDEXAPI в этот список не был добавлен.
+
+Из-за этого после полной пересборки tes3mp.SendQuestIndexRequest оставался nil,
+хотя QuestIndex.cpp и ScriptFunctions.hpp были скомпилированы.
+
+X018 добавляет QUESTINDEXAPI в registerLuaFunctions() рядом с QUESTAPI.
+После пересборки сервера tes3mp.SendQuestIndexRequest и остальные GetQuestIndex*
+должны быть доступны Lua.
+
+Важно: предупреждение "Unhandled PlayerPacket with identifier 142" из текущего
+лога не является ID_PLAYER_QUEST_INDEX. В этой ветке RakNet ID 142 — это
+ID_PLAYER_BASEINFO; QuestIndex имеет более поздний идентификатор. Поэтому оно
+не доказывает отсутствие ProcessorPlayerQuestIndex.
+
+Protocol остаётся 806. Health-bars X014 в этой ветке отсутствуют.

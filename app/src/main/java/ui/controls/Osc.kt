@@ -599,11 +599,13 @@ class Osc {
             defaultOpacity = 0.52f),
         OscImageButton("inventory", "inventory.png", OscVisibility.NULL,
             R.drawable.inventory, 965, 290, 3, true),
-        // Save button: short tap sends Y, long press sends F2.
+        // ArenaMP Android: keep the real Y/Say key down for the whole touch.
+        // GUIController handles the duration exactly like desktop:
+        // short tap = compact chat caret, long hold = Player Menu.
         OscLongPressButton("wait", "save.png", OscVisibility.NULL,
-            R.drawable.save, 965, 380, 650L,
-            longPressHandler = { sendKey(KeyEvent.KEYCODE_F2) },
-            shortHandler = { sendKey(KeyEvent.KEYCODE_Y) }),
+            R.drawable.save, 965, 380, 350L,
+            longPressHandler = { /* GUIController observes held KEYCODE_Y */ },
+            holdKey = KeyEvent.KEYCODE_Y),
         OscImageButton("magic", "toggle_magic.png", OscVisibility.NORMAL,
             R.drawable.toggle_magic, 965, 470, KeyEvent.KEYCODE_R),
         OscImageButton("weapon", "toggle_weapon.png", OscVisibility.NORMAL,

@@ -14,7 +14,7 @@ if [ -z "$SRC" ] || [ ! -d "$SRC/.git" ]; then
 fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PATCHSET_ID="arenamp-android-v1.4-robust-patch-driver-06-12-vfx"
+PATCHSET_ID="arenamp-android-x057a-patchchain-06-15-x056-yhold-v1"
 MARKER="$SRC/.arenamp_android_patchset"
 
 copy_if_changed() {
@@ -57,7 +57,22 @@ apply_git_patch() {
     return 24
 }
 
+verify_x056_patchset() {
+    test -f "$SRC/server/scripts/groupHelper.lua" || { echo "ERROR: X056 groupHelper missing" >&2; return 31; }
+    test -f "$SRC/server/scripts/positionSafetyHelper.lua" || { echo "ERROR: X051 position safety missing" >&2; return 32; }
+    test -f "$SRC/files/mygui/ArenaMPChatColor.xml" || { echo "ERROR: ArenaMP color emoji resource missing" >&2; return 33; }
+    grep -q "OnPlayerPosition" "$SRC/apps/openmw-mp/processors/player/ProcessorPlayerPosition.hpp" || { echo "ERROR: OnPlayerPosition callback missing" >&2; return 34; }
+    grep -q "openPlayerMenu" "$SRC/apps/openmw/mwmp/GUIController.cpp" || { echo "ERROR: Player Menu hold logic missing" >&2; return 35; }
+    grep -q "player menu hold" "$SRC/files/settings-default.cfg" || { echo "ERROR: Player Menu hold setting missing" >&2; return 36; }
+    if grep -q "FontManager::getInstance().isExist" "$SRC/apps/openmw/mwmp/GUI/GUIChat.cpp"; then
+        echo "ERROR: incompatible MyGUI FontManager::isExist returned" >&2
+        return 37
+    fi
+    echo "==> ArenaMP X056 Android feature patchset verified"
+}
+
 finish() {
+    verify_x056_patchset
     copy_if_changed "$SCRIPT_DIR/android_main.cpp" "$SRC/apps/openmw/android_main.cpp"
     copy_if_changed "$SCRIPT_DIR/android_server_jni.cpp" "$SRC/apps/openmw-mp/android_server_jni.cpp"
     sh "$SCRIPT_DIR/patch-sse2neon.sh" "$SRC"
@@ -110,6 +125,9 @@ python3 "$SCRIPT_DIR/09-enable-android-server-host.py" "$SRC"
 python3 "$SCRIPT_DIR/10-arenamp-auth-map-inventory-stability.py" "$SRC"
 python3 "$SCRIPT_DIR/11-arenamp-aoi-localmap-android.py" "$SRC"
 python3 "$SCRIPT_DIR/12-arenamp-magic-mali-stability.py" "$SRC"
+apply_git_patch "$SCRIPT_DIR/13-arenamp-x056-server-network.patch"
+apply_git_patch "$SCRIPT_DIR/14-arenamp-x056-client-player-menu.patch"
+apply_git_patch "$SCRIPT_DIR/15-arenamp-x056-resources.patch"
 finish
 
 trap - EXIT INT TERM HUP
