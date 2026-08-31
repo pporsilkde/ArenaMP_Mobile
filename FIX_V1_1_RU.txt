@@ -1,9 +1,0 @@
-ArenaMP Mobile Client V1.1
-
-Исправление по logs_86531197839.zip:
-- cumulative Android patch ссылался на water_pbr_android_fragment.glsl и water_pbr_android_data.glsl, но не создавал эти файлы;
-- восстановлены финальные версии обоих Android PBR water shaders из исходной ArenaMW Mobile patch chain (07 -> 09 -> 10 -> 12 -> 21);
-- cumulative patch дополнен недостающими new-file diff и повторно проверен на чистом AMP snapshot;
-- incremental cache epoch обновлен до v1-1, чтобы исключить повторное использование неудачного source/build tree.
-
-Сервер по-прежнему не собирается. Native client target: tes3mp / libtes3mp.so.

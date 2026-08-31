@@ -1,5 +1,0 @@
-V1.2.6
-- Parent PC network identity override for TES3MP/RakNet handshake.
-- build.ini network-version/network-protocol/network-commit support.
-- Android app version decoupled from network compatibility identity.
-- Added native patch 07-arenamp-parent-network-identity-v1-2-6.patch.

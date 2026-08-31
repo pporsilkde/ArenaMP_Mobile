@@ -1,9 +1,0 @@
-ArenaMP Mobile Client+Server V1.3
-
-Исправление:
-- LuaJIT SDK из V1.2 проходит проверку, lua.hpp найден.
-- Исправлена компиляция tes3mp-server на Android/AArch64: va_list на ARM64 является ABI-структурой и не может быть закодирован старым TypeChar.
-- На Android только CreateTimerEx/CallPublic исключены из native C++ script export table; Lua API не меняется, т.к. LangLua регистрирует эти функции отдельно через addCFunction.
-- PC/desktop поведение не изменено.
-- Incremental ArenaMP cache epoch поднят до v1-3; native dependencies cache не сбрасывается.
-- versionCode и commit ArenaMP не менялись.

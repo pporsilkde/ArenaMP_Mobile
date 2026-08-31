@@ -1,8 +1,0 @@
-ArenaMP Mobile Client V1.2.10
-- android.yml: добавлена проверка ревизии pporsilkde/AMP перед native build.
-- workflow_dispatch получил arenamp_ref; по умолчанию сохранен сервер-совместимый 0f659371bcbaf9e7e6b94bd6bcb7a81970082234.
-- При смене ref/ветки сохраняется arenamp-build и пересобираются только измененные/зависимые C/C++ translation units.
-- В Job Summary выводятся cached SHA, target SHA, AMP/main и список измененных C/C++ файлов.
-- Изменение Android patch set также инвалидирует только patch/configure/build stamps без удаления binary tree.
-- versionCode остается 47; network compatibility 0f659371... сохранена.
-- Первый запуск V1.2.10 может восстановить совместимый incremental cache V1.2.9, чтобы не делать полный rebuild без необходимости.

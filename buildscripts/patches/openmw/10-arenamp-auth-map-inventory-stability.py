@@ -102,8 +102,8 @@ text = replace_once(
 )
 text = replace_once(
     text,
-    '    else\n    {\n        mLocalPlayer->update();\n        mCellController->updateLocal(false);\n    }\n',
-    '    else\n    {\n        // Password/registration dialogs are part of the network handshake, not\n        // the live world.  Sending movement, equipment, stats and cell actor\n        // updates here used to overlap the auth result and occasionally race\n        // remote-player/world creation.\n        if (!mLocalPlayer->isLoggedIn())\n            return;\n\n        mLocalPlayer->update();\n        mCellController->updateLocal(false);\n    }\n',
+    '    else\n    {\n        mLocalPlayer->update();\n        mCellController->updateLocal(false);\n',
+    '    else\n    {\n        // Password/registration dialogs are part of the network handshake, not\n        // the live world.  Sending movement, equipment, stats and cell actor\n        // updates here used to overlap the auth result and occasionally race\n        // remote-player/world creation.\n        if (!mLocalPlayer->isLoggedIn())\n            return;\n\n        mLocalPlayer->update();\n        mCellController->updateLocal(false);\n',
     'Main.cpp auth gameplay gate',
 )
 save(rel, text)

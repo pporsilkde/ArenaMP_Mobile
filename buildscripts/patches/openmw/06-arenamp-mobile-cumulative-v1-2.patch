@@ -278,7 +278,7 @@ index 3186b52..0d87e99 100644
  
          for (const char* name : landOptimizationModeNames)
              mLandOptimizationMode->addItem(arenaText(name));
-@@ -705,7 +692,6 @@ namespace MWGui
+@@ -705,7 +692,6 @@ ARENA_ANCHOR: SettingsWindow::SettingsWindow()
          updateChatModeCombo();
          updateQuickLootModeCombo();
          updateTerrainPresetCombo();
@@ -710,21 +710,21 @@ index 2db91a1..6ab3bc4 100644
          mViewDistance = mConfiguredViewDistance;
          mLandOptimizationDistance = mConfiguredViewDistance;
          updateLandOptimizationProfile();
-@@ -1774,10 +1774,13 @@ namespace MWRender
- 
-         if (mShadowManager)
-         {
--            const float shadowDistance = mLandOptimizationEnabled
--                ? mConfiguredViewDistance * sLandOptimizationShadowDistanceRatio
--                : std::max(0.f, Settings::Manager::getFloat("maximum shadow map distance", "Shadows"));
+@@ -1801,11 +1801,12 @@ ARENA_ANCHOR: link shadow distance to viewing distance
+             const bool linkShadowDistance
+                 = Settings::Manager::getBool("link shadow distance to viewing distance", "Shadows");
+             const float shadowDistance = linkShadowDistance
+-                ? std::min(16384.f, std::max(0.f, mConfiguredViewDistance))
+-                : (mLandOptimizationEnabled
+-                    ? mConfiguredViewDistance * sLandOptimizationShadowDistanceRatio
+-                    : std::max(0.f, Settings::Manager::getFloat("maximum shadow map distance", "Shadows")));
 -            mShadowManager->setMaximumShadowMapDistance(shadowDistance * adaptiveDistanceScale);
-+            // Shadow distance is an explicit user setting. Land optimization must not
-+            // replace 8192 with 25% of world distance or apply adaptive scaling again.
-+            // Keep this independent from dynamic terrain distance; the mobile hard cap
-+            // is already 8192, so the selected value remains predictable and safe.
-+            const float configuredShadowDistance = std::clamp(
-+                Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
-+            mShadowManager->setMaximumShadowMapDistance(configuredShadowDistance);
++                ? std::clamp(mConfiguredViewDistance, 0.f, 8192.f)
++                : std::clamp(Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.f, 8192.f);
++            // Mobile: keep shadows predictable and bounded. When linking is explicitly
++            // enabled, follow the view distance; otherwise honor the user's shadow setting.
++            // Do not apply adaptive terrain scaling a second time to either value.
++            mShadowManager->setMaximumShadowMapDistance(shadowDistance);
          }
      }
  
@@ -1037,14 +1037,14 @@ diff --git a/files/mygui/openmw_hud.layout b/files/mygui/openmw_hud.layout
 index 5c9970c..e34568b 100644
 --- a/files/mygui/openmw_hud.layout
 +++ b/files/mygui/openmw_hud.layout
-@@ -6,7 +6,7 @@
+@@ -8,7 +8,7 @@ ARENA_ANCHOR: name="FpsText"
          <Widget type="Widget" position="0 0 300 200" name="GameplayHud" align="Stretch">
              <Property key="NeedMouse" value="false"/>
  	
--        <Widget type="TextBox" skin="SandBrightText" position="8 6 72 22" name="FpsText" align="Left Top">
-+        <Widget type="TextBox" skin="SandBrightText" position="96 6 72 22" name="FpsText" align="Left Top">
+-        <Widget type="TextBox" skin="SandBrightText" position="12 8 120 24" name="FpsText" align="Left Top">
++        <Widget type="TextBox" skin="SandBrightText" position="96 8 120 24" name="FpsText" align="Left Top">
              <Property key="NeedMouse" value="false"/>
-             <Property key="TextAlign" value="Left"/>
+             <Property key="TextAlign" value="Left VCenter"/>
              <Property key="TextShadow" value="true"/>
 diff --git a/files/mygui/openmw_settings_window.layout b/files/mygui/openmw_settings_window.layout
 index 2dc625b..788672c 100644
@@ -3555,16 +3555,3 @@ index 886f4d9..9379625 100644
      return mix(
          mix(zrand2(b), zrand2(b + d.yx), f.x),
          mix(zrand2(b + d.xy), zrand2(b + d.yy), f.x),
-diff --git a/files/ui/graphicspage.ui b/files/ui/graphicspage.ui
-index df7cdbb..66816fc 100644
---- a/files/ui/graphicspage.ui
-+++ b/files/ui/graphicspage.ui
-@@ -516,7 +516,7 @@
-              <number>512</number>
-             </property>
-             <property name="maximum">
--             <number>81920</number>
-+             <number>40960</number>
-             </property>
-             <property name="value">
-              <number>8192</number>

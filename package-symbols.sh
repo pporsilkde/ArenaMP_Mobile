@@ -1,4 +1,4 @@
-#!/bin/bash
-
-rm -f symbols.7z
-7z a symbols.7z symbols
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$ROOT/buildscripts/package-symbols.sh" "$@"

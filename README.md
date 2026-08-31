@@ -1,6 +1,8 @@
-> Client+Server V1.4: portable server runtime in `/storage/emulated/0/ArenaMP`, config/log in `ArenaMP/config`, CO-OP/MMO + maintenance UI, and Android CJSON compatibility.
+# ArenaMP Android Y001 — main-safe builder
 
-# ArenaMP Mobile Client + Server V1
+This is the cleaned Android Client+Server builder for the ArenaMP Y001 line. It tracks `pporsilkde/AMP` `main` by default and applies Android-only changes through semantic/context anchors instead of relying on unified-diff line numbers.
+
+> The portable server runtime remains in `/storage/emulated/0/ArenaMP`; config/logs remain in `ArenaMP/config`, with CO-OP/MMO presets, maintenance UI and Android CJSON compatibility.
 
 Android builder for the ArenaMP/TES3MP fork from `pporsilkde/AMP`.
 
@@ -9,11 +11,17 @@ This branch is based on **ArenaMP Mobile Client V1.2.10** and builds both:
 - `tes3mp` → `libtes3mp.so` — Android client;
 - `tes3mp-server` → `libarenamp_server.so` — dedicated ArenaMP server hosted by an Android foreground service.
 
-The default ArenaMP source revision remains pinned to the PC-compatible commit:
-
-`0f659371bcbaf9e7e6b94bd6bcb7a81970082234`
+The default ArenaMP source revision is **`main`**. You can still override `ARENAMP_GIT_TAG` with a branch, tag or commit when a reproducible build is required.
 
 Android `versionCode` remains **47**.
+
+## Patch maintenance (Y001)
+
+`buildscripts/patches/anchor_patch.py` is the canonical patch engine for source patches. Hunk coordinates such as `@@ -123,7 +456,8 @@` are treated as metadata only; matching is based on the actual old/context lines and optional `ARENA_ANCHOR:` markers.
+
+The patcher is idempotent: an already-applied hunk is accepted. If an anchor is missing or ambiguous after an upstream `main` change, the build fails loudly instead of guessing a location. Large X056/X057 desktop feature patches are no longer re-applied on top of current ArenaMP; the Android chain verifies those upstream capabilities and keeps only Android-specific adaptations.
+
+See `PATCHING.md` for maintenance rules and tests.
 
 ## Build
 
