@@ -242,13 +242,24 @@ def insertion_candidates(lines: list[str], before: list[str], after: list[str]) 
     return sorted(candidates)
 
 
-def already_applied(lines: list[str], new: list[str], before: list[str], after: list[str]) -> bool:
+def already_applied(lines: list[str], new: list[str], before: list[str], after: list[str],
+                    semantic_anchor: int | None = None) -> bool:
     if not new:
         return False
     candidates = seq_matches(lines, new, False) or seq_matches(lines, new, True)
     if len(candidates) == 1:
         return True
     if len(candidates) > 1:
+        # Repeated dependency blocks are common (MyGUI has two intentionally
+        # identical resource-config branches).  A semantic anchor must remain
+        # authoritative for idempotence as well as for first application.
+        if semantic_anchor is not None:
+            try:
+                choose_candidate(lines, candidates, len(new), before, after,
+                                 'already-applied semantic anchor', semantic_anchor)
+                return True
+            except RuntimeError:
+                pass
         scored = [anchor_score(lines, p, len(new), before, after) for p in candidates]
         return max(scored, default=0) > 0 and scored.count(max(scored)) == 1
     return False
@@ -279,6 +290,11 @@ def apply_hunk(lines: list[str], hunk: Hunk, file_label: str) -> tuple[list[str]
         already = seq_matches(lines, new_full, normalized=False) or seq_matches(lines, new_full, normalized=True)
         if len(already) == 1:
             return lines, 0, 1
+        if len(already) > 1 and semantic_anchor is not None:
+            # If the replacement exists in several repeated blocks, resolve the
+            # intended one using the same semantic anchor as normal application.
+            choose_candidate(lines, already, len(new_full), [], [], label, semantic_anchor)
+            return lines, 0, 1
 
     # Upstream edited unrelated context *inside* the hunk. Fall back to each
     # contiguous change group and use the nearest unchanged lines as anchors.
@@ -308,14 +324,14 @@ def apply_hunk(lines: list[str], hunk: Hunk, file_label: str) -> tuple[list[str]
             try:
                 a, b = locate_change(lines, old, before, after, label, semantic_anchor)
             except RuntimeError:
-                if already_applied(lines, new, before, after):
+                if already_applied(lines, new, before, after, semantic_anchor):
                     present += 1
                     continue
                 raise
             lines[a:b] = new
             applied += 1
         else:
-            if already_applied(lines, new, before, after):
+            if already_applied(lines, new, before, after, semantic_anchor):
                 present += 1
                 continue
             candidates = insertion_candidates(lines, before, after)

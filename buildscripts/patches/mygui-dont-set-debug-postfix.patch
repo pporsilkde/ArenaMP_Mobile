@@ -2,7 +2,7 @@ diff --git a/CMake/InstallResources.cmake b/CMake/InstallResources.cmake
 index 12501726e..d6850e75d 100644
 --- a/CMake/InstallResources.cmake
 +++ b/CMake/InstallResources.cmake
-@@ -60,7 +60,7 @@ if (MYGUI_INSTALL_SAMPLES OR MYGUI_INSTALL_TOOLS)
+@@ -60,7 +60,7 @@ ARENA_ANCHOR: if (MYGUI_INSTALL_SAMPLES OR MYGUI_INSTALL_TOOLS)
  	else() # other OS only need one cfg file
  		string(TOLOWER "${CMAKE_BUILD_TYPE}" MYGUI_BUILD_TYPE)
  		if (MYGUI_BUILD_TYPE STREQUAL "debug" AND NOT APPLE)
@@ -11,7 +11,7 @@ index 12501726e..d6850e75d 100644
  		endif ()
  		# create resources.xml
  		configure_file(${MYGUI_TEMPLATES_DIR}/resources.xml.in ${MYGUI_BINARY_DIR}/bin/resources.xml)
-@@ -83,7 +83,7 @@ else ()
+@@ -83,7 +83,7 @@ ARENA_ANCHOR: set(MYGUI_MEDIA_DIR "${MYGUI_SOURCE_DIR}/Media")
  	else() # other OS only need one cfg file
  		string(TOLOWER "${CMAKE_BUILD_TYPE}" MYGUI_BUILD_TYPE)
  		if (MYGUI_BUILD_TYPE STREQUAL "debug" AND NOT APPLE)

@@ -1,4 +1,4 @@
-# ArenaMP Android Y001 — main-safe builder
+# ArenaMP Android Y001 r1 — main-safe builder
 
 This is the cleaned Android Client+Server builder for the ArenaMP Y001 line. It tracks `pporsilkde/AMP` `main` by default and applies Android-only changes through semantic/context anchors instead of relying on unified-diff line numbers.
 
@@ -14,6 +14,8 @@ This branch is based on **ArenaMP Mobile Client V1.2.10** and builds both:
 The default ArenaMP source revision is **`main`**. You can still override `ARENAMP_GIT_TAG` with a branch, tag or commit when a reproducible build is required.
 
 Android `versionCode` remains **47**.
+
+> **Y001 r1 dependency-anchor fix:** repeated MyGUI resource blocks now use explicit semantic anchors, and the anchor engine uses those anchors for both first application and already-applied/idempotence checks. The CI cache epoch was bumped so failed or partially patched dependency trees are not restored.
 
 ## Patch maintenance (Y001)
 

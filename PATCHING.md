@@ -30,3 +30,7 @@ python3 -m compileall -q -f buildscripts/patches  # optional; remove __pycache__
 ```
 
 For a real compatibility check, point the builder at a fresh desktop source tree and run only the patch stage. Then run it a second time on the already-patched tree to verify idempotency.
+
+### Repeated blocks and idempotence
+
+When an upstream file contains two or more intentionally identical blocks, the hunk must include `ARENA_ANCHOR: <stable semantic text>`. The same semantic anchor is used both to select the block on first application and to recognise that exact block as already patched on incremental builds. Do not rely on hunk coordinates to distinguish repeated blocks.

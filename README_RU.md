@@ -1,4 +1,4 @@
-# ArenaMP Android Y001
+# ArenaMP Android Y001 r1
 
 Очищенный Android-сборщик ArenaMP для ветки Y001. По умолчанию используется `pporsilkde/AMP` `main`. Android-правки больше не привязаны к координатам строк unified diff: `anchor_patch.py` ищет реальный контекст кода и явные `ARENA_ANCHOR` там, где контекст неоднозначен.
 

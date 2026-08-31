@@ -40,7 +40,7 @@ jobs:
       ARENAMP_NETWORK_COMMIT: ${{ inputs.arenamp_ref || '0f659371bcbaf9e7e6b94bd6bcb7a81970082234' }}
       GL4ES_GIT_REPOSITORY: https://github.com/Sisah2/NG-GL4ES.git
       GL4ES_GIT_TAG: Openmw3
-      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-y001-anchor-main-v1
+      ARENAMP_INCREMENTAL_CACHE_EPOCH: arenamp-android-y001r1-anchor-main-v2
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
 
     steps:
