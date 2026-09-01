@@ -55,6 +55,27 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/gfx_fps_limit"
+                    android:textColor="@color/textPrimary" />
+
+                <Spinner
+                    android:id="@+id/gfx_fps_limit"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/launcher_field_background" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/gfx_fps_limit_note"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/gfx_safe_note"
                     android:textColor="@color/textSecondary"

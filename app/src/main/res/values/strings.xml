@@ -885,4 +885,51 @@
     <string name="server_status_stopping">Stopping server…</string>
     <string name="server_status_exiting">Closing server service…</string>
     <string name="server_exit">Exit</string>
+
+    <!-- Arena Android controls help / FPS cap -->
+    <string name="controls_help_title">Controls help</string>
+    <string name="controls_help_summary">Current on-screen buttons, gestures and long-press actions</string>
+    <string name="controls_help_body">Left half of the screen — movement joystick. Right half — camera/look.\n\nAttack — hold to attack/charge. Use / Take (E) — tap to activate/take; keep holding E on a movable object to grab, manipulate and drag it. Weapon — F. Magic — R. Jump — hold Space; while swimming it moves upward; hold about 1 second to additionally send Q, which toggles continuous/autorun. Sneak — Ctrl. Pause — Esc. Inventory — inventory/menu.\n\nChat / Player Menu (save icon) — tap Y for compact chat input; hold Y to open Player Menu. Journal — tap J; hold about 0.65 s for the console (`/~). Scroll wheel — swipe to scroll; hold about 0.65 s to send Tab.\n\nPost-processing / keyboard button — when no text field is active: double tap sends F11 (hide/show HUD), hold sends F12 (screenshot). During text input it toggles the on-screen keyboard. Quick buttons 0–9 are available through QP. In Hybrid mode the mouse icon switches mouse-control mode.\n\nYou can move, resize and change opacity of configurable controls in On-screen controls. External keyboard/gamepad bindings still follow the in-game OpenMW settings.</string>
+    <string name="btn_controlsHelp">Controls guide</string>
+    <string name="controls_help_move_title">Left stick — movement</string>
+    <string name="controls_help_move_desc">Move forward, backward and sideways. The touch field covers the left half of the gameplay area.</string>
+    <string name="controls_help_look_title">Right stick — camera</string>
+    <string name="controls_help_look_desc">Look around and turn the camera by dragging on the right side of the screen.</string>
+    <string name="controls_help_attack_title">Attack</string>
+    <string name="controls_help_attack_desc">Primary attack. Hold to attack/charge; dragging while held also adjusts camera/aim.</string>
+    <string name="controls_help_use_title">Take / use (E)</string>
+    <string name="controls_help_use_desc">Tap E to activate or take. Keep holding E on a movable object to grab, manipulate and drag it.</string>
+    <string name="controls_help_jump_title">Jump / Q autorun</string>
+    <string name="controls_help_jump_desc">Hold = Space (jump / swim upward). Hold about 1 second to additionally send Q — continuous/autorun toggle.</string>
+    <string name="controls_help_sneak_title">Sneak</string>
+    <string name="controls_help_sneak_desc">Press/hold = Ctrl.</string>
+    <string name="controls_help_pause_title">Menu / Escape</string>
+    <string name="controls_help_pause_desc">Esc: open the game menu or close the current window.</string>
+    <string name="controls_help_inventory_title">Inventory</string>
+    <string name="controls_help_inventory_desc">Opens the character/inventory interface.</string>
+    <string name="controls_help_chat_title">Chat / Player Menu</string>
+    <string name="controls_help_chat_desc">Save icon: tap Y for compact chat input; hold Y to open Player Menu.</string>
+    <string name="controls_help_magic_title">Magic</string>
+    <string name="controls_help_magic_desc">R: ready or lower the selected spell/magic action.</string>
+    <string name="controls_help_weapon_title">Weapon</string>
+    <string name="controls_help_weapon_desc">F: ready or lower the equipped weapon.</string>
+    <string name="controls_help_journal_title">Journal / console</string>
+    <string name="controls_help_journal_desc">Short tap = J (journal). Hold about 650 ms = ` / ~ (console).</string>
+    <string name="controls_help_scroll_title">Scroll / Tab</string>
+    <string name="controls_help_scroll_desc">Swipe vertically for mouse-wheel scrolling. Hold about 650 ms to send Tab.</string>
+    <string name="controls_help_corner_title">Keyboard / F11 / F12</string>
+    <string name="controls_help_corner_desc">During text input: on-screen keyboard. Otherwise: double tap = F11 (hide/show HUD); hold = F12 (screenshot).</string>
+    <string name="controls_help_quick_title">Quick slots 0–9</string>
+    <string name="controls_help_quick_desc">Use QP/radial quick slots to activate keys 0–9.</string>
+    <string name="controls_help_note">Custom buttons loaded from launcher/controls.cfg can add more actions and may differ from this built-in guide.</string>
+
+    <string name="gfx_fps_limit">FPS limit</string>
+    <string name="gfx_fps_limit_note">Preset: Very Low, Performance and Battery use 30 FPS; Balanced and Quality use 60 FPS. A manual value overrides the preset.</string>
+    <string-array name="gfx_fps_limit_entries">
+        <item>By preset (30 / 60 FPS)</item>
+        <item>30 FPS</item>
+        <item>60 FPS</item>
+        <item>Unlimited</item>
+    </string-array>
+
 </resources>

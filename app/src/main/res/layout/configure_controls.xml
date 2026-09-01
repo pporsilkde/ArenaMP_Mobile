@@ -66,6 +66,14 @@
             />
 
         <Button
+            android:id="@+id/btnControlsHelp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_controlsHelp"
+            android:onClick="clickControlsHelp"
+            />
+
+        <Button
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/btn_back"

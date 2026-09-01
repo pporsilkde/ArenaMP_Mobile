@@ -1,4 +1,4 @@
-ArenaMP Android builder: Y001
-Patch mode: semantic/context anchors; unified-diff line coordinates ignored
-Desktop compatibility baseline verified: ArenaMP Y001 / X057-derived main
-Default source branch: main
+ArenaMP Android Y001 r3
+Controls help + preset-aware 30/60 FPS limiter
+F11 HUD toggle / F12 screenshot / Q autorun / hold E object manipulation
+Includes r2 Russo HUD/chat packaging fix and r1 anchor/MyGUI fixes

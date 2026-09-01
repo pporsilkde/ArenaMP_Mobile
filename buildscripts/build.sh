@@ -349,6 +349,13 @@ if [[ $DEPLOY_RESOURCES = "true" ]]; then
 	# resources
 	cp -r "$SRC/resources" "$DST"
 
+	# ArenaMP HUD/chat uses the Russo MyGUI font. Android packages only the
+	# generated build/resources tree, so fail loudly if CMake forgot the TTF.
+	if [[ ! -f "$DST/resources/mygui/RussoOne-Regular.ttf" ]]; then
+		echo "Required ArenaMP HUD font is missing from generated resources: resources/mygui/RussoOne-Regular.ttf" >&2
+		exit 1
+	fi
+
 	# Source revision and network identity are intentionally decoupled. Build the
 	# newest AMP/main code, but advertise the parent compatibility commit expected
 	# by existing ArenaMP PC servers. TES3MP reads line 2 of resources/version.

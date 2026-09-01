@@ -49,13 +49,13 @@ object GraphicsPresets {
         "very_low" to Preset(
             "SingleThreaded", 1, 1, 1, 4, true,
             4096, .40f, -2, -3, 1024, true, true,
-            1000, 1, 60, 45.03f, "simple", 256, false, 1,
+            1000, 1, 30, 30.0f, "simple", 256, false, 1,
             "off", 512, 4096, true, .80f, 7100, "compatibility", "performance"
         ),
         "performance" to Preset(
             "SingleThreaded", 1, 1, 1, 5, true,
             8192, .50f, -2, -3, 1024, true, true,
-            1000, 1, 60, 45.0f, "simple", 256, false, 1,
+            1000, 1, 30, 30.0f, "simple", 256, false, 1,
             "off", 512, 4096, true, .65f, 5000, "compatibility", "performance"
         ),
         "balanced" to Preset(
@@ -132,6 +132,16 @@ object GraphicsPresets {
         fun w(section: String, key: String, value: Any) = Writer.write(cfg, section, key, value.toString())
         fun b(value: Boolean) = if (value) "true" else "false"
 
+        // FPS cap is independent from the visual preset. "preset" follows the
+        // mobile profile (Very Low/Performance/Battery = 30, Balanced/Quality = 60);
+        // explicit 30/60/0 values override it without forcing a Custom graphics preset.
+        val effectiveFrameLimit = when (prefs.getString("pref_gfx_fps_limit", "preset") ?: "preset") {
+            "30" -> 30f
+            "60" -> 60f
+            "0" -> 0f
+            else -> p.frameLimit
+        }
+
         val terrainTier = when {
             p.lodFactor <= .40f -> 0
             p.lodFactor <= .50f -> 1
@@ -199,7 +209,7 @@ object GraphicsPresets {
         w("Cells", "target framerate", p.targetFramerate)
         w("Physics", "async num threads", p.asyncNumThreads)
         w("Video", "antialiasing", "0")
-        w("Video", "framerate limit", p.frameLimit)
+        w("Video", "framerate limit", effectiveFrameLimit)
 
         // Stable Android shader path. Keep ArenaMP's fullscreen native post chain
         // completely off on NG-GL4ES; C++ enforces the same policy as a fail-safe.

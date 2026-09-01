@@ -1,4 +1,6 @@
-# ArenaMP Android Y001 r1
+# ArenaMP Android Y001 r2
+> **Y001 r2 — исправление Russo в HUD/чате:** `AMP/main` содержит `RussoOne-Regular.ttf` и регистрацию `Russo`, но TTF не был добавлен в `files/mygui/CMakeLists.txt`, поэтому Android не переносил его в generated resources. Новый semantic-stage добавляет файл в `MYGUI_FILES`, а packaging/CI теперь отдельно проверяют наличие Russo в Android payload.
+
 
 Очищенный Android-сборщик ArenaMP для ветки Y001. По умолчанию используется `pporsilkde/AMP` `main`. Android-правки больше не привязаны к координатам строк unified diff: `anchor_patch.py` ищет реальный контекст кода и явные `ARENA_ANCHOR` там, где контекст неоднозначен.
 
@@ -12,3 +14,8 @@ cd buildscripts
 ```
 
 Правила сопровождения патчей: `PATCHING.md`.
+
+## Y001 r3 — справка управления и лимит FPS
+
+- Встроенная EN/RU-справка соответствует реальному Android OSC: F11 скрывает/показывает HUD, F12 делает скриншот, Q переключает постоянный бег, удержание «ВЗЯТЬ / E» позволяет манипулировать и перетаскивать предметы. Отдельно описаны MP-функции Y: чат/Player Menu и удержание колеса = Tab.
+- В графике доступны **По пресету / 30 FPS / 60 FPS / Без ограничения**. Very Low, Performance и Battery используют 30 FPS; Balanced и Quality — 60 FPS. Ручной лимит не переводит графический пресет в Custom.

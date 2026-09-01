@@ -649,4 +649,51 @@
     <string name="server_status_stopping">Остановка сервера…</string>
     <string name="server_status_exiting">Выход из сервера…</string>
     <string name="server_exit">Выход</string>
+
+    <!-- Arena Android: справка управления / ограничение FPS -->
+    <string name="controls_help_title">Справка по управлению</string>
+    <string name="controls_help_summary">Актуальные экранные кнопки, жесты и длинные нажатия</string>
+    <string name="controls_help_body">Левая половина экрана — джойстик движения. Правая половина — камера/обзор.\n\nАтака — удерживайте для атаки/заряда. ВЗЯТЬ / Использовать (E) — короткое нажатие активирует/берёт объект; удержание E на перемещаемом предмете включает манипуляцию и позволяет его перетаскивать. Оружие — F. Магия — R. Прыжок — удержание Space; в воде поднимает вверх; удержание около 1 секунды дополнительно отправляет Q — постоянный бег (autorun). Скрытность — Ctrl. Пауза — Esc. Инвентарь — инвентарь/меню.\n\nЧат / Player Menu (иконка сохранения) — короткое Y открывает компактный ввод чата; удержание Y открывает Player Menu. Журнал — короткое J; удержание около 0,65 с открывает консоль (`/~). Колесо — свайп для прокрутки; удержание около 0,65 с отправляет Tab.\n\nКнопка постобработки / клавиатуры — вне текстового ввода: двойной тап отправляет F11 (скрыть/показать HUD), удержание отправляет F12 (скриншот). Во время ввода показывает/скрывает экранную клавиатуру. Быстрые кнопки 0–9 доступны через QP. В гибридном режиме иконка мыши переключает режим управления мышью.\n\nПоложение, размер и прозрачность настраиваемых кнопок меняются в «Экранном управлении». Внешняя клавиатура/геймпад используют назначения клавиш из настроек OpenMW.</string>
+    <string name="btn_controlsHelp">Описание управления</string>
+    <string name="controls_help_move_title">Левый стик — движение</string>
+    <string name="controls_help_move_desc">Движение вперёд, назад и в стороны. Сенсорная зона занимает левую половину игровой области.</string>
+    <string name="controls_help_look_title">Правый стик — камера</string>
+    <string name="controls_help_look_desc">Осмотр и поворот камеры движением пальца по правой части экрана.</string>
+    <string name="controls_help_attack_title">Атака</string>
+    <string name="controls_help_attack_desc">Основная атака. Удерживайте для атаки/заряда; движением пальца можно одновременно корректировать камеру/прицел.</string>
+    <string name="controls_help_use_title">ВЗЯТЬ / использовать (E)</string>
+    <string name="controls_help_use_desc">Короткое E активирует или берёт объект. Удержание E на перемещаемом предмете включает манипуляцию и позволяет его перетаскивать.</string>
+    <string name="controls_help_jump_title">Прыжок / Q — постоянный бег</string>
+    <string name="controls_help_jump_desc">Удержание = Space (прыжок / всплытие). Удержание около 1 секунды дополнительно отправляет Q — переключение постоянного бега.</string>
+    <string name="controls_help_sneak_title">Скрытность</string>
+    <string name="controls_help_sneak_desc">Нажатие/удержание = Ctrl.</string>
+    <string name="controls_help_pause_title">Меню / Escape</string>
+    <string name="controls_help_pause_desc">Esc: открыть игровое меню или закрыть текущее окно.</string>
+    <string name="controls_help_inventory_title">Инвентарь</string>
+    <string name="controls_help_inventory_desc">Открывает интерфейс персонажа/инвентарь.</string>
+    <string name="controls_help_chat_title">Чат / Player Menu</string>
+    <string name="controls_help_chat_desc">Иконка сохранения: короткое Y — компактный ввод чата; удержание Y — Player Menu.</string>
+    <string name="controls_help_magic_title">Магия</string>
+    <string name="controls_help_magic_desc">R: подготовить или убрать выбранное заклинание/магическое действие.</string>
+    <string name="controls_help_weapon_title">Оружие</string>
+    <string name="controls_help_weapon_desc">F: достать или убрать экипированное оружие.</string>
+    <string name="controls_help_journal_title">Журнал / консоль</string>
+    <string name="controls_help_journal_desc">Короткое нажатие = J (журнал). Удержание около 650 мс = ` / ~ (консоль).</string>
+    <string name="controls_help_scroll_title">Прокрутка / Tab</string>
+    <string name="controls_help_scroll_desc">Вертикальный свайп — колесо мыши. Удержание около 650 мс отправляет Tab.</string>
+    <string name="controls_help_corner_title">Клавиатура / F11 / F12</string>
+    <string name="controls_help_corner_desc">Во время ввода — экранная клавиатура. Вне ввода: двойной тап = F11 (скрыть/показать HUD); удержание = F12 (скриншот).</string>
+    <string name="controls_help_quick_title">Быстрые слоты 0–9</string>
+    <string name="controls_help_quick_desc">QP/радиальный выбор активирует быстрые клавиши 0–9.</string>
+    <string name="controls_help_note">Пользовательские кнопки из launcher/controls.cfg могут добавлять дополнительные действия и отличаться от этой встроенной справки.</string>
+
+    <string name="gfx_fps_limit">Ограничение FPS</string>
+    <string name="gfx_fps_limit_note">По пресету: «Очень низкие», «Производительность» и «Энергосбережение» — 30 FPS; «Баланс» и «Качество» — 60 FPS. Ручное значение имеет приоритет.</string>
+    <string-array name="gfx_fps_limit_entries">
+        <item>По пресету (30 / 60 FPS)</item>
+        <item>30 FPS</item>
+        <item>60 FPS</item>
+        <item>Без ограничения</item>
+    </string-array>
+
 </resources>

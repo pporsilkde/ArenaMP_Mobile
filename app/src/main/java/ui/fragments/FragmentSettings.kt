@@ -76,6 +76,15 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             true
         }
 
+        findPreference("pref_controls_help").setOnPreferenceClickListener {
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.controls_help_title)
+                .setMessage(R.string.controls_help_body)
+                .setPositiveButton(android.R.string.ok) { _, _ -> }
+                .show()
+            true
+        }
+
         findPreference("pref_mods").setOnPreferenceClickListener {
             val intent = Intent(activity, ModsActivity::class.java)
             this.startActivity(intent)

@@ -12,7 +12,7 @@ fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ANCHOR_PATCH="$SCRIPT_DIR/../anchor_patch.py"
-PATCHSET_ID="arenamp-android-y001-anchor-x057-main-safe"
+PATCHSET_ID="arenamp-android-y001r2-anchor-russo-main-safe"
 MARKER="$SRC/.arenamp_android_patchset"
 
 copy_if_changed() {
@@ -36,6 +36,8 @@ verify_patchset() {
     test -f "$SRC/server/scripts/groupHelper.lua" || { echo "ERROR: X056 groupHelper missing" >&2; return 31; }
     test -f "$SRC/server/scripts/positionSafetyHelper.lua" || { echo "ERROR: X051 position safety missing" >&2; return 32; }
     test -f "$SRC/files/mygui/ArenaMPChatColor.xml" || { echo "ERROR: ArenaMP color emoji resource missing" >&2; return 33; }
+    test -f "$SRC/files/mygui/RussoOne-Regular.ttf" || { echo "ERROR: RussoOne-Regular.ttf source font missing" >&2; return 38; }
+    grep -q "RussoOne-Regular.ttf" "$SRC/files/mygui/CMakeLists.txt" || { echo "ERROR: Russo font is not listed in MYGUI_FILES" >&2; return 39; }
     grep -q "OnPlayerPosition" "$SRC/apps/openmw-mp/processors/player/ProcessorPlayerPosition.hpp" || { echo "ERROR: OnPlayerPosition callback missing" >&2; return 34; }
     grep -q "openPlayerMenu" "$SRC/apps/openmw/mwmp/GUIController.cpp" || { echo "ERROR: Player Menu hold logic missing" >&2; return 35; }
     grep -q "player menu hold" "$SRC/files/settings-default.cfg" || { echo "ERROR: Player Menu hold setting missing" >&2; return 36; }
@@ -100,6 +102,7 @@ python3 "$SCRIPT_DIR/12-arenamp-magic-mali-stability.py" "$SRC"
 # X056/X057 core is now part of AMP main. Only the Android-specific narrow-screen
 # Player Menu adaptation remains as a semantic patch.
 python3 "$SCRIPT_DIR/13-arenamp-android-responsive-player-menu.py" "$SRC"
+python3 "$SCRIPT_DIR/14-ensure-russo-font-resource.py" "$SRC"
 finish
 
 trap - EXIT INT TERM HUP

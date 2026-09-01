@@ -15,6 +15,7 @@ import file.GraphicsPresets
 
 class GraphicsSettingsActivity : AppCompatActivity() {
     private lateinit var preset: Spinner
+    private lateinit var fpsLimit: Spinner
     private lateinit var distance: Spinner
     private lateinit var terrain: Spinner
     private lateinit var water: Spinner
@@ -27,6 +28,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
     private var applyingPreset = false
 
     private val presetValues = listOf("very_low", "performance", "balanced", "quality", "battery", "custom")
+    private val fpsLimitValues = listOf("preset", "30", "60", "0")
     private val distanceValues = listOf("4096", "5120", "6144", "8192", "12288", "16384", "24576", "32768", "40960")
     private val terrainValues = listOf("very_low", "low", "balanced", "medium")
     private val waterValues = listOf("rtt256_no_refraction", "rtt256_refraction", "rtt512_refraction")
@@ -43,7 +45,8 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.pref_graphics_settings_title)
 
-        preset = findViewById(R.id.gfx_preset); distance = findViewById(R.id.gfx_distance)
+        preset = findViewById(R.id.gfx_preset); fpsLimit = findViewById(R.id.gfx_fps_limit)
+        distance = findViewById(R.id.gfx_distance)
         terrain = findViewById(R.id.gfx_terrain)
         water = findViewById(R.id.gfx_water); shadows = findViewById(R.id.gfx_shadows)
         shadowMap = findViewById(R.id.gfx_shadow_map); shadowDistance = findViewById(R.id.gfx_shadow_distance)
@@ -51,6 +54,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         shaders = findViewById(R.id.gfx_shaders)
 
         bind(preset, R.array.gfx_preset_entries)
+        bind(fpsLimit, R.array.gfx_fps_limit_entries)
         bind(distance, R.array.gfx_distance_entries)
         bind(terrain, R.array.gfx_terrain_entries)
         bind(water, R.array.gfx_water_entries)
@@ -64,6 +68,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         val storedPreset = prefs.getString("pref_graphics_preset", "balanced") ?: "balanced"
         val initialPreset = if (storedPreset == "auto") "balanced" else storedPreset
         select(preset, presetValues, initialPreset)
+        select(fpsLimit, fpsLimitValues, prefs.getString("pref_gfx_fps_limit", "preset") ?: "preset")
         if (value(preset, presetValues) == "custom") {
             select(distance, distanceValues, prefs.getString("pref_gfx_view_distance", "12288") ?: "12288")
             select(terrain, terrainValues, prefs.getString("pref_gfx_terrain", "balanced") ?: "balanced")
@@ -97,6 +102,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.gfx_apply).setOnClickListener {
             prefs.edit()
                 .putString("pref_graphics_preset", value(preset, presetValues))
+                .putString("pref_gfx_fps_limit", value(fpsLimit, fpsLimitValues))
                 .putString("pref_gfx_view_distance", value(distance, distanceValues))
                 .putString("pref_gfx_terrain", value(terrain, terrainValues))
                 .putString("pref_gfx_preload", "safe")

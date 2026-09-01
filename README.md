@@ -1,4 +1,4 @@
-# ArenaMP Android Y001 r1 — main-safe builder
+# ArenaMP Android Y001 r2 — main-safe builder
 
 This is the cleaned Android Client+Server builder for the ArenaMP Y001 line. It tracks `pporsilkde/AMP` `main` by default and applies Android-only changes through semantic/context anchors instead of relying on unified-diff line numbers.
 
@@ -16,6 +16,8 @@ The default ArenaMP source revision is **`main`**. You can still override `ARENA
 Android `versionCode` remains **47**.
 
 > **Y001 r1 dependency-anchor fix:** repeated MyGUI resource blocks now use explicit semantic anchors, and the anchor engine uses those anchors for both first application and already-applied/idempotence checks. The CI cache epoch was bumped so failed or partially patched dependency trees are not restored.
+
+> **Y001 r2 Russo HUD/chat fix:** `AMP/main` contains and registers `RussoOne-Regular.ttf`, but its `files/mygui/CMakeLists.txt` did not copy that TTF into generated `resources/mygui`. Android packages only generated resources, so Russo text could become blank. Stage `14-ensure-russo-font-resource.py` now adds the font to `MYGUI_FILES` by semantic anchor, and both packaging and CI verify that the generated payload contains it.
 
 ## Patch maintenance (Y001)
 
@@ -134,3 +136,8 @@ app/src/main/java/server/ServerScriptConfig.kt
 ```
 
 Detailed V1.4 Russian notes are in `ARENAMP_CLIENT_SERVER_V1_4_NOTES_RU.md`.
+
+## Y001 r3 — controls help and FPS limiter
+
+- Built-in EN/RU controls guide now matches the actual Android OSC: F11 toggles HUD visibility, F12 takes a screenshot, Q toggles continuous autorun, and holding Take/Use (E) manipulates movable objects. ArenaMP-specific Y chat/Player Menu and hold-scroll = Tab are documented separately.
+- Graphics settings expose **By preset / 30 FPS / 60 FPS / Unlimited**. Very Low, Performance and Battery default to 30 FPS; Balanced and Quality default to 60 FPS. Manual FPS override does not force the visual preset to Custom.
