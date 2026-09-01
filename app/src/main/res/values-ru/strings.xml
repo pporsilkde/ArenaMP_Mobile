@@ -696,4 +696,71 @@
         <item>Без ограничения</item>
     </string-array>
 
+
+
+    <!-- Launcher Help hub -->
+    <string name="help_title">Помощь</string>
+    <string name="help_summary">Управление, графика, FPS, файлы игры, моды и решение проблем</string>
+    <string name="help_open_title">Открыть раздел «Помощь»</string>
+    <string name="help_welcome_title">Краткая справка Arena Android</string>
+    <string name="help_welcome_desc">Практическая справка по лаунчеру и стандартному экранному управлению. Редактор управления меняет только положение, размер и прозрачность кнопок; что именно делают кнопки, описано здесь.</string>
+    <string name="help_section_start">БЫСТРЫЙ СТАРТ</string>
+    <string name="help_files_title">Файлы игры</string>
+    <string name="help_files_desc">Укажите в лаунчере установленные данные Morrowind. APK не содержит игровые ресурсы Bethesda. Папка данных должна оставаться доступной Android; после её переноса путь нужно выбрать заново.</string>
+    <string name="help_mods_title">Моды</string>
+    <string name="help_mods_desc">Включайте плагины и настраивайте их порядок в лаунчере. Удаление или перестановка модов, уже использованных сохранением, может сломать ссылки, скрипты или квесты — перед крупными изменениями делайте резервную копию.</string>
+    <string name="help_graphics_title">Графические пресеты</string>
+    <string name="help_graphics_desc">Сначала выберите пресет, затем при необходимости меняйте отдельные параметры. Ручные изменения хранятся отдельно от пресета и применяются кнопкой «Применить».</string>
+    <string name="help_fps_title">Ограничение FPS</string>
+    <string name="help_fps_desc">Доступны «По пресету», 30 FPS, 60 FPS и «Без ограничения». По пресету: Очень низкие / Производительность / Энергосбережение = 30 FPS; Баланс / Качество = 60 FPS. Ручной лимит имеет приоритет и не переводит пресет в Custom.</string>
+    <string name="help_section_controls">СТАНДАРТНОЕ ЭКРАННОЕ УПРАВЛЕНИЕ</string>
+    <string name="help_custom_controls_note">Пользовательские кнопки из launcher/controls.cfg могут добавлять действия и отличаться от этой стандартной схемы.</string>
+    <string name="help_section_gestures">ЖЕСТЫ И УДЕРЖАНИЯ</string>
+    <string name="help_hold_e_title">Удержание ВЗЯТЬ / E — манипуляция предметом</string>
+    <string name="help_hold_e_desc">Короткое E активирует или берёт объект. Если удерживать E на перемещаемом предмете, он захватывается для манипуляции/перетаскивания вместо немедленного взятия.</string>
+    <string name="help_autorun_title">Q — постоянный бег</string>
+    <string name="help_autorun_desc">Q переключает постоянный бег. В стандартной сенсорной схеме удержание Прыжка около одной секунды дополнительно отправляет Q, при этом Space остаётся зажатым и всплытие в воде не прерывается.</string>
+    <string name="help_console_title">Удержание Журнала — консоль</string>
+    <string name="help_console_desc">Короткое нажатие Журнала отправляет J. Удержание около 650 мс отправляет ` / ~ и открывает консоль OpenMW.</string>
+    <string name="help_hudshot_title">F11 / F12</string>
+    <string name="help_hudshot_desc">F11 скрывает/показывает HUD. F12 делает скриншот. На угловой кнопке вне текстового ввода: двойной тап = F11, удержание = F12.</string>
+    <string name="help_keyboard_title">Экранная клавиатура</string>
+    <string name="help_keyboard_desc">Когда активно текстовое поле, угловая кнопка постобработки превращается в управление клавиатурой и показывает/скрывает экранную клавиатуру Android.</string>
+    <string name="help_mouse_title">Мышь / гибридный режим</string>
+    <string name="help_mouse_desc">Иконка мыши переключает сенсорный режим управления мышью, когда он доступен. Внешняя мышь, клавиатура и геймпад продолжают использовать назначения клавиш OpenMW.</string>
+    <string name="help_section_graphics">ГРАФИКА, FPS И БАТАРЕЯ</string>
+    <string name="help_fps_modes_title">Когда выбирать 30 или 60 FPS</string>
+    <string name="help_fps_modes_desc">30 FPS безопаснее для нагрева, батареи и слабых GPU. 60 FPS заметно плавнее, но повышает нагрузку CPU/GPU. «Без ограничения» в основном полезно для тестов и мощных устройств и может сильнее нагревать телефон.</string>
+    <string name="help_apply_title">Когда применяются настройки графики</string>
+    <string name="help_apply_desc">Перед запуском игры нажмите «Применить» в графических настройках. Большинство параметров рендера рассчитано на следующий запуск игры; уже работающий рендерер лаунчер на лету не пересоздаёт.</string>
+    <string name="help_performance_title">Если устройство не справляется</string>
+    <string name="help_performance_desc">Сначала выберите 30 FPS, затем уменьшите пресет, тени, дальность и качество воды. При артефактах или проблемах запуска попробуйте режим шейдеров «Совместимость» и перезапустите игру.</string>
+    <string name="help_section_data">МОДЫ, СОХРАНЕНИЯ И ХРАНИЛИЩЕ</string>
+    <string name="help_load_order_title">Порядок загрузки важен</string>
+    <string name="help_load_order_desc">Плагины могут зависеть друг от друга и от определённого порядка. Для важных сохранений сохраняйте рабочий load order, особенно перед установкой крупных сборок модов.</string>
+    <string name="help_saves_title">Резервные копии сохранений</string>
+    <string name="help_saves_desc">Перед удалением модов, крупным изменением load order или переустановкой приложения сохраните резервную копию важных сохранений и нужной конфигурации лаунчера/игры.</string>
+    <string name="help_storage_title">Доступ к хранилищу и пути</string>
+    <string name="help_storage_desc">Если лаунчер не видит игровые файлы, проверьте разрешение Android на доступ к хранилищу и выбранный путь. После переноса или переименования папки данных укажите её заново.</string>
+    <string name="help_section_troubleshooting">ЕСЛИ ЧТО-ТО НЕ РАБОТАЕТ</string>
+    <string name="help_controls_reset_title">Кнопки наложились или пропали</string>
+    <string name="help_controls_reset_desc">Откройте «Экранное управление» и используйте сброс раскладки, если настраиваемая кнопка уехала за экран. Изменение положения, размера и прозрачности не меняет назначение игровой клавиши.</string>
+    <string name="help_lowfps_title">Низкий FPS или сильный нагрев</string>
+    <string name="help_lowfps_desc">Сначала установите 30 FPS и более низкий пресет. Дальность, тени и вода — наиболее полезные параметры для снижения нагрузки до тонкой ручной настройки.</string>
+    <string name="help_render_title">Чёрный экран / графические артефакты</string>
+    <string name="help_render_desc">Попробуйте шейдеры «Совместимость», уменьшите воду/тени и полностью перезапустите игру. Настройки рендера безопаснее менять, когда игра не запущена.</string>
+    <string name="help_restart_title">После обновления APK</string>
+    <string name="help_restart_desc">Если новый APK меняет ресурсы, шейдеры или управление, полностью закройте игру и лаунчер перед проверкой. Уже работающий процесс не может загрузить заново упакованные ресурсы.</string>
+    <string name="help_final_note">Здесь описана стандартная раскладка Arena Android. Моды, пользовательские записи controls.cfg и переназначение клавиш внутри OpenMW могут намеренно изменить итоговое поведение.</string>
+    <string name="help_section_multiplayer">МУЛЬТИПЛЕЕР</string>
+    <string name="help_mp_connection_title">Адрес и порт сервера</string>
+    <string name="help_mp_connection_desc">Перед запуском укажите IP/имя хоста и порт ArenaMP-сервера в лаунчере. Если адрес изменился, вернитесь в лаунчер и обновите его перед переподключением.</string>
+    <string name="help_mp_chat_title">Чат / Player Menu</string>
+    <string name="help_mp_chat_desc">Кнопка с иконкой сохранения использует Y: короткое нажатие открывает компактный ввод чата, удержание — Player Menu. Видимость самого чата задаётся внутриигровой настройкой HUD/чата.</string>
+    <string name="help_mp_tab_title">Колесо / Tab</string>
+    <string name="help_mp_tab_desc">Свайп по иконке колеса прокручивает списки интерфейса. Удержание около 650 мс отправляет Tab для мультиплеерного действия, назначенного на Tab.</string>
+    <string name="help_mp_server_title">Встроенное управление сервером</string>
+    <string name="help_mp_server_desc">ArenaMP умеет управлять комплектным сервером из лаунчера. Настройки подключения клиента и параметры локального сервера независимы — убедитесь, что клиент подключается именно к нужному адресу.</string>
+    <string name="help_mp_compat_title">Совместимость клиента и сервера</string>
+    <string name="help_mp_compat_desc">Используйте совместимые сборки клиента и сервера ArenaMP. Несовпадение протокола, скриптов или контента может привести к отказу подключения или отличающемуся от сервера поведению.</string>
 </resources>

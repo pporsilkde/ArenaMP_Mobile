@@ -49,6 +49,7 @@ import ui.activity.ConfigureControls
 import ui.activity.MainActivity
 import ui.activity.ModsActivity
 import ui.activity.GraphicsSettingsActivity
+import ui.activity.HelpActivity
 import server.ServerActivity
 import server.ServerController
 import server.ServerConfig
@@ -76,12 +77,9 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             true
         }
 
-        findPreference("pref_controls_help").setOnPreferenceClickListener {
-            AlertDialog.Builder(activity)
-                .setTitle(R.string.controls_help_title)
-                .setMessage(R.string.controls_help_body)
-                .setPositiveButton(android.R.string.ok) { _, _ -> }
-                .show()
+        findPreference("pref_help").setOnPreferenceClickListener {
+            val intent = Intent(activity, HelpActivity::class.java)
+            this.startActivity(intent)
             true
         }
 

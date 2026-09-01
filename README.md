@@ -1,4 +1,9 @@
-# ArenaMP Android Y001 r2 — main-safe builder
+# ArenaMP Android Y001 r4 — main-safe builder
+
+## Y001 r4 — launcher Help hub
+
+The launcher now has a dedicated icon-based **Help** page styled like the rest of the launcher. The control-layout editor no longer contains a separate help dialog. Help covers default touch controls, long presses, FPS/presets, storage/mods/saves, troubleshooting and ArenaMP networking nuances.
+
 
 This is the cleaned Android Client+Server builder for the ArenaMP Y001 line. It tracks `pporsilkde/AMP` `main` by default and applies Android-only changes through semantic/context anchors instead of relying on unified-diff line numbers.
 

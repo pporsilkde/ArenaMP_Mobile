@@ -932,4 +932,71 @@
         <item>Unlimited</item>
     </string-array>
 
+
+
+    <!-- Launcher Help hub -->
+    <string name="help_title">Help</string>
+    <string name="help_summary">Controls, graphics, FPS, files, mods and troubleshooting</string>
+    <string name="help_open_title">Open Help</string>
+    <string name="help_welcome_title">Arena Android quick guide</string>
+    <string name="help_welcome_desc">A practical guide to the launcher and the default on-screen controls. The control editor only changes layout, size and opacity; this Help page explains what the buttons actually do.</string>
+    <string name="help_section_start">GETTING STARTED</string>
+    <string name="help_files_title">Game files</string>
+    <string name="help_files_desc">Select your installed Morrowind game data in the launcher. The APK does not include Bethesda game assets. Keep the game-data folder accessible to Android and avoid moving it after the launcher is configured.</string>
+    <string name="help_mods_title">Mods</string>
+    <string name="help_mods_desc">Enable and order plugins in the launcher. Removing or reordering mods used by an existing save can break references, scripts or quests, so keep backups before major changes.</string>
+    <string name="help_graphics_title">Graphics presets</string>
+    <string name="help_graphics_desc">Start with a preset, then fine-tune individual options if needed. Custom changes are stored separately from the preset and are applied when you press Apply.</string>
+    <string name="help_fps_title">FPS limiter</string>
+    <string name="help_fps_desc">Use Preset, 30 FPS, 60 FPS or Unlimited. Preset uses 30 FPS for Very Low / Performance / Battery and 60 FPS for Balanced / Quality. A manual FPS choice overrides the preset without turning it into Custom.</string>
+    <string name="help_section_controls">DEFAULT ON-SCREEN CONTROLS</string>
+    <string name="help_custom_controls_note">Custom buttons loaded from launcher/controls.cfg may add actions or differ from this default guide.</string>
+    <string name="help_section_gestures">GESTURES &amp; LONG PRESS</string>
+    <string name="help_hold_e_title">Hold Take / E — object manipulation</string>
+    <string name="help_hold_e_desc">Tap E to activate or take. Keep E held on a movable object to grab it and manipulate/drag it instead of immediately taking it.</string>
+    <string name="help_autorun_title">Q — continuous run / autorun</string>
+    <string name="help_autorun_desc">Q toggles continuous running. On the default touch layout, holding Jump for about one second sends Q while Space remains held, so swimming upward is not interrupted.</string>
+    <string name="help_console_title">Journal long-press — console</string>
+    <string name="help_console_desc">Tap Journal for J. Hold it for about 650 ms to send ` / ~ and open the OpenMW console.</string>
+    <string name="help_hudshot_title">F11 / F12</string>
+    <string name="help_hudshot_desc">F11 hides or shows the game HUD. F12 makes a screenshot. On the corner button outside text input: double tap = F11, hold = F12.</string>
+    <string name="help_keyboard_title">On-screen keyboard</string>
+    <string name="help_keyboard_desc">When a text field is active, the corner post-processing button changes into the keyboard control and shows/hides the Android on-screen keyboard.</string>
+    <string name="help_mouse_title">Mouse / hybrid mode</string>
+    <string name="help_mouse_desc">The mouse icon switches the touch mouse-control mode when that mode is available. External mouse, keyboard and gamepad bindings still follow the in-game OpenMW bindings.</string>
+    <string name="help_section_graphics">GRAPHICS, FPS &amp; BATTERY</string>
+    <string name="help_fps_modes_title">Choosing 30 or 60 FPS</string>
+    <string name="help_fps_modes_desc">30 FPS is the safer choice for heat, battery life and weaker GPUs. 60 FPS is smoother but increases CPU/GPU load. Unlimited is mainly useful for testing or high-end devices and can increase heat and power use.</string>
+    <string name="help_apply_title">When graphics changes take effect</string>
+    <string name="help_apply_desc">Press Apply in Graphics Settings before launching the game. Most renderer changes are intended for the next game start; changing launcher options does not rebuild a renderer that is already running.</string>
+    <string name="help_performance_title">If the device struggles</string>
+    <string name="help_performance_desc">First select 30 FPS, then lower the preset, shadows, view distance and water quality. If you see rendering artifacts or startup problems, try the Compatibility shader option and restart the game.</string>
+    <string name="help_section_data">MODS, SAVES &amp; STORAGE</string>
+    <string name="help_load_order_title">Load order matters</string>
+    <string name="help_load_order_desc">Plugins can depend on other plugins and on a specific order. Keep a known-good load order for saves you care about, especially before adding large mod packs.</string>
+    <string name="help_saves_title">Back up saves</string>
+    <string name="help_saves_desc">Before removing mods, changing a large load order or reinstalling the app, make a backup of important saves and launcher/game configuration you want to keep.</string>
+    <string name="help_storage_title">Storage permissions and paths</string>
+    <string name="help_storage_desc">If the launcher cannot see game files, re-check Android storage permission and the selected game-data path. Moving or renaming the data folder requires selecting it again.</string>
+    <string name="help_section_troubleshooting">IF SOMETHING DOES NOT WORK</string>
+    <string name="help_controls_reset_title">Buttons overlap or disappear</string>
+    <string name="help_controls_reset_desc">Open On-screen controls and use Reset layout if a configurable button was moved off-screen. Position, size and opacity editing does not change the underlying in-game key binding.</string>
+    <string name="help_lowfps_title">Low FPS or overheating</string>
+    <string name="help_lowfps_desc">Select 30 FPS and a lower preset first. High view distance, shadows and water are the most useful options to reduce before changing many individual settings.</string>
+    <string name="help_render_title">Black screen / visual artifacts</string>
+    <string name="help_render_desc">Try the Compatibility shader option, reduce water/shadows, then fully restart the game. Renderer settings are safest when changed while the game is not running.</string>
+    <string name="help_restart_title">After an update</string>
+    <string name="help_restart_desc">If a new APK changes resources, shaders or controls, fully close the game and launcher before testing it. Old running processes cannot load newly packaged resources.</string>
+    <string name="help_final_note">This page documents the default Arena Android layout. Mods, custom controls.cfg entries and in-game OpenMW key remapping can intentionally change the final behaviour.</string>
+    <string name="help_section_multiplayer">MULTIPLAYER</string>
+    <string name="help_mp_connection_title">Server address and port</string>
+    <string name="help_mp_connection_desc">Set the ArenaMP server IP/host and port in the launcher before starting. If the endpoint changes, return to the launcher and update it before reconnecting.</string>
+    <string name="help_mp_chat_title">Chat / Player Menu</string>
+    <string name="help_mp_chat_desc">The save-shaped button uses Y: a short tap opens compact chat input; hold it to open Player Menu. Chat visibility itself is controlled by the in-game HUD/chat setting.</string>
+    <string name="help_mp_tab_title">Scroll wheel / Tab</string>
+    <string name="help_mp_tab_desc">Swipe the wheel icon to scroll UI lists. Hold it for about 650 ms to send Tab for the multiplayer action bound to Tab.</string>
+    <string name="help_mp_server_title">Built-in server controls</string>
+    <string name="help_mp_server_desc">ArenaMP can manage the bundled server from the launcher. Client connection settings and local server settings are separate, so make sure the client endpoint points to the server you actually want to use.</string>
+    <string name="help_mp_compat_title">Client / server compatibility</string>
+    <string name="help_mp_compat_desc">Use compatible ArenaMP client and server builds. A protocol or script/content mismatch can cause connection failures or behaviour that differs from the server configuration.</string>
 </resources>

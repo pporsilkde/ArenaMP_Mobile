@@ -45,6 +45,12 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.AppCompat.FullScreen" />
         <activity
+            android:name="ui.activity.HelpActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:screenOrientation="fullUser"
+            android:theme="@style/MyTheme"
+            android:label="@string/help_title" />
+        <activity
             android:name="ui.activity.GraphicsSettingsActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:screenOrientation="fullUser"

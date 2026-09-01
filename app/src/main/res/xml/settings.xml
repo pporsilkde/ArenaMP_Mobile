@@ -14,7 +14,6 @@
 	<PreferenceCategory android:title="@string/pref_ui">
 		<ListPreference android:entries="@array/pref_encoding_entries" android:title="@string/pref_encoding" android:key="pref_encoding" android:summary="%s" android:defaultValue="@string/pref_encoding_default" android:dialogTitle="@string/pref_encoding" android:entryValues="@array/pref_encoding_values" />
 		<Preference android:title="@string/action_show_screen_controls" android:key="pref_controls" />
-		<Preference android:title="@string/controls_help_title" android:summary="@string/controls_help_summary" android:key="pref_controls_help" />
 		<EditTextPreference android:baselineAligned="false" android:hint="1.0" android:title="@string/pref_gamma" android:key="pref_gamma" android:dialogTitle="@string/pref_gamma" android:inputType="numberDecimal" android:textAllCaps="false" />
 		<ListPreference android:entries="@array/pref_mouse_mode_entries" android:title="@string/pref_mouse_mode" android:key="pref_mouse_mode" android:summary="%s" android:defaultValue="@string/pref_mouse_mode_default" android:dialogTitle="@string/pref_mouse_mode" android:entryValues="@array/pref_mouse_mode_values" />
 		<EditTextPreference android:hint="640x480" android:title="@string/pref_customResolution" android:key="pref_customResolution" android:dialogTitle="@string/pref_customResolution" />
@@ -23,5 +22,9 @@
 	</PreferenceCategory>
 	<PreferenceCategory android:title="@string/pref_advanced">
 		<ListPreference android:entries="@array/pref_debug_level_entries" android:title="@string/pref_debug_level" android:key="pref_debug_level" android:summary="%s" android:defaultValue="@string/pref_debug_level_default" android:dialogTitle="@string/pref_debug_level" android:entryValues="@array/pref_debug_level_values" />
+	</PreferenceCategory>
+
+	<PreferenceCategory android:title="@string/help_title" android:key="help_settings">
+		<Preference android:key="pref_help" android:title="@string/help_open_title" android:summary="@string/help_summary" android:icon="@drawable/journal" />
 	</PreferenceCategory>
 </PreferenceScreen>

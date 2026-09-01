@@ -1,11 +1,12 @@
-# ArenaMP Android Y001 r3
+# ArenaMP Android Y001 r4
 
 ## Changes
 
-- Controls guide clarified: F11 hides/shows the HUD, F12 takes a screenshot, Q toggles continuous autorun, and holding Take/Use (E) manipulates/drags movable objects.
-- Added an in-app Controls help entry with the actual current OSC buttons, gestures and long-press actions.
-- ArenaMP-specific help documents chat / Player Menu, Tab hold, journal console, post-processing/screenshot and keyboard modes.
-- Added FPS limit selector to Graphics settings: By preset, 30 FPS, 60 FPS, Unlimited.
-- Preset defaults: Very Low / Performance / Battery = 30 FPS; Balanced / Quality = 60 FPS.
-- A manual FPS value overrides the preset without switching the visual preset to Custom.
-- Includes previous r2 Russo HUD/chat resource packaging fix and r1 semantic-anchor/MyGUI fixes.
+- Removed the controls guide from the On-screen controls layout editor; that screen now only edits position, size, opacity and reset.
+- Added a dedicated **Help** section in the launcher.
+- Help now uses the launcher visual language: AMOLED background, gold headers, cards and the actual on-screen-control icons.
+- The guide covers getting started, controls, gestures/long press, graphics/FPS, mods/saves/storage and troubleshooting.
+- Explicitly documents F11 = HUD, F12 = screenshot, Q = autorun, hold E = object manipulation, Journal long-press console and the on-screen keyboard.
+- Added practical 30/60 FPS, heat, preset, Apply/restart, Compatibility shader, load-order and save-backup guidance.
+- ArenaMP includes server connection, Chat / Player Menu, hold wheel = Tab, bundled-server controls and client/server compatibility.
+- Keeps all functionality from the previous r3.
