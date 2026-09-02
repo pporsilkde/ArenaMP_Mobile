@@ -702,8 +702,8 @@
     <string name="help_title">Помощь</string>
     <string name="help_summary">Управление, графика, FPS, файлы игры, моды и решение проблем</string>
     <string name="help_open_title">Открыть раздел «Помощь»</string>
-    <string name="help_welcome_title">Краткая справка Arena Android</string>
-    <string name="help_welcome_desc">Практическая справка по лаунчеру и стандартному экранному управлению. Редактор управления меняет только положение, размер и прозрачность кнопок; что именно делают кнопки, описано здесь.</string>
+    <string name="help_welcome_title">Краткая справка ArenaMP (fork TES3MP)</string>
+    <string name="help_welcome_desc">Практическая справка по ArenaMP Android: лаунчеру, мультиплееру и стандартному экранному управлению. Редактор управления меняет только положение, размер и прозрачность кнопок; что именно делают кнопки, описано здесь.</string>
     <string name="help_section_start">БЫСТРЫЙ СТАРТ</string>
     <string name="help_files_title">Файлы игры</string>
     <string name="help_files_desc">Укажите в лаунчере установленные данные Morrowind. APK не содержит игровые ресурсы Bethesda. Папка данных должна оставаться доступной Android; после её переноса путь нужно выбрать заново.</string>
@@ -751,7 +751,7 @@
     <string name="help_render_desc">Попробуйте шейдеры «Совместимость», уменьшите воду/тени и полностью перезапустите игру. Настройки рендера безопаснее менять, когда игра не запущена.</string>
     <string name="help_restart_title">После обновления APK</string>
     <string name="help_restart_desc">Если новый APK меняет ресурсы, шейдеры или управление, полностью закройте игру и лаунчер перед проверкой. Уже работающий процесс не может загрузить заново упакованные ресурсы.</string>
-    <string name="help_final_note">Здесь описана стандартная раскладка Arena Android. Моды, пользовательские записи controls.cfg и переназначение клавиш внутри OpenMW могут намеренно изменить итоговое поведение.</string>
+    <string name="help_final_note">Здесь описана стандартная раскладка ArenaMP Android. Моды, пользовательские записи controls.cfg и переназначение клавиш внутри TES3MP/OpenMW могут намеренно изменить итоговое поведение.</string>
     <string name="help_section_multiplayer">МУЛЬТИПЛЕЕР</string>
     <string name="help_mp_connection_title">Адрес и порт сервера</string>
     <string name="help_mp_connection_desc">Перед запуском укажите IP/имя хоста и порт ArenaMP-сервера в лаунчере. Если адрес изменился, вернитесь в лаунчер и обновите его перед переподключением.</string>

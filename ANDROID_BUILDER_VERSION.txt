@@ -1,4 +1,4 @@
-ArenaMP Android Y001 r4
-Launcher Help hub with icon-based guide
-Controls help removed from control-layout editor
-Includes r3 preset-aware FPS, r2 Russo HUD/chat and r1 anchor/MyGUI fixes
+ArenaMP Android Y001 r5
+Launcher Help identity + gold icon style
+Help service icons use transparent gold beveled PNG assets
+Includes all previous Help/FPS/anchor/resource fixes

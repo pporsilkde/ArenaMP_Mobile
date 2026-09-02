@@ -122,7 +122,7 @@ class HelpActivity : AppCompatActivity() {
 
     private fun sections(): List<HelpSection> = listOf(
         HelpSection(R.string.help_section_start, listOf(
-            HelpItem(R.drawable.ic_file, R.string.help_files_title, R.string.help_files_desc),
+            HelpItem(R.drawable.help_file_gold, R.string.help_files_title, R.string.help_files_desc),
             HelpItem(R.drawable.inventory, R.string.help_mods_title, R.string.help_mods_desc),
             HelpItem(R.drawable.postprocessing, R.string.help_graphics_title, R.string.help_graphics_desc),
             HelpItem(R.drawable.stats, R.string.help_fps_title, R.string.help_fps_desc)
@@ -155,25 +155,25 @@ class HelpActivity : AppCompatActivity() {
         HelpSection(R.string.help_section_graphics, listOf(
             HelpItem(R.drawable.stats, R.string.help_fps_modes_title, R.string.help_fps_modes_desc),
             HelpItem(R.drawable.postprocessing, R.string.help_apply_title, R.string.help_apply_desc),
-            HelpItem(R.drawable.ic_grass, R.string.help_performance_title, R.string.help_performance_desc)
+            HelpItem(R.drawable.help_grass_gold, R.string.help_performance_title, R.string.help_performance_desc)
         )),
         HelpSection(R.string.help_section_data, listOf(
             HelpItem(R.drawable.inventory, R.string.help_load_order_title, R.string.help_load_order_desc),
             HelpItem(R.drawable.save, R.string.help_saves_title, R.string.help_saves_desc),
-            HelpItem(R.drawable.ic_file, R.string.help_storage_title, R.string.help_storage_desc)
+            HelpItem(R.drawable.help_file_gold, R.string.help_storage_title, R.string.help_storage_desc)
         )),
         HelpSection(R.string.help_section_multiplayer, listOf(
-            HelpItem(R.drawable.ic_globe, R.string.help_mp_connection_title, R.string.help_mp_connection_desc),
+            HelpItem(R.drawable.help_globe_gold, R.string.help_mp_connection_title, R.string.help_mp_connection_desc),
             HelpItem(R.drawable.save, R.string.help_mp_chat_title, R.string.help_mp_chat_desc),
             HelpItem(R.drawable.scroll_wheel, R.string.help_mp_tab_title, R.string.help_mp_tab_desc),
             HelpItem(R.drawable.ic_start_button, R.string.help_mp_server_title, R.string.help_mp_server_desc),
-            HelpItem(R.drawable.ic_update, R.string.help_mp_compat_title, R.string.help_mp_compat_desc)
+            HelpItem(R.drawable.help_update_gold, R.string.help_mp_compat_title, R.string.help_mp_compat_desc)
         )),
         HelpSection(R.string.help_section_troubleshooting, listOf(
             HelpItem(R.drawable.pause, R.string.help_controls_reset_title, R.string.help_controls_reset_desc),
             HelpItem(R.drawable.stats, R.string.help_lowfps_title, R.string.help_lowfps_desc),
             HelpItem(R.drawable.postprocessing, R.string.help_render_title, R.string.help_render_desc),
-            HelpItem(R.drawable.ic_update, R.string.help_restart_title, R.string.help_restart_desc)
+            HelpItem(R.drawable.help_update_gold, R.string.help_restart_title, R.string.help_restart_desc)
         ), R.string.help_final_note)
     )
 }

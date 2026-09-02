@@ -1,8 +1,8 @@
-# ArenaMP Android Y001 r4 — main-safe builder
+# ArenaMP Android Y001 r5 — main-safe builder
 
-## Y001 r4 — launcher Help hub
+## Y001 r5 — Help identity and gold icon pass
 
-The launcher now has a dedicated icon-based **Help** page styled like the rest of the launcher. The control-layout editor no longer contains a separate help dialog. Help covers default touch controls, long presses, FPS/presets, storage/mods/saves, troubleshooting and ArenaMP networking nuances.
+The launcher Help hub now identifies itself as **ArenaMP (fork TES3MP)** and its generic black/white file, performance, network and update symbols are replaced with transparent gold/orange beveled PNG icons that match the in-game on-screen control art. Existing gold control icons are kept unchanged.
 
 
 This is the cleaned Android Client+Server builder for the ArenaMP Y001 line. It tracks `pporsilkde/AMP` `main` by default and applies Android-only changes through semantic/context anchors instead of relying on unified-diff line numbers.

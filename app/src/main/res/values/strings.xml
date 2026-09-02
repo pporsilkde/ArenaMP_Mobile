@@ -938,8 +938,8 @@
     <string name="help_title">Help</string>
     <string name="help_summary">Controls, graphics, FPS, files, mods and troubleshooting</string>
     <string name="help_open_title">Open Help</string>
-    <string name="help_welcome_title">Arena Android quick guide</string>
-    <string name="help_welcome_desc">A practical guide to the launcher and the default on-screen controls. The control editor only changes layout, size and opacity; this Help page explains what the buttons actually do.</string>
+    <string name="help_welcome_title">ArenaMP (fork TES3MP) quick guide</string>
+    <string name="help_welcome_desc">A practical guide to ArenaMP Android, its launcher, multiplayer features and default on-screen controls. The control editor only changes layout, size and opacity; this Help page explains what the buttons actually do.</string>
     <string name="help_section_start">GETTING STARTED</string>
     <string name="help_files_title">Game files</string>
     <string name="help_files_desc">Select your installed Morrowind game data in the launcher. The APK does not include Bethesda game assets. Keep the game-data folder accessible to Android and avoid moving it after the launcher is configured.</string>
@@ -987,7 +987,7 @@
     <string name="help_render_desc">Try the Compatibility shader option, reduce water/shadows, then fully restart the game. Renderer settings are safest when changed while the game is not running.</string>
     <string name="help_restart_title">After an update</string>
     <string name="help_restart_desc">If a new APK changes resources, shaders or controls, fully close the game and launcher before testing it. Old running processes cannot load newly packaged resources.</string>
-    <string name="help_final_note">This page documents the default Arena Android layout. Mods, custom controls.cfg entries and in-game OpenMW key remapping can intentionally change the final behaviour.</string>
+    <string name="help_final_note">This page documents the default ArenaMP Android layout. Mods, custom controls.cfg entries and in-game TES3MP/OpenMW key remapping can intentionally change the final behaviour.</string>
     <string name="help_section_multiplayer">MULTIPLAYER</string>
     <string name="help_mp_connection_title">Server address and port</string>
     <string name="help_mp_connection_desc">Set the ArenaMP server IP/host and port in the launcher before starting. If the endpoint changes, return to the launcher and update it before reconnecting.</string>
