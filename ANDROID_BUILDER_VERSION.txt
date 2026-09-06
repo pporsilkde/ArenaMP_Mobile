@@ -1,4 +1,4 @@
-ArenaMP Android Y001 r5
-Launcher Help identity + gold icon style
-Help service icons use transparent gold beveled PNG assets
-Includes all previous Help/FPS/anchor/resource fixes
+ArenaMP Android Y002 r1
+Semantic ArenaMP patch application + Y050/Y052 core restart compatibility
+Fixes patch_disconnected failure after desktop server main() restart-tail changes
+Scheduled core restart exit code 42 is handed back to the Android Service instead of fork/exec

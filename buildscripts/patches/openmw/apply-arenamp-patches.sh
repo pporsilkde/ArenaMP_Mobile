@@ -12,7 +12,7 @@ fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ANCHOR_PATCH="$SCRIPT_DIR/../anchor_patch.py"
-PATCHSET_ID="arenamp-android-y001r2-anchor-russo-main-safe"
+PATCHSET_ID="arenamp-android-y002-semantic-core-restart-safe"
 MARKER="$SRC/.arenamp_android_patchset"
 
 copy_if_changed() {

@@ -36,14 +36,12 @@ else()
 endif()''' % (body, body)
     text = text[:m.start()] + replacement + text[m.end():]
 
-    anchor = 'set_target_properties(tes3mp-server PROPERTIES\n'
-    idx = text.find(anchor)
-    if idx < 0:
-        raise SystemExit('Could not locate tes3mp-server target properties')
-    block = re.search(r'set_target_properties\(tes3mp-server PROPERTIES\s*.*?\n\)', text[idx:], re.S)
+    block = re.search(
+        r'set_target_properties\s*\(\s*tes3mp-server\s+PROPERTIES\b.*?\n\s*\)', text, re.S
+    )
     if not block:
-        raise SystemExit('Could not parse tes3mp-server target properties block')
-    pos = idx + block.end()
+        raise SystemExit('Could not locate tes3mp-server target properties by target name')
+    pos = block.end()
     text = text[:pos] + '''
 
 if(ANDROID)
@@ -55,56 +53,117 @@ endif()
 # Expose the dedicated server's main body to JNI, while preserving main() on PC.
 src = main.read_text(encoding='utf-8')
 if 'tes3mpServerMain' not in src:
-    old = 'int main(int argc, char *argv[])'
-    if old not in src:
-        raise SystemExit('Could not locate tes3mp-server main()')
+    main_pattern = re.compile(
+        r'(?m)^int\s+main\s*\(\s*int\s+argc\s*,\s*char\s*\*\s*argv\s*\[\s*\]\s*\)\s*$'
+    )
+    m = main_pattern.search(src)
+    if not m:
+        raise SystemExit('Could not locate tes3mp-server main() by signature')
     new = '''#ifdef __ANDROID__
 int tes3mpServerMain(int argc, char *argv[])
 #else
 int main(int argc, char *argv[])
 #endif'''
-    src = src.replace(old, new, 1)
+    src = src[:m.start()] + new + src[m.end():]
 
 # The PC launcher restarts a fresh process. Android owns the server inside a
 # foreground Service process, so make a failed run unwind cleanly enough to be
-# re-entered: don't rethrow past JNI and release loaded Lua scripts.
+# re-entered. These edits intentionally use semantic anchors rather than a
+# byte-for-byte tail of main(): desktop Y050/Y052 added restart code between
+# breakpad_close() and the final return, which made the old patch brittle.
 if 'ARENAMP_ANDROID_SERVER_RESTART_CLEANUP' not in src:
-    throw_old = '        Script::Call<Script::CallbackIdentity("OnServerScriptCrash")>(e.what());\n        throw; //fall through'
-    if throw_old not in src:
-        raise SystemExit('Could not locate dedicated-server exception rethrow')
-    throw_new = '''        Script::Call<Script::CallbackIdentity("OnServerScriptCrash")>(e.what());
-#ifdef __ANDROID__
-        // ARENAMP_ANDROID_SERVER_RESTART_CLEANUP
-        code = 125;
-#else
-        throw; // desktop process supervisor performs a clean restart
-#endif'''
-    src = src.replace(throw_old, throw_new, 1)
+    crash_call = re.compile(
+        r'(?m)^(?P<indent>[ \t]*)Script::Call<Script::CallbackIdentity\("OnServerScriptCrash"\)>\(e\.what\(\)\);\s*$'
+    )
+    m = crash_call.search(src)
+    if not m:
+        raise SystemExit('Could not locate OnServerScriptCrash callback')
+    tail = src[m.end():m.end() + 320]
+    throw_match = re.search(r'(?m)^(?P<indent>[ \t]*)throw\s*;[^\n]*$', tail)
+    if not throw_match:
+        raise SystemExit('Could not locate exception rethrow after OnServerScriptCrash')
+    abs_start = m.end() + throw_match.start()
+    abs_end = m.end() + throw_match.end()
+    indent = throw_match.group('indent')
+    replacement = (
+        f'{indent}#ifdef __ANDROID__\n'
+        f'{indent}// ARENAMP_ANDROID_SERVER_RESTART_CLEANUP\n'
+        f'{indent}code = 125;\n'
+        f'{indent}#else\n'
+        f'{indent}throw; // desktop process supervisor performs a clean restart\n'
+        f'{indent}#endif'
+    )
+    src = src[:abs_start] + replacement + src[abs_end:]
 
-    # The upstream server calls getMasterClient()->Stop() unconditionally even
-    # when [MasterServer] enabled=false (the shipped default). A desktop process
-    # exits immediately afterwards, but Android needs a clean return to JNI for
-    # Service-managed stop/restart. Guard the null pointer in the Android build.
-    master_stop_old = '        networking.getMasterClient()->Stop();'
-    if master_stop_old in src and 'ARENAMP_ANDROID_MASTER_STOP_GUARD' not in src:
-        master_stop_new = '''#ifdef __ANDROID__
-        // ARENAMP_ANDROID_MASTER_STOP_GUARD
-        if (networking.getMasterClient())
-            networking.getMasterClient()->Stop();
-#else
-        networking.getMasterClient()->Stop();
-#endif'''
-        src = src.replace(master_stop_old, master_stop_new, 1)
+# Older TES3MP branches stopped the master client unconditionally. Newer AMP
+# already has a general nullptr guard (Y052). Only add an Android guard when
+# neither form exists, avoiding nested/duplicate preprocessor blocks.
+if 'ARENAMP_ANDROID_MASTER_STOP_GUARD' not in src:
+    stop_line = re.compile(r'(?m)^(?P<indent>[ \t]*)networking\.getMasterClient\(\)->Stop\(\);\s*$')
+    matches = list(stop_line.finditer(src))
+    if len(matches) == 1:
+        m = matches[0]
+        context = src[max(0, m.start() - 220):m.start()]
+        already_null_guarded = re.search(
+            r'if\s*\(\s*networking\.getMasterClient\(\)\s*!=\s*nullptr\s*\)\s*$',
+            context,
+            re.M,
+        ) is not None or re.search(
+            r'if\s*\(\s*networking\.getMasterClient\(\)\s*\)\s*$', context, re.M
+        ) is not None
+        if not already_null_guarded:
+            indent = m.group('indent')
+            replacement = (
+                f'{indent}#ifdef __ANDROID__\n'
+                f'{indent}// ARENAMP_ANDROID_MASTER_STOP_GUARD\n'
+                f'{indent}if (networking.getMasterClient())\n'
+                f'{indent}    networking.getMasterClient()->Stop();\n'
+                f'{indent}#else\n'
+                f'{indent}networking.getMasterClient()->Stop();\n'
+                f'{indent}#endif'
+            )
+            src = src[:m.start()] + replacement + src[m.end():]
+    elif len(matches) > 1:
+        raise SystemExit(f'Ambiguous master-client Stop() anchors: found {len(matches)}')
 
-    cleanup_old = '    breakpad_close();\n    return code;'
-    if cleanup_old not in src:
-        raise SystemExit('Could not locate dedicated-server return cleanup')
-    cleanup_new = '''#ifdef __ANDROID__
-    Script::UnloadScripts();
-#endif
-    breakpad_close();
-    return code;'''
-    src = src.replace(cleanup_old, cleanup_new, 1)
+# Release Lua scripts immediately before the final breakpad close. This is a
+# stable semantic boundary even when AMP inserts logging/restart logic before
+# or after it. Match the call line, not the breakpad_close() function body.
+if 'ARENAMP_ANDROID_LUA_UNLOAD_BEFORE_BREAKPAD' not in src:
+    close_call = re.compile(r'(?m)^(?P<indent>[ \t]*)breakpad_close\(\);\s*$')
+    matches = list(close_call.finditer(src))
+    if len(matches) != 1:
+        raise SystemExit(f'Could not uniquely locate final breakpad_close() call; found {len(matches)}')
+    m = matches[0]
+    indent = m.group('indent')
+    insertion = (
+        f'{indent}#ifdef __ANDROID__\n'
+        f'{indent}// ARENAMP_ANDROID_LUA_UNLOAD_BEFORE_BREAKPAD\n'
+        f'{indent}Script::UnloadScripts();\n'
+        f'{indent}#endif\n'
+    )
+    src = src[:m.start()] + insertion + src[m.start():]
+
+# Y050+ performs a desktop self-relaunch on reserved exit code 42. Android must
+# never fork/exec from the shared server library: return the code to the
+# foreground Service, which owns process lifetime and restarts nativeRun().
+if 'sArenaEmbeddedRestartExitCode' in src and 'ARENAMP_ANDROID_SERVICE_RESTART_CODE' not in src:
+    restart_if = re.compile(
+        r'(?m)^(?P<indent>[ \t]*)if\s*\(\s*code\s*==\s*sArenaEmbeddedRestartExitCode\s*\)\s*$'
+    )
+    matches = list(restart_if.finditer(src))
+    if len(matches) != 1:
+        raise SystemExit(f'Could not uniquely locate embedded restart dispatch; found {len(matches)}')
+    m = matches[0]
+    indent = m.group('indent')
+    insertion = (
+        f'{indent}#ifdef __ANDROID__\n'
+        f'{indent}// ARENAMP_ANDROID_SERVICE_RESTART_CODE\n'
+        f'{indent}if (code == sArenaEmbeddedRestartExitCode)\n'
+        f'{indent}    return sArenaEmbeddedRestartExitCode;\n'
+        f'{indent}#endif\n'
+    )
+    src = src[:m.start()] + insertion + src[m.start():]
 
 main.write_text(src, encoding='utf-8')
 
@@ -117,92 +176,102 @@ main.write_text(src, encoding='utf-8')
 # va_list entries from the optional native C++ script export table on Android.
 sf = script_functions.read_text(encoding='utf-8')
 if 'ARENAMP_ANDROID_VA_LIST_NATIVE_TABLE' not in sf:
-    old_functions = '''    static constexpr ScriptFunctionData functions[]{
-            {"CreateTimer",         ScriptFunctions::CreateTimer},
-            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
-            {"MakePublic",          ScriptFunctions::MakePublic},
-            {"CallPublic",          ScriptFunctions::CallPublic},
-'''
-    new_functions = '''    static constexpr ScriptFunctionData functions[]{
-            {"CreateTimer",         ScriptFunctions::CreateTimer},
-#ifndef __ANDROID__
-            // ARENAMP_ANDROID_VA_LIST_NATIVE_TABLE: AArch64 va_list is not a pointer.
-            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
-#endif
-            {"MakePublic",          ScriptFunctions::MakePublic},
-#ifndef __ANDROID__
-            {"CallPublic",          ScriptFunctions::CallPublic},
-#endif
-'''
-    if old_functions not in sf:
-        raise SystemExit('Could not locate ScriptFunctions::functions va_list entries')
-    sf = sf.replace(old_functions, new_functions, 1)
+    def guard_table_entries(text, table_name, add_marker=False):
+        table_re = re.compile(
+            rf'(?P<head>\b{re.escape(table_name)}\s*\[\s*\]\s*\{{)(?P<body>.*?)(?P<tail>\n\s*\}};)',
+            re.S,
+        )
+        matches = list(table_re.finditer(text))
+        if len(matches) != 1:
+            raise SystemExit(f'Could not uniquely locate ScriptFunctions::{table_name} table; found {len(matches)}')
+        m = matches[0]
+        body = m.group('body')
+        for index, (api_name, symbol) in enumerate((
+            ('CreateTimerEx', 'ScriptFunctions::CreateTimerEx'),
+            ('CallPublic', 'ScriptFunctions::CallPublic'),
+        )):
+            entry_re = re.compile(
+                rf'(?m)^(?P<indent>[ \t]*)\{{\s*"{api_name}"\s*,\s*{re.escape(symbol)}\s*\}},\s*$'
+            )
+            entries = list(entry_re.finditer(body))
+            if len(entries) != 1:
+                raise SystemExit(
+                    f'{table_name}: could not uniquely locate {api_name} entry; found {len(entries)}'
+                )
+            e = entries[0]
+            indent = e.group('indent')
+            marker = ''
+            if add_marker and index == 0:
+                marker = f'{indent}// ARENAMP_ANDROID_VA_LIST_NATIVE_TABLE\n'
+            replacement = (
+                f'{marker}{indent}#ifndef __ANDROID__\n'
+                f'{e.group(0)}\n'
+                f'{indent}#endif'
+            )
+            body = body[:e.start()] + replacement + body[e.end():]
+        return text[:m.start('body')] + body + text[m.end('body'):]
 
-    old_addresses = '''    inline static const ScriptFunctionAddress functionAddresses[]{
-            {"CreateTimer",         ScriptFunctions::CreateTimer},
-            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
-            {"MakePublic",          ScriptFunctions::MakePublic},
-            {"CallPublic",          ScriptFunctions::CallPublic},
-'''
-    new_addresses = '''    inline static const ScriptFunctionAddress functionAddresses[]{
-            {"CreateTimer",         ScriptFunctions::CreateTimer},
-#ifndef __ANDROID__
-            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
-#endif
-            {"MakePublic",          ScriptFunctions::MakePublic},
-#ifndef __ANDROID__
-            {"CallPublic",          ScriptFunctions::CallPublic},
-#endif
-'''
-    if old_addresses not in sf:
-        raise SystemExit('Could not locate ScriptFunctions::functionAddresses va_list entries')
-    sf = sf.replace(old_addresses, new_addresses, 1)
+    sf = guard_table_entries(sf, 'functions', add_marker=True)
+    sf = guard_table_entries(sf, 'functionAddresses')
     script_functions.write_text(sf, encoding='utf-8')
 
 # Android server portable storage override. The Service sets the environment
 # variable before tes3mpServerMain(), so only the server uses ArenaMP/config.
 cm = config_manager.read_text(encoding='utf-8')
 if 'ARENAMP_ANDROID_SERVER_CONFIG_ROOT' not in cm:
-    old_cfg_paths = """        mLocalPath = mFixedPath.getLocalPath();
-        mUserConfigPath = mLocalPath / \"userdata\";
-        mUserDataPath = mUserConfigPath;
-
-        if (!ensureDirectory(mUserConfigPath) || !ensureDirectory(mUserDataPath))
-        {
-            mUserConfigPath = mFixedPath.getUserConfigPath();
-            mUserDataPath = mFixedPath.getUserDataPath();
-            ensureDirectory(mUserConfigPath);
-            ensureDirectory(mUserDataPath);
-        }
-"""
-    new_cfg_paths = """        mLocalPath = mFixedPath.getLocalPath();
-#if defined(__ANDROID__)
-        // ARENAMP_ANDROID_SERVER_CONFIG_ROOT
-        if (const char* serverRoot = std::getenv(\"ARENAMP_ANDROID_SERVER_ROOT\"))
-        {
-            mUserConfigPath = boost::filesystem::path(serverRoot) / \"config\";
-            mUserDataPath = boost::filesystem::path(serverRoot);
-            ensureDirectory(mUserConfigPath);
-            ensureDirectory(mUserDataPath);
-        }
-        else
-#endif
-        {
-            mUserConfigPath = mLocalPath / \"userdata\";
-            mUserDataPath = mUserConfigPath;
-
-            if (!ensureDirectory(mUserConfigPath) || !ensureDirectory(mUserDataPath))
-            {
-                mUserConfigPath = mFixedPath.getUserConfigPath();
-                mUserDataPath = mFixedPath.getUserDataPath();
-                ensureDirectory(mUserConfigPath);
-                ensureDirectory(mUserDataPath);
-            }
-        }
-"""
-    if old_cfg_paths not in cm:
-        raise SystemExit('Could not locate ConfigurationManager local userdata preference')
-    cm = cm.replace(old_cfg_paths, new_cfg_paths, 1)
+    # Match the constructor's local/userdata policy by the assignments it
+    # performs, not by exact blank lines/comments. This survives formatting
+    # and nearby-path-policy changes while still requiring one unambiguous
+    # constructor block.
+    cfg_pattern = re.compile(
+        r'''(?mx)
+        ^(?P<indent>[ \t]*)mLocalPath\s*=\s*mFixedPath\.getLocalPath\(\);[ \t]*\n
+        (?P=indent)mUserConfigPath\s*=\s*mLocalPath\s*/\s*"userdata";[ \t]*\n
+        (?P=indent)mUserDataPath\s*=\s*mUserConfigPath;[ \t]*\n
+        (?:[ \t]*\n)?
+        (?P=indent)if\s*\(\s*!ensureDirectory\(mUserConfigPath\)\s*\|\|\s*!ensureDirectory\(mUserDataPath\)\s*\)[ \t]*\n
+        (?P=indent)\{[ \t]*\n
+        (?P=indent)[ \t]+mUserConfigPath\s*=\s*mFixedPath\.getUserConfigPath\(\);[ \t]*\n
+        (?P=indent)[ \t]+mUserDataPath\s*=\s*mFixedPath\.getUserDataPath\(\);[ \t]*\n
+        (?P=indent)[ \t]+ensureDirectory\(mUserConfigPath\);[ \t]*\n
+        (?P=indent)[ \t]+ensureDirectory\(mUserDataPath\);[ \t]*\n
+        (?P=indent)\}[ \t]*\n?
+        '''
+    )
+    matches = list(cfg_pattern.finditer(cm))
+    if len(matches) != 1:
+        raise SystemExit(
+            f'Could not uniquely locate ConfigurationManager local userdata policy; found {len(matches)}'
+        )
+    m = matches[0]
+    indent = m.group('indent')
+    inner = indent + '    '
+    replacement = (
+        f'{indent}mLocalPath = mFixedPath.getLocalPath();\n'
+        f'#if defined(__ANDROID__)\n'
+        f'{indent}// ARENAMP_ANDROID_SERVER_CONFIG_ROOT\n'
+        f'{indent}if (const char* serverRoot = std::getenv("ARENAMP_ANDROID_SERVER_ROOT"))\n'
+        f'{indent}{{\n'
+        f'{inner}mUserConfigPath = boost::filesystem::path(serverRoot) / "config";\n'
+        f'{inner}mUserDataPath = boost::filesystem::path(serverRoot);\n'
+        f'{inner}ensureDirectory(mUserConfigPath);\n'
+        f'{inner}ensureDirectory(mUserDataPath);\n'
+        f'{indent}}}\n'
+        f'{indent}else\n'
+        f'#endif\n'
+        f'{indent}{{\n'
+        f'{inner}mUserConfigPath = mLocalPath / "userdata";\n'
+        f'{inner}mUserDataPath = mUserConfigPath;\n'
+        f'{inner}if (!ensureDirectory(mUserConfigPath) || !ensureDirectory(mUserDataPath))\n'
+        f'{inner}{{\n'
+        f'{inner}    mUserConfigPath = mFixedPath.getUserConfigPath();\n'
+        f'{inner}    mUserDataPath = mFixedPath.getUserDataPath();\n'
+        f'{inner}    ensureDirectory(mUserConfigPath);\n'
+        f'{inner}    ensureDirectory(mUserDataPath);\n'
+        f'{inner}}}\n'
+        f'{indent}}}\n'
+    )
+    cm = cm[:m.start()] + replacement + cm[m.end():]
     config_manager.write_text(cm, encoding='utf-8')
 
 # A foreground Service has no terminal. RakNet's legacy Kbhit helper attempts
@@ -233,7 +302,7 @@ if 'ARENAMP_ANDROID_NO_STDIN' not in net:
     net = net.replace(include_old, include_new, 1)
 
     loop_pattern = re.compile(
-        r"(?m)^(?P<indent>\s*)if \(kbhit\(\) && getch\(\) == '\\n'\)\s*\n(?P=indent)\s+break;"
+        r"(?m)^(?P<indent>[ \t]*)if \(kbhit\(\) && getch\(\) == '\\n'\)[ \t]*\n(?P=indent)[ \t]+break;"
     )
     m = loop_pattern.search(net)
     if not m:

@@ -10,6 +10,7 @@ import android.util.Log
 import com.libopenmw.openmw.R
 
 class ArenaServerService : Service() {
+    private val CORE_RESTART_EXIT_CODE = 42
     @Volatile private var worker: Thread? = null
     @Volatile private var stopRequested = false
     @Volatile private var restartRequested = false
@@ -171,9 +172,12 @@ class ArenaServerService : Service() {
                     val globalRoot = filesDir.parentFile?.absolutePath ?: filesDir.absolutePath
                     val userRoot = ServerRuntime.root(this).absolutePath
                     val code = nativeRun(globalRoot, userRoot, ServerRuntime.root(this).absolutePath)
+                    val scheduledCoreRestart = code == CORE_RESTART_EXIT_CODE
                     ServerRuntime.writeStatus(this, "stopped", code)
                     sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName)
                         .putExtra(EXTRA_STATE, "stopped").putExtra(EXTRA_EXIT_CODE, code))
+                    if (scheduledCoreRestart)
+                        Log.i(TAG, "ArenaMP core requested scheduled restart (exit code $code)")
 
                     // Desktop ArenaMP makes a backup whenever automatic
                     // restart is enabled, including an intentional stop.
@@ -185,7 +189,10 @@ class ArenaServerService : Service() {
                         }
                     }
 
-                    if (stopRequested || exitRequested || !autoRestart) break
+                    // Exit code 42 is the server core's planned 12-hour restart.
+                    // It must restart even when the UI's "restart after crash" option
+                    // is disabled; that preference only controls unexpected exits.
+                    if (stopRequested || exitRequested || (!autoRestart && !scheduledCoreRestart)) break
                     currentState = "restarting"
                     updateNotification(getString(R.string.server_status_restarting))
                     sendState("restarting")
