@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import sys
+import re
 
 if len(sys.argv) != 2:
     raise SystemExit('usage: 10-arenamp-auth-map-inventory-stability.py <AMP source dir>')
@@ -94,12 +95,28 @@ save(rel, text)
 # ---------------------------------------------------------------------------
 rel = 'apps/openmw/mwmp/Main.cpp'
 text = load(rel)
-text = replace_once(
-    text,
-    '        mNetworking->getPlayerPacket(ID_PLAYER_BASEINFO)->Send();\n        mNetworking->getPlayerPacket(ID_LOADED)->Send();\n        mLocalPlayer->updateStatsDynamic(true);\n        get().getGUIController()->setChatVisible(true);\n',
-    '        mNetworking->getPlayerPacket(ID_PLAYER_BASEINFO)->Send();\n        mNetworking->getPlayerPacket(ID_LOADED)->Send();\n        // Do not send normal stat/cell/gameplay synchronization until the\n        // server has completed login (or registration + CharGen).\n        get().getGUIController()->setChatVisible(true);\n',
-    'Main.cpp pre-auth forced stats',
-)
+# Alpha 0.01: bound this edit by handshake calls, never by line numbers.
+# Accept only the known forced send (bare or guarded by login synchronization).
+# Unknown executable statements fail closed instead of being discarded.
+start_anchor = '        mNetworking->getPlayerPacket(ID_LOADED)->Send();\n'
+end_anchor = '        get().getGUIController()->setChatVisible(true);\n'
+if text.count(start_anchor) != 1 or text.count(end_anchor) != 1:
+    raise SystemExit('Main.cpp pre-auth forced stats: handshake anchors must be unique')
+start = text.index(start_anchor) + len(start_anchor)
+end = text.index(end_anchor)
+if end < start:
+    raise SystemExit('Main.cpp pre-auth forced stats: invalid handshake order')
+between = text[start:end]
+code = re.sub(r'/\*.*?\*/|//[^\n]*', '', between, flags=re.S).strip()
+forced_send = r'mLocalPlayer\s*->\s*updateStatsDynamic\s*\(\s*true\s*\)\s*;'
+guard = r'if\s*\(\s*!\s*mLocalPlayer\s*->\s*isLoginSyncPending\s*\(\s*\)\s*\)\s*'
+if code and not (re.fullmatch(forced_send, code)
+                 or re.fullmatch(guard + forced_send, code)
+                 or re.fullmatch(guard + r'\{\s*' + forced_send + r'\s*\}', code)):
+    raise SystemExit('Main.cpp pre-auth forced stats: unexpected code between handshake anchors')
+replacement = ('        // Do not send normal stat/cell/gameplay synchronization until the\n'
+               '        // server has completed login (or registration + CharGen).\n')
+text = text[:start] + replacement + text[end:]
 text = replace_once(
     text,
     '    else\n    {\n        mLocalPlayer->update();\n        mCellController->updateLocal(false);\n',

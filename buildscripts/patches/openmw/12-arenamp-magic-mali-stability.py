@@ -24,6 +24,13 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     # Prefer the old anchor whenever it is still present.  Checking for the
     # replacement first is unsafe for short/common snippets because an identical
     # replacement may legitimately exist elsewhere in the same translation unit.
+    # Alpha 0.01: an insertion may retain the complete old anchor inside new.
+    # Do not treat that embedded anchor as a fresh edit on the next pass.
+    # An additional old anchor outside the replacement remains ambiguous.
+    if old in new and text.count(new) == 1:
+        outside = text.replace(new, '', 1)
+        if old not in outside:
+            return text
     count = text.count(old)
     if count == 1:
         return text.replace(old, new, 1)
