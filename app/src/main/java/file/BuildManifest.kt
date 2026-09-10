@@ -59,13 +59,21 @@ object BuildManifest {
     fun manifestFile(ctx: Context): File? {
         val rootPath = PreferenceManager.getDefaultSharedPreferences(ctx).getString("game_files", "") ?: ""
         if (rootPath.isBlank()) return null
-        val root = File(rootPath)
-        val data = File(GameInstaller(rootPath).findDataFiles())
+        val root = File(rootPath).canonicalFile
+        val data = File(GameInstaller(rootPath).findDataFiles()).canonicalFile
 
         // Windows is case-insensitive, Android/Linux is not. A manifest copied
         // from PC as Build.ini / BUILD.INI must still be discovered here.
         findCaseInsensitive(root, "build.ini")?.let { return it }
         findCaseInsensitive(data, "build.ini")?.let { return it }
+
+        // Some file managers let the user select Data Files itself instead of
+        // the Morrowind root. In that case the manifest is one directory above
+        // the selected path. Keep this fallback narrow so an unrelated parent
+        // build.ini is never picked for a normal game-root selection.
+        if (root.name.equals(GameInstaller.DATA_NAME, ignoreCase = true)) {
+            root.parentFile?.let { findCaseInsensitive(it, "build.ini")?.let { file -> return file } }
+        }
 
         // Keep a deterministic write destination for a new manifest.
         return File(root, "build.ini")
@@ -130,18 +138,23 @@ object BuildManifest {
 
     fun read(ctx: Context): Data? {
         val f = manifestFile(ctx) ?: return null
-        if (!f.exists()) return null
+        if (!f.isFile) return null
+        return parse(f.readText())
+    }
+
+    /** Pure parser: desktop manifests can be regression-tested without Android storage APIs. */
+    fun parse(text: String): Data {
         val out = Data()
         var section = ""
-        f.forEachLine { raw ->
-            val line = raw.trim()
-            if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) return@forEachLine
+        text.lineSequence().forEach line@ { raw ->
+            val line = raw.trim().removePrefix("\uFEFF").trim()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) return@line
             if (line.startsWith("[") && line.endsWith("]")) {
                 section = line.substring(1, line.length - 1).trim().toLowerCase()
-                return@forEachLine
+                return@line
             }
             val eq = line.indexOf('=')
-            if (eq <= 0) return@forEachLine
+            if (eq <= 0) return@line
             val key = line.substring(0, eq).trim().toLowerCase()
             val value = unquote(line.substring(eq + 1))
 
@@ -166,13 +179,17 @@ object BuildManifest {
                     || ((section == "language" || section == "locale")
                         && (key == "value" || key == "name" || key == "selected" || key == "current")) ->
                     out.language = canonicalLanguage(value)
-                isBuildSection(section) && (key == "complete" || key == "locked" || key == "read-only") ->
+                isBuildSection(section) && (key == "complete" || key == "comlete" || key == "locked" || key == "read-only") ->
                     out.complete = parseBool(value)
-                isServerSection(section) && (key == "address" || key == "ip" || key == "host") -> {
+                // Accept address/port in a flat manifest and in [Build] as
+                // well as the documented [Server] section. Older Android
+                // packages generated flat build.ini files.
+                (isServerSection(section) || isBuildSection(section))
+                    && (key == "address" || key == "adress" || key == "ip" || key == "host") -> {
                     out.serverAddress = value.trim()
                     out.serverAddressSpecified = value.trim().isNotEmpty()
                 }
-                isServerSection(section) && key == "port" -> {
+                (isServerSection(section) || isBuildSection(section)) && key == "port" -> {
                     out.serverPort = value.trim()
                     out.serverPortSpecified = value.trim().isNotEmpty()
                 }
@@ -366,14 +383,23 @@ object BuildManifest {
 
     /** Import desktop build.ini endpoint into Android preferences. */
     fun syncConnectionPreferences(ctx: Context): Data? {
-        val m = read(ctx) ?: return null
+        val m = read(ctx) ?: run {
+            UpdateLog.write(ctx, "endpoint_missing", "build.ini not found: ${manifestFile(ctx)}")
+            return null
+        }
+        // The settings fragment reads these values immediately after startup;
+        // commit synchronously so the first rendered screen cannot show the
+        // hard-coded 127.0.0.1 fallback for one lifecycle pass.
         PreferenceManager.getDefaultSharedPreferences(ctx).edit()
             .putBoolean("pref_use_alt_server", m.useAlternativeServer)
             .putString("pref_alt_address", m.altAddress)
             .putString("pref_alt_port", m.altPort)
             .putString("pref_server_ip", m.serverAddress.ifBlank { DEFAULT_SERVER_ADDRESS })
             .putString("pref_server_port", m.serverPort.ifBlank { DEFAULT_SERVER_PORT })
-            .apply()
+            .commit()
+        UpdateLog.write(ctx, "endpoint_import", "manifest=${manifestFile(ctx)} complete=${m.complete} " +
+            "address=${m.serverAddress}:${m.serverPort} alternative=${m.useAlternativeServer} " +
+            "connect=${connectionAddress(m)}:${connectionPort(m)}")
         return m
     }
 

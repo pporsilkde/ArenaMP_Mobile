@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="arena_action_play">Play</string>
+    <string name="arena_action_update">Update</string>
+    <string name="arena_update_log_hint">Details: %1$s</string>
     <string name="arena_update_title">ArenaMP update</string>
     <string name="arena_update_check">Checking for updates…</string>
     <string name="arena_update_engine">Downloading engine APK…</string>
     <string name="arena_update_content">Downloading content update…</string>
     <string name="arena_update_extract">Installing content update…</string>
+    <string name="arena_update_install_permission">Allow installation from this source in Android settings, then press Update again.</string>
+    <string name="arena_update_install_cancelled">APK installation was cancelled or did not complete. The downloaded APK is kept; allow installation and try Update again.</string>
     <string name="arena_alt_server">Connect to another server</string>
     <string name="arena_alt_address">Alternative server address</string>
     <string name="arena_alt_port">Alternative server port</string>

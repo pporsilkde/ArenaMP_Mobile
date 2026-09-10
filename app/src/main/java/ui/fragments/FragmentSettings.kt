@@ -37,6 +37,7 @@ import android.preference.CheckBoxPreference
 import android.preference.Preference
 import android.preference.PreferenceFragment
 import android.preference.PreferenceGroup
+import android.preference.PreferenceCategory
 import androidx.core.content.ContextCompat
 
 import com.codekidlabs.storagechooser.StorageChooser
@@ -58,10 +59,23 @@ import server.ServerRuntime
 
 class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener {
 
+    private var generalCategory: PreferenceCategory? = null
+    private var serverIpPreference: Preference? = null
+    private var serverPortPreference: Preference? = null
+    private var alternativeAddressPreference: Preference? = null
+    private var alternativePortPreference: Preference? = null
+    private var mainEndpointVisible = true
+    private var alternativeFieldsVisible = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         addPreferencesFromResource(R.xml.settings)
+        generalCategory = findPreference("general_settings") as? PreferenceCategory
+        serverIpPreference = findPreference("pref_server_ip")
+        serverPortPreference = findPreference("pref_server_port")
+        alternativeAddressPreference = findPreference("pref_alt_address")
+        alternativePortPreference = findPreference("pref_alt_port")
         // Desktop-compatible build.ini is authoritative on first load. Import the
         // endpoint before registering the listener so this sync is not written back.
         BuildManifest.syncConnectionPreferences(activity)
@@ -290,8 +304,16 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
     private fun updatePreference(preference: Preference?, key: String) {
         if (preference == null)
             return
-        if (preference is EditTextPreference)
-            preference.summary = preference.text
+        if (preference is EditTextPreference) {
+            // Legacy Preference objects cache text separately from the shared
+            // preferences imported from build.ini. Refresh both the dialog and
+            // summary, including rows reinserted by the alternative checkbox.
+            val value = preferenceScreen.sharedPreferences.getString(key, "").orEmpty()
+            if (preference.text != value) preference.text = value
+            preference.summary = value
+        }
+        if (preference is CheckBoxPreference)
+            preference.isChecked = preferenceScreen.sharedPreferences.getBoolean(key, false)
         // Show selected value as a summary for game_files
         if (key == "game_files") {
             preference.summary = preference.sharedPreferences.getString("game_files", "")
@@ -305,10 +327,24 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         val serverEnabled = preferenceScreen.sharedPreferences
             .getBoolean(ServerController.PREF_SERVER_ENABLED, false)
         val alternative = preferenceScreen.sharedPreferences.getBoolean("pref_use_alt_server", false)
-        findPreference("pref_alt_address")?.isEnabled = alternative && !serverEnabled
-        findPreference("pref_alt_port")?.isEnabled = alternative && !serverEnabled
-        val ip = findPreference("pref_server_ip")
-        val port = findPreference("pref_server_port")
+        val ip = serverIpPreference
+        val port = serverPortPreference
+
+        // A complete build owns the public endpoint. Do not merely disable the
+        // fields: remove them from the list so users cannot mistake the local
+        // host fallback (127.0.0.1) for the distributed server address.
+        setMainEndpointVisible(!locked)
+
+        // Keep the alternative-server checkbox as a compact row. Its address
+        // and port rows are expanded only while the checkbox is selected.
+        val showAlternativeFields = alternative && !serverEnabled
+        setAlternativeFieldsVisible(showAlternativeFields)
+        alternativeAddressPreference?.isEnabled = showAlternativeFields
+        alternativePortPreference?.isEnabled = showAlternativeFields
+        updatePreference(alternativeAddressPreference, "pref_alt_address")
+        updatePreference(alternativePortPreference, "pref_alt_port")
+        updatePreference(findPreference("pref_use_alt_server"), "pref_use_alt_server")
+
         val toggle = findPreference(ServerController.PREF_SERVER_ENABLED) as? CheckBoxPreference
 
         toggle?.summary = if (serverEnabled)
@@ -343,6 +379,32 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             updatePreference(ip, "pref_server_ip")
             updatePreference(port, "pref_server_port")
         }
+    }
+
+    private fun setMainEndpointVisible(visible: Boolean) {
+        val category = generalCategory ?: return
+        if (visible == mainEndpointVisible) return
+        if (visible) {
+            serverIpPreference?.let { category.addPreference(it) }
+            serverPortPreference?.let { category.addPreference(it) }
+        } else {
+            serverIpPreference?.let { category.removePreference(it) }
+            serverPortPreference?.let { category.removePreference(it) }
+        }
+        mainEndpointVisible = visible
+    }
+
+    private fun setAlternativeFieldsVisible(visible: Boolean) {
+        val category = generalCategory ?: return
+        if (visible == alternativeFieldsVisible) return
+        if (visible) {
+            alternativeAddressPreference?.let { category.addPreference(it) }
+            alternativePortPreference?.let { category.addPreference(it) }
+        } else {
+            alternativeAddressPreference?.let { category.removePreference(it) }
+            alternativePortPreference?.let { category.removePreference(it) }
+        }
+        alternativeFieldsVisible = visible
     }
 
     /**

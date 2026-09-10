@@ -2,6 +2,7 @@ package server
 
 import file.AssetTransaction
 import file.AssetUpdater
+import file.UpdateLog
 import file.ContentUpdate
 import file.utils.CopyFilesFromAssets
 import android.content.Context
@@ -121,6 +122,7 @@ object ServerRuntime {
     @Synchronized
     fun ensureInstalled(ctx: Context) {
         val runtime = root(ctx).canonicalFile
+        UpdateLog.write(ctx, "server_assets_check", "runtime=$runtime")
         runtime.mkdirs()
         AssetTransaction.recover(runtime)
         configDir(ctx).mkdirs()
@@ -142,6 +144,7 @@ object ServerRuntime {
         if (installedStamp != expected || !File(serverHome(ctx), "scripts/serverCore.lua").isFile
                 || !File(runtime, "resources/version").isFile) {
             Log.i(TAG, "Refreshing packaged server assets at ${runtime.absolutePath}")
+            UpdateLog.write(ctx, "server_assets_install", "fingerprint=$fingerprint")
             // Preserve a legacy user config BEFORE swapping the managed scripts directory.
             val persistentBefore = persistentScriptConfig(ctx)
             val runtimeBefore = runtimeScriptConfig(ctx)
@@ -171,6 +174,10 @@ object ServerRuntime {
                 // Add newly shipped default data, preserving ALL existing server data.
                 copyAssetTree(ctx, "$ASSET_ROOT/server/data", File(runtime, "server/data"), true)
                 AssetTransaction.apply(runtime, stage, paths, "server-assets.sha256", expected)
+                UpdateLog.write(ctx, "server_assets_installed", "runtime=$runtime fingerprint=$fingerprint")
+            } catch (e: Exception) {
+                UpdateLog.write(ctx, "server_assets_error", e.message.orEmpty(), e)
+                throw e
             } finally { ContentUpdate.deleteTree(stage) }
             runtimeStamp(ctx).writeText(packagedStamp)
         }

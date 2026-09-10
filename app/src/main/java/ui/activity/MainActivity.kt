@@ -51,6 +51,7 @@ import file.GraphicsPresets
 import file.AssetUpdater
 import file.ContentUpdate
 import file.LauncherUpdater
+import file.UpdateLog
 import file.BuildManifest
 import file.UpdateDownloader
 import server.ServerConfig
@@ -58,6 +59,7 @@ import server.ServerController
 import server.ServerRuntime
 import server.ServerScriptConfig
 import android.widget.ImageButton
+import android.widget.TextView
 
 import java.io.BufferedReader
 import java.io.File
@@ -80,7 +82,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     @Volatile private var launchLocalServer = false
     @Volatile private var launchLocalServerPort = BuildManifest.DEFAULT_SERVER_PORT
+    @Volatile private var launchServerAddress = BuildManifest.DEFAULT_SERVER_ADDRESS
+    @Volatile private var launchServerPort = BuildManifest.DEFAULT_SERVER_PORT
     @Volatile private var restartLocalServerBeforeLaunch = false
+    private var updateAvailable = false
+    private var updateCheckRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +95,14 @@ class MainActivity : AppCompatActivity() {
         PermissionHelper.getWriteExternalStoragePermission(this@MainActivity)
         setContentView(R.layout.main)
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        UpdateLog.start(this, "launcher_open")
         ServerController.initializeDesktopCompatibleDefaults(this)
+        // Import the distributed endpoint before the settings fragment is
+        // rendered. SharedPreferences defaults are 127.0.0.1, so a delayed
+        // asynchronous sync can otherwise leave the first launcher screen
+        // connected to localhost even when build.ini contains a public server.
+        try { BuildManifest.syncConnectionPreferences(this) }
+        catch (e: Throwable) { Log.w(TAG, "Could not import build.ini endpoint", e) }
 
         // Localization is explicit on every launcher start. The persistent
         // server config and portable build manifest never keep an undefined or
@@ -128,13 +141,15 @@ class MainActivity : AppCompatActivity() {
             }
             false
         }
-        fab.setOnClickListener { checkStartGame() }
+        fab.setOnClickListener {
+            if (!updateCheckRunning && !LauncherUpdater.isBusy()) {
+                if (updateAvailable) startLauncherUpdate() else checkStartGame()
+            }
+        }
+        findViewById<TextView>(R.id.fab_label).setOnClickListener { fab.performClick() }
 
         findViewById<ImageButton?>(R.id.btn_update)?.setOnClickListener {
-            LauncherUpdater.beforeLaunch(this) {
-                BuildManifest.applyToDatabase(this)
-                refreshManifestUi()
-            }
+            startLauncherUpdate()
         }
         refreshManifestUi()
 
@@ -152,8 +167,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        LauncherUpdater.showPendingFailure(this)
         try { LauncherUpdater.reconcileInstalledApk(this) }
         catch (e: Exception) { Log.w(TAG, "Could not acknowledge installed APK", e) }
+        try { BuildManifest.syncConnectionPreferences(this) }
+        catch (e: Throwable) { Log.w(TAG, "Could not refresh build.ini endpoint", e) }
         // Keep the Android mod database aligned with an externally supplied
         // desktop build.ini as soon as the launcher becomes active. This also
         // covers replacing/editing build.ini while the app was in background;
@@ -176,9 +194,50 @@ class MainActivity : AppCompatActivity() {
         title = launcherName
 
         val updateButton = findViewById<ImageButton?>(R.id.btn_update)
-        val hasUpdate = !manifest?.checkUrl.isNullOrBlank()
-        updateButton?.visibility = if (hasUpdate) View.VISIBLE else View.GONE
-        updateButton?.isEnabled = hasUpdate
+        val hasCheck = !manifest?.checkUrl.isNullOrBlank()
+        updateButton?.visibility = if (hasCheck) View.VISIBLE else View.GONE
+        updateButton?.isEnabled = hasCheck && !LauncherUpdater.isBusy()
+        checkLauncherUpdates()
+    }
+
+    private fun setLaunchAction() {
+        val text = getString(if (updateCheckRunning) R.string.arena_update_check
+            else if (updateAvailable) R.string.arena_action_update else R.string.arena_action_play)
+        val button = findViewById<FloatingActionButton>(R.id.fab)
+        button.contentDescription = text
+        button.isEnabled = !updateCheckRunning
+        button.setImageResource(if (updateAvailable) R.drawable.ic_update else R.drawable.ic_start_button)
+        findViewById<TextView>(R.id.fab_label).text = text
+        findViewById<ImageButton>(R.id.btn_update).isEnabled = !updateCheckRunning
+    }
+
+    private fun checkLauncherUpdates() {
+        if (isFinishing || isDestroyed || updateCheckRunning) return
+        if (LauncherUpdater.isBusy()) {
+            // An older activity can still own a download/check after Android
+            // recreates the UI. Refresh as soon as that worker releases it.
+            Handler().postDelayed({ checkLauncherUpdates() }, 500L)
+            return
+        }
+        val gamePath = prefs.getString("game_files", "").orEmpty()
+        updateCheckRunning = LauncherUpdater.checkAvailable(this) { available ->
+            updateCheckRunning = false
+            if (gamePath != prefs.getString("game_files", "").orEmpty()) {
+                checkLauncherUpdates()
+            } else {
+                updateAvailable = available
+                setLaunchAction()
+            }
+        }
+        setLaunchAction()
+    }
+
+    private fun startLauncherUpdate() {
+        if (updateCheckRunning || LauncherUpdater.isBusy()) return
+        LauncherUpdater.update(this) {
+            BuildManifest.applyToDatabase(this)
+            refreshManifestUi()
+        }
     }
 
     /**
@@ -258,7 +317,10 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        LauncherUpdater.onActivityResult(this, requestCode)
+        LauncherUpdater.onActivityResult(this, requestCode, resultCode)
+        try { BuildManifest.syncConnectionPreferences(this) }
+        catch (e: Throwable) { Log.w(TAG, "Could not refresh endpoint after APK installer", e) }
+        refreshManifestUi()
     }
 
     private fun checkStartGame() {
@@ -276,6 +338,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // build.ini is authoritative for distributed builds. Refresh the
+        // in-memory/persistent endpoint immediately before choosing the launch
+        // target, even if the settings fragment has not resumed yet.
+        try { BuildManifest.syncConnectionPreferences(this) }
+        catch (e: Throwable) { Log.w(TAG, "Could not refresh build.ini endpoint", e) }
         val manifest = BuildManifest.read(this)
         if (manifest?.useAlternativeServer == true) {
             val port = manifest.altPort.toIntOrNull()
@@ -285,7 +352,9 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        LauncherUpdater.beforeLaunch(this) { checkStartGameAfterUpdate() }
+        // Play follows the original direct launch path. The updater never
+        // starts the game; installing is a separate explicit launcher action.
+        checkStartGameAfterUpdate()
     }
 
     private fun checkStartGameAfterUpdate() {
@@ -340,6 +409,7 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra(GameActivity.EXTRA_CONNECT_ADDRESS, "127.0.0.1")
             intent.putExtra(GameActivity.EXTRA_CONNECT_PORT, launchLocalServerPort)
             intent.putExtra(GameActivity.EXTRA_LOCAL_HOST_MODE, true)
+            UpdateLog.write(this, "game_start", "mode=host endpoint=127.0.0.1:$launchLocalServerPort")
 
             val startAndLaunch = {
                 ServerController.start(this, prefs.getBoolean(ServerController.PREF_AUTO_RESTART, true))
@@ -358,6 +428,13 @@ class MainActivity : AppCompatActivity() {
                 startAndLaunch()
             }
         } else {
+            // Pass the endpoint selected by the launcher explicitly. This
+            // prevents GameActivity from falling back to its default localhost
+            // value if Android returns from the updater while preferences are
+            // still being committed.
+            intent.putExtra(GameActivity.EXTRA_CONNECT_ADDRESS, launchServerAddress)
+            intent.putExtra(GameActivity.EXTRA_CONNECT_PORT, launchServerPort)
+            UpdateLog.write(this, "game_start", "mode=remote endpoint=$launchServerAddress:$launchServerPort")
             finish()
             this@MainActivity.startActivityForResult(intent, 1)
         }
@@ -528,9 +605,19 @@ class MainActivity : AppCompatActivity() {
                 // Regenerate the fallback file in case user edits their Morrowind.ini
                 inst.convertIni(prefs.getString("pref_encoding", GameInstaller.DEFAULT_CHARSET_PREF)!!)
 
-                // Persist editable IP/port and current content order. complete=true
-                // preserves the endpoint supplied by the package manifest.
-                val launchManifest = BuildManifest.writeFromDatabase(this)
+                // Persist editable IP/port and current content order. A locked
+                // complete=true manifest is kept byte-for-byte in terms of its
+                // endpoint and is not regenerated from stale preferences.
+                val existingManifest = BuildManifest.read(this)
+                val launchManifest = if (existingManifest?.complete == true)
+                    existingManifest
+                else
+                    BuildManifest.writeFromDatabase(this)
+
+                launchServerAddress = BuildManifest.connectionAddress(launchManifest)
+                    .trim().ifBlank { BuildManifest.DEFAULT_SERVER_ADDRESS }
+                launchServerPort = BuildManifest.connectionPort(launchManifest)
+                    .trim().ifBlank { BuildManifest.DEFAULT_SERVER_PORT }
 
                 // Local host mode is controlled by the launcher "Run server" checkbox.
                 // The build.ini endpoint always remains the remote/distributed endpoint;

@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="arena_action_play">Играть</string>
+    <string name="arena_action_update">Обновить</string>
+    <string name="arena_update_log_hint">Подробности: %1$s</string>
     <string name="arena_update_title">Обновление ArenaMP</string>
     <string name="arena_update_check">Проверка обновлений…</string>
     <string name="arena_update_engine">Скачивание APK движка…</string>
     <string name="arena_update_content">Скачивание обновления сборки…</string>
     <string name="arena_update_extract">Установка обновления сборки…</string>
+    <string name="arena_update_install_permission">Разрешите установку из этого источника в настройках Android и снова нажмите «Обновить».</string>
+    <string name="arena_update_install_cancelled">Установка APK отменена или не завершилась. Скачанный APK сохранён; разрешите установку и повторите обновление.</string>
     <string name="arena_alt_server">Подключиться к другому серверу</string>
     <string name="arena_alt_address">Адрес другого сервера</string>
     <string name="arena_alt_port">Порт другого сервера</string>

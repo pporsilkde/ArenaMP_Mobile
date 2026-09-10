@@ -233,24 +233,15 @@ public final class ContentUpdate {
             String relative = payload.toURI().relativize(source.toURI()).getPath();
             String first = relative.split("/")[0].toLowerCase(Locale.ROOT);
             if (first.equals("build.ini") || first.equals("check.ini") || first.equals("openmw.cfg")
+                    || first.equals("update.log") || first.equals("update.log.old")
                     || first.equals("settings.cfg") || first.equals("launcher.cfg") || first.startsWith(".arena-"))
                 throw new IOException("Content ZIP contains client configuration");
             destinations.add(inside(data, relative));
         }
         // Version changes participate in the same transaction as content and are always last.
         File versionFile = new File(payload.getParentFile(), "updated-build.ini");
-        String text = readText(manifest);
-        StringBuilder updated = new StringBuilder();
-        String section = ""; boolean found = false;
-        for (String line : text.split("\\r?\\n", -1)) {
-            String trimmed = line.trim().replace("\uFEFF", "");
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) section = trimmed.substring(1, trimmed.length() - 1).toLowerCase(Locale.ROOT);
-            if ((section.isEmpty() || section.equals("build") || section.equals("general") || section.equals("manifest"))
-                    && trimmed.matches("(?i)version\\s*=.*")) { line = "version=" + version; found = true; }
-            updated.append(line).append('\n');
-        }
-        if (!found) updated.append("\n[Build]\nversion=").append(version).append('\n');
-        try (OutputStream out = new FileOutputStream(versionFile)) { out.write(updated.toString().getBytes(StandardCharsets.UTF_8)); }
+        String updated = revisionText(readText(manifest), "version", version);
+        try (OutputStream out = new FileOutputStream(versionFile)) { out.write(updated.getBytes(StandardCharsets.UTF_8)); }
         files.add(versionFile); destinations.add(manifest);
         Properties p = new Properties(); p.setProperty("state", "applying");
         // Persist all rollback intent once before any replacement. This is linear
@@ -283,6 +274,35 @@ public final class ContentUpdate {
         } catch (IOException | RuntimeException e) { recover(journal); throw e; }
         recover(journal);
     }
+    private static String revisionText(String text, String key, String version) throws IOException {
+        revision(version);
+        StringBuilder updated = new StringBuilder();
+        String section = ""; boolean found = false;
+        for (String line : text.split("\\r?\\n", -1)) {
+            String trimmed = line.trim().replace("\uFEFF", "");
+            if (trimmed.startsWith("[") && trimmed.endsWith("]"))
+                section = trimmed.substring(1, trimmed.length() - 1).trim().toLowerCase(Locale.ROOT);
+            if ((section.isEmpty() || section.equals("build") || section.equals("general") || section.equals("manifest"))
+                    && trimmed.matches("(?i)" + key + "\\s*=.*")) { line = key + "=" + version; found = true; }
+            updated.append(line).append('\n');
+        }
+        if (!found) updated.append("\n[Build]\n").append(key).append('=').append(version).append('\n');
+        return updated.toString();
+    }
+
+    /** Acknowledge the installed APK without regenerating server/content configuration. */
+    public static void stampEngineBuild(File manifest, String build) throws IOException {
+        String updated = revisionText(readText(manifest), "build", build);
+        File temp = new File(manifest.getPath() + ".arena-stamp");
+        try {
+            try (FileOutputStream out = new FileOutputStream(temp)) {
+                out.write(updated.getBytes(StandardCharsets.UTF_8));
+                out.getFD().sync();
+            }
+            rename(temp, manifest);
+        } finally { if (temp.exists()) temp.delete(); }
+    }
+
     public static String readText(File file) throws IOException {
         try (InputStream in = new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] b = new byte[8192]; int n;

@@ -61,6 +61,17 @@
                 android:layout_weight="4"
                 android:background="@color/bgPrimary" />
 
+            <TextView
+                android:id="@+id/fab_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_marginEnd="104dp"
+                android:layout_marginBottom="34dp"
+                android:text="@string/arena_action_play"
+                android:textColor="@color/toolbarTitle"
+                android:textSize="16sp" />
+
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/fab"
                 android:layout_width="wrap_content"

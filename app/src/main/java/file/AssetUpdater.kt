@@ -38,6 +38,7 @@ object AssetUpdater {
 
     @Synchronized
     fun ensureClientInstalled(ctx: Context) {
+        UpdateLog.write(ctx, "assets_check", "apk=${ctx.applicationInfo.sourceDir}")
         val root = ctx.filesDir.canonicalFile
         AssetTransaction.recover(root)
         val expected = fingerprint(ctx, "libopenmw")
@@ -46,6 +47,7 @@ object AssetUpdater {
             && File(Constants.RESOURCES, "version").isFile
             && File(Constants.DEFAULTS_BIN).isFile
         if (!ready) {
+            UpdateLog.write(ctx, "assets_install", "old=${if (marker.isFile) marker.readText().trim() else "missing"} expected=$expected")
             val stage = File(root, ".arena-client-assets-stage")
             ContentUpdate.deleteTree(stage)
             check(stage.mkdirs()) { "Cannot create asset staging directory" }
@@ -56,8 +58,9 @@ object AssetUpdater {
                 check(File(stage, "resources/version").isFile) { "APK has no resources/version" }
                 check(File(stage, "config/defaults.bin").isFile) { "APK has no defaults.bin" }
                 AssetTransaction.apply(root, stage, listOf("resources", "config"), "client-assets.sha256", expected)
+                UpdateLog.write(ctx, "assets_installed", "fingerprint=$expected; resources and config replaced")
             } finally { ContentUpdate.deleteTree(stage) }
-        }
+        } else UpdateLog.write(ctx, "assets_current", "fingerprint=$expected")
         File(Constants.USER_CONFIG).mkdirs()
         val userConfig = File(Constants.USER_OPENMW_CFG)
         if (!userConfig.exists()) userConfig.writeText("# User openmw.cfg\n")

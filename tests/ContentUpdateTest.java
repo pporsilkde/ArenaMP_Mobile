@@ -45,6 +45,14 @@ public class ContentUpdateTest {
             expect(result.contains("version=00002") && result.contains("build=00005"),"independent version stamp");
             expect(result.contains("address=178.20.47.31") && result.contains("content=A.esm\ncontent=B.esm"),"manifest order and server preserved");
             expect(!journal.exists(),"committed journal cleaned");
+            ContentUpdate.stampEngineBuild(manifest, "00006");
+            String engineStamped = ContentUpdate.readText(manifest);
+            expect(engineStamped.contains("version=00002") && engineStamped.contains("build=00006"), "APK stamp only advances engine");
+            expect(engineStamped.contains("# comment") && engineStamped.contains("address=178.20.47.31")
+                && engineStamped.contains("content=A.esm\ncontent=B.esm"), "APK stamp preserves endpoint, comments and plugin order");
+            try { ContentUpdate.stampEngineBuild(manifest, "broken"); throw new AssertionError("invalid build accepted"); }
+            catch (IOException expected) { checks++; }
+            expect(ContentUpdate.readText(manifest).equals(engineStamped), "failed APK stamp preserves manifest");
             for (String path : new String[]{"../escape", "/absolute", "C:/evil", "a/../../evil", "test:ads"}) {
                 try {
                     ContentUpdate.extract(zip(root,"bad.zip",path,"bad"),new File(root,"badstage"+checks),new AtomicBoolean(false));
