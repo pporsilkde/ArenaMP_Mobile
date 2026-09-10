@@ -227,9 +227,9 @@ class GameActivity : SDLActivity() {
         val manifest = BuildManifest.ensure(this)
         val localHostMode = intent?.getBooleanExtra(EXTRA_LOCAL_HOST_MODE, false) == true
         val serverIp = intent?.getStringExtra(EXTRA_CONNECT_ADDRESS)?.trim()?.takeIf { it.isNotEmpty() }
-            ?: manifest.serverAddress.trim().ifEmpty { BuildManifest.DEFAULT_SERVER_ADDRESS }
+            ?: BuildManifest.connectionAddress(manifest).trim().ifEmpty { BuildManifest.DEFAULT_SERVER_ADDRESS }
         val serverPort = intent?.getStringExtra(EXTRA_CONNECT_PORT)?.trim()?.takeIf { it.isNotEmpty() }
-            ?: manifest.serverPort.trim().ifEmpty { BuildManifest.DEFAULT_SERVER_PORT }
+            ?: BuildManifest.connectionPort(manifest).trim().ifEmpty { BuildManifest.DEFAULT_SERVER_PORT }
         val connectTarget = if (serverPort.isEmpty()) serverIp else "$serverIp:$serverPort"
 
         val cmd = buildString {

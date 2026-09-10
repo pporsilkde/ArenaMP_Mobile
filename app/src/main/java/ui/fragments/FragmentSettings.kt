@@ -260,11 +260,17 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String) {
         updatePreference(findPreference(key), key)
+        if (key == "pref_use_alt_server" || key == "pref_alt_address" || key == "pref_alt_port") {
+            BuildManifest.updateAlternativeFromPreferences(activity)
+            if (key == "pref_use_alt_server" && sharedPreferences.getBoolean(key, false))
+                sharedPreferences.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
+        }
         if (key == "pref_server_ip" || key == "pref_server_port")
             BuildManifest.updateConnectionFromPreferences(activity)
         if (key == ServerController.PREF_SERVER_ENABLED) {
             val enabled = sharedPreferences.getBoolean(ServerController.PREF_SERVER_ENABLED, false)
             if (enabled) {
+                sharedPreferences.edit().putBoolean("pref_use_alt_server", false).apply()
                 try {
                     ServerRuntime.ensureInstalled(activity)
                     ServerController.start(activity, sharedPreferences.getBoolean(ServerController.PREF_AUTO_RESTART, true))
@@ -298,6 +304,9 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         val locked = manifest?.complete == true
         val serverEnabled = preferenceScreen.sharedPreferences
             .getBoolean(ServerController.PREF_SERVER_ENABLED, false)
+        val alternative = preferenceScreen.sharedPreferences.getBoolean("pref_use_alt_server", false)
+        findPreference("pref_alt_address")?.isEnabled = alternative && !serverEnabled
+        findPreference("pref_alt_port")?.isEnabled = alternative && !serverEnabled
         val ip = findPreference("pref_server_ip")
         val port = findPreference("pref_server_port")
         val toggle = findPreference(ServerController.PREF_SERVER_ENABLED) as? CheckBoxPreference

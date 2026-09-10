@@ -3,6 +3,9 @@
 	<PreferenceCategory android:title="@string/general_settings" android:key="general_settings">
 		<Preference android:title="@string/game_files" android:key="game_files" />
 		<Preference android:title="@string/mods" android:key="pref_mods" />
+        <CheckBoxPreference android:title="@string/arena_alt_server" android:key="pref_use_alt_server" android:defaultValue="false" />
+        <EditTextPreference android:title="@string/arena_alt_address" android:key="pref_alt_address" android:defaultValue="" android:inputType="textUri" />
+        <EditTextPreference android:title="@string/arena_alt_port" android:key="pref_alt_port" android:defaultValue="25565" android:inputType="number" />
         <EditTextPreference android:title="@string/pref_server_ip" android:key="pref_server_ip" android:defaultValue="@string/pref_server_ip_default" android:dialogTitle="@string/pref_server_ip" android:inputType="textUri" />
         <EditTextPreference android:title="@string/pref_server_port" android:key="pref_server_port" android:defaultValue="@string/pref_server_port_default" android:dialogTitle="@string/pref_server_port" android:inputType="number" />
         <CheckBoxPreference android:title="@string/server_run_toggle" android:key="pref_server_enabled" android:defaultValue="false" android:summary="@string/server_run_toggle_summary" />

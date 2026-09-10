@@ -1,5 +1,9 @@
 package server
 
+import file.AssetTransaction
+import file.AssetUpdater
+import file.ContentUpdate
+import file.utils.CopyFilesFromAssets
 import android.content.Context
 import android.os.Environment
 import android.util.Log
@@ -116,8 +120,9 @@ object ServerRuntime {
 
     @Synchronized
     fun ensureInstalled(ctx: Context) {
-        val runtime = root(ctx)
+        val runtime = root(ctx).canonicalFile
         runtime.mkdirs()
+        AssetTransaction.recover(runtime)
         configDir(ctx).mkdirs()
 
         // CoreScripts expect these default folders to exist before the first
@@ -128,13 +133,45 @@ object ServerRuntime {
 
         val packagedStamp = ctx.assets.open("$ASSET_ROOT/runtime-stamp.txt")
             .bufferedReader().use { it.readText().trim() }
-        val installedStamp = runtimeStamp(ctx).takeIf { it.isFile }?.readText()?.trim().orEmpty()
+        // APK assets can change while the network/version stamp stays identical.
+        val fingerprint = AssetUpdater.fingerprint(ctx, ASSET_ROOT)
+        val expected = packagedStamp + "\n" + fingerprint
+        val deployedStamp = File(runtime, "server-assets.sha256")
+        val installedStamp = deployedStamp.takeIf { it.isFile }?.readText()?.trim().orEmpty()
 
-        if (installedStamp != packagedStamp || !File(serverHome(ctx), "scripts/serverCore.lua").isFile) {
-            Log.i(TAG, "Refreshing portable server core: $installedStamp -> $packagedStamp at ${runtime.absolutePath}")
-            copyAssetTree(ctx, "$ASSET_ROOT/server", serverHome(ctx), false)
-            copyAssetTree(ctx, "$ASSET_ROOT/resources", File(runtime, "resources"), false)
-            copyAssetTree(ctx, "$ASSET_ROOT/tes3mp-server-default.cfg", File(runtime, "tes3mp-server-default.cfg"), false)
+        if (installedStamp != expected || !File(serverHome(ctx), "scripts/serverCore.lua").isFile
+                || !File(runtime, "resources/version").isFile) {
+            Log.i(TAG, "Refreshing packaged server assets at ${runtime.absolutePath}")
+            // Preserve a legacy user config BEFORE swapping the managed scripts directory.
+            val persistentBefore = persistentScriptConfig(ctx)
+            val runtimeBefore = runtimeScriptConfig(ctx)
+            if (!persistentBefore.exists() && runtimeBefore.isFile) {
+                persistentBefore.parentFile?.mkdirs()
+                runtimeBefore.copyTo(persistentBefore, overwrite = false)
+            }
+            val stage = File(runtime, ".arena-server-assets-stage")
+            ContentUpdate.deleteTree(stage)
+            check(stage.mkdirs()) { "Cannot create server asset staging directory" }
+            try {
+                val copier = CopyFilesFromAssets(ctx)
+                val paths = arrayListOf<String>()
+                val children = ctx.assets.list("$ASSET_ROOT/server") ?: emptyArray()
+                for (name in children) {
+                    // Saved players/world/cells/custom quests are never directory-swapped.
+                    if (name == "data") continue
+                    val relative = "server/$name"
+                    copier.copy("$ASSET_ROOT/$relative", File(stage, relative).absolutePath)
+                    paths.add(relative)
+                }
+                copier.copy("$ASSET_ROOT/resources", File(stage, "resources").absolutePath)
+                copier.copy("$ASSET_ROOT/tes3mp-server-default.cfg", File(stage, "tes3mp-server-default.cfg").absolutePath)
+                paths.add("resources")
+                paths.add("tes3mp-server-default.cfg")
+                check(File(stage, "server/scripts/serverCore.lua").isFile) { "Packaged server core is missing" }
+                // Add newly shipped default data, preserving ALL existing server data.
+                copyAssetTree(ctx, "$ASSET_ROOT/server/data", File(runtime, "server/data"), true)
+                AssetTransaction.apply(runtime, stage, paths, "server-assets.sha256", expected)
+            } finally { ContentUpdate.deleteTree(stage) }
             runtimeStamp(ctx).writeText(packagedStamp)
         }
 

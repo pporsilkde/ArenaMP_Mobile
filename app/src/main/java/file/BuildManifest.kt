@@ -20,6 +20,17 @@ object BuildManifest {
     private const val LEGACY_NETWORK_COMMIT_HASH_V126 = "ba8cf3b139c50b3f8e08069afee964294ad8fdbb"
 
     data class Data(
+        var useAlternativeServer: Boolean = false,
+        var contentVersion: String = "00000",
+        var engineBuild: String = "00000",
+        var projectUrl: String = "",
+        var checkUrl: String = "",
+        var windowsUrl: String = "",
+        var linuxUrl: String = "",
+        var macosUrl: String = "",
+        var androidUrl: String = "",
+        var altAddress: String = "",
+        var altPort: String = "25565",
         var formatVersion: Int = 1,
         var name: String = "ArenaMP",
         var updateUrl: String = "",
@@ -45,7 +56,7 @@ object BuildManifest {
         return parent.listFiles()?.firstOrNull { it.name.toLowerCase() == wanted }
     }
 
-    private fun manifestFile(ctx: Context): File? {
+    fun manifestFile(ctx: Context): File? {
         val rootPath = PreferenceManager.getDefaultSharedPreferences(ctx).getString("game_files", "") ?: ""
         if (rootPath.isBlank()) return null
         val root = File(rootPath)
@@ -135,10 +146,21 @@ object BuildManifest {
             val value = unquote(line.substring(eq + 1))
 
             when {
-                isBuildSection(section) && (key == "format" || key == "version") ->
+                isBuildSection(section) && key == "format" ->
                     value.toIntOrNull()?.takeIf { it > 0 }?.let { out.formatVersion = it }
+                isBuildSection(section) && key == "version" -> out.contentVersion = value.trim()
+                isBuildSection(section) && key == "build" -> out.engineBuild = value.trim()
+                isBuildSection(section) && key == "url" -> out.projectUrl = value.trim()
+                isBuildSection(section) && key == "url_check" -> out.checkUrl = value.trim()
+                isBuildSection(section) && key == "url_win" -> out.windowsUrl = value.trim()
+                isBuildSection(section) && key == "url_linux" -> out.linuxUrl = value.trim()
+                isBuildSection(section) && key == "url_macos" -> out.macosUrl = value.trim()
+                isBuildSection(section) && key == "url_android" -> out.androidUrl = value.trim()
+                isServerSection(section) && (key == "alt_adress" || key == "alt_address") -> out.altAddress = value.trim()
+                isServerSection(section) && key == "alt_port" -> out.altPort = value.trim()
+                isServerSection(section) && key == "use_alt_server" -> out.useAlternativeServer = parseBool(value)
                 isBuildSection(section) && (key == "name" || key == "build-name") -> out.name = value
-                isBuildSection(section) && (key == "update" || key == "update-url" || key == "update_url") -> out.updateUrl = value.trim()
+                isBuildSection(section) && (key == "url_update" || key == "update" || key == "update-url" || key == "update_url") -> out.updateUrl = value.trim()
                 isBuildSection(section) && (key == "data" || key == "data-path" || key == "datafiles") -> out.dataPath = value
                 key == "language" || key == "locale"
                     || ((section == "language" || section == "locale")
@@ -197,6 +219,17 @@ object BuildManifest {
         val prefPort = prefs.getString("pref_server_port", DEFAULT_SERVER_PORT)?.trim().orEmpty()
 
         val out = Data(
+            useAlternativeServer = existing?.useAlternativeServer ?: false,
+            contentVersion = existing?.contentVersion ?: "00000",
+            engineBuild = existing?.engineBuild ?: "00000",
+            projectUrl = existing?.projectUrl ?: "",
+            checkUrl = existing?.checkUrl ?: "",
+            windowsUrl = existing?.windowsUrl ?: "",
+            linuxUrl = existing?.linuxUrl ?: "",
+            macosUrl = existing?.macosUrl ?: "",
+            androidUrl = existing?.androidUrl ?: "",
+            altAddress = existing?.altAddress ?: "",
+            altPort = existing?.altPort ?: "25565",
             formatVersion = existing?.formatVersion?.takeIf { it > 0 } ?: 1,
             name = existing?.name?.takeIf { it.isNotBlank() } ?: "ArenaMP",
             updateUrl = existing?.updateUrl?.trim().orEmpty(),
@@ -221,7 +254,7 @@ object BuildManifest {
         return out
     }
 
-    private fun writeData(ctx: Context, out: Data): Data {
+    fun writeData(ctx: Context, out: Data): Data {
         val f = manifestFile(ctx) ?: return out
         f.parentFile?.mkdirs()
         val text = buildString {
@@ -230,11 +263,22 @@ object BuildManifest {
             append("[Build]\n")
             append("format=").append(if (out.formatVersion > 0) out.formatVersion else 1).append('\n')
             append("name=").append(quote(out.name.ifBlank { "ArenaMP" })).append('\n')
-            if (out.updateUrl.isNotBlank()) append("update=").append(quote(out.updateUrl.trim())).append('\n')
+            if (out.updateUrl.isNotBlank()) append("url_update=").append(quote(out.updateUrl.trim())).append('\n')
             append("data-path=").append(quote(out.dataPath)).append('\n')
             append("language=").append(quote(languageCode(out.language))).append('\n')
             append("complete=").append(if (out.complete) "true" else "false").append("\n\n")
-            append("[Server]\n")
+            append("version=").append(quote(out.contentVersion)).append('\n')
+            append("build=").append(quote(out.engineBuild)).append('\n')
+            append("url=").append(quote(out.projectUrl)).append('\n')
+            append("url_check=").append(quote(out.checkUrl)).append('\n')
+            append("url_win=").append(quote(out.windowsUrl)).append('\n')
+            append("url_linux=").append(quote(out.linuxUrl)).append('\n')
+            append("url_macos=").append(quote(out.macosUrl)).append('\n')
+            append("url_android=").append(quote(out.androidUrl)).append('\n')
+            append("\n[Server]\n")
+            append("alt_adress=").append(quote(out.altAddress)).append('\n')
+            append("alt_port=").append(quote(out.altPort)).append('\n')
+            append("use_alt_server=").append(out.useAlternativeServer).append('\n')
             if (out.serverAddressSpecified) append("address=").append(quote(out.serverAddress)).append('\n')
             if (out.serverPortSpecified) append("port=").append(quote(out.serverPort)).append('\n')
             append("vanilla-build-server=").append(if (out.vanillaServerCompatibility) "true" else "false").append('\n')
@@ -247,7 +291,15 @@ object BuildManifest {
             append("\n[Archives]\n")
             out.archives.forEach { append("archive=").append(quote(it)).append('\n') }
         }
-        f.writeText(text)
+        val atomic = android.util.AtomicFile(f)
+        val stream = atomic.startWrite()
+        try {
+            stream.write(text.toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(stream)
+        } catch (e: Throwable) {
+            atomic.failWrite(stream)
+            throw e
+        }
         return out
     }
 
@@ -316,6 +368,9 @@ object BuildManifest {
     fun syncConnectionPreferences(ctx: Context): Data? {
         val m = read(ctx) ?: return null
         PreferenceManager.getDefaultSharedPreferences(ctx).edit()
+            .putBoolean("pref_use_alt_server", m.useAlternativeServer)
+            .putString("pref_alt_address", m.altAddress)
+            .putString("pref_alt_port", m.altPort)
             .putString("pref_server_ip", m.serverAddress.ifBlank { DEFAULT_SERVER_ADDRESS })
             .putString("pref_server_port", m.serverPort.ifBlank { DEFAULT_SERVER_PORT })
             .apply()
@@ -356,6 +411,18 @@ object BuildManifest {
         existing.serverPortSpecified = true
         writeData(ctx, existing)
     }
+
+    fun updateAlternativeFromPreferences(ctx: Context) {
+        val m = read(ctx) ?: return
+        val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+        m.useAlternativeServer = prefs.getBoolean("pref_use_alt_server", false)
+        m.altAddress = prefs.getString("pref_alt_address", "").orEmpty().trim()
+        m.altPort = prefs.getString("pref_alt_port", DEFAULT_SERVER_PORT).orEmpty().trim()
+        writeData(ctx, m)
+    }
+
+    fun connectionAddress(m: Data): String = if (m.useAlternativeServer) m.altAddress else m.serverAddress
+    fun connectionPort(m: Data): String = if (m.useAlternativeServer) m.altPort else m.serverPort
 
     private fun applySelectionToDatabase(
         ctx: Context,

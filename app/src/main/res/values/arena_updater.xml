@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_update_title">ArenaMP update</string>
+    <string name="arena_update_check">Checking for updates…</string>
+    <string name="arena_update_engine">Downloading engine APK…</string>
+    <string name="arena_update_content">Downloading content update…</string>
+    <string name="arena_update_extract">Installing content update…</string>
+    <string name="arena_alt_server">Connect to another server</string>
+    <string name="arena_alt_address">Alternative server address</string>
+    <string name="arena_alt_port">Alternative server port</string>
+    <string name="arena_alt_invalid">Enter an address and a port from 1 to 65535.</string>
+    <string name="arena_update_assets">Updating resources from the installed APK…</string>
+</resources>

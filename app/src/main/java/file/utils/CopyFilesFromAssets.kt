@@ -37,41 +37,22 @@ class CopyFilesFromAssets(private val context: Context) {
      * @param src Source directory in assets
      * @param dst Destination directory on disk, absolute path
      */
+    @Throws(IOException::class)
     fun copy(src: String, dst: String) {
-        val assetManager = context.assets
-        try {
-            val assets = assetManager.list(src) ?: return
-            if (assets.isEmpty()) {
-                copyFile(src, dst)
-            } else {
-                // Recurse into a subdirectory
-                val dir = File(dst)
-                if (!dir.exists())
-                    dir.mkdirs()
-                for (i in assets.indices) {
-                    copy(src + "/" + assets[i], dst + "/" + assets[i])
+        val children = context.assets.list(src) ?: throw IOException("Cannot list APK assets: $src")
+        val target = File(dst)
+        if (children.isEmpty()) {
+            if (target.parentFile?.isDirectory != true && target.parentFile?.mkdirs() != true)
+                throw IOException("Cannot create asset directory: $dst")
+            context.assets.open(src).use { input ->
+                FileOutputStream(target).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
                 }
             }
-        } catch (ex: IOException) {
-        }
-    }
-
-    /**
-     * Copies a single file from assets to disk
-     * @param src Path of source file inside assets
-     * @param dst Absolute path to destination file on disk
-     */
-    private fun copyFile(src: String, dst: String) {
-        try {
-            val inp = context.assets.open(src)
-            val out = FileOutputStream(dst)
-
-            inp.copyTo(out)
-            out.flush()
-
-            inp.close()
-            out.close()
-        } catch (e: IOException) {
+        } else {
+            if (!target.isDirectory && !target.mkdirs()) throw IOException("Cannot create asset directory: $dst")
+            children.forEach { copy("$src/$it", File(target, it).absolutePath) }
         }
     }
 }

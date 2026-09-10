@@ -27,7 +27,9 @@ android {
 
     defaultConfig {
         applicationId "com.mrzer0x0.arenamp"
-        versionCode 47
+        // CI run numbers increase for each published APK; local builds retain a
+        // predictable fallback. Override ARENA_ANDROID_VERSION_CODE for releases.
+        versionCode (System.getenv('ARENA_ANDROID_VERSION_CODE')?.toInteger() ?: 48)
         versionName calculateVersion()
 
         minSdkVersion 21
@@ -47,12 +49,27 @@ android {
         sourceCompatibility 1.8
     }
 
+    // Updates require the same signing identity for every APK. CI can supply
+    // the existing release keystore; no private signing key is stored in source.
+    signingConfigs {
+        arenaUpdate {
+            if (System.getenv('ARENA_ANDROID_KEYSTORE_PATH')) {
+                storeFile file(System.getenv('ARENA_ANDROID_KEYSTORE_PATH'))
+                storePassword System.getenv('ARENA_ANDROID_STORE_PASSWORD')
+                keyAlias System.getenv('ARENA_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ARENA_ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (System.getenv('ARENA_ANDROID_KEYSTORE_PATH')) signingConfig signingConfigs.arenaUpdate
             minifyEnabled false
         }
 
         debug {
+            if (System.getenv('ARENA_ANDROID_KEYSTORE_PATH')) signingConfig signingConfigs.arenaUpdate
             debuggable false
             //applicationIdSuffix ".debug"
             //debuggable true

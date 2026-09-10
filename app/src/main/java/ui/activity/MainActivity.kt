@@ -48,6 +48,9 @@ import com.libopenmw.openmw.R
 import constants.Constants
 import file.GameInstaller
 import file.GraphicsPresets
+import file.AssetUpdater
+import file.ContentUpdate
+import file.LauncherUpdater
 import file.BuildManifest
 import file.UpdateDownloader
 import server.ServerConfig
@@ -127,25 +130,9 @@ class MainActivity : AppCompatActivity() {
         }
         fab.setOnClickListener { checkStartGame() }
 
-        // build.ini is authoritative for distributed updates. The update
-        // button is only shown when [Build] update= contains a direct ZIP URL.
         findViewById<ImageButton?>(R.id.btn_update)?.setOnClickListener {
-            val manifest = BuildManifest.read(this)
-            val gameFiles = prefs.getString("game_files", "") ?: ""
-            UpdateDownloader.startUpdate(this, gameFiles, manifest?.updateUrl.orEmpty()) {
-                // The ZIP is extracted into the build root and may contain a
-                // new build.ini, Data Files content and a new launcher name.
-                // Re-import everything immediately without requiring restart.
-                try {
-                    val encoding = prefs.getString(
-                        "pref_encoding", GameInstaller.DEFAULT_CHARSET_PREF
-                    ) ?: GameInstaller.DEFAULT_CHARSET_PREF
-                    BuildManifest.syncSelectedGame(this, encoding)
-                    val language = ServerScriptConfig.applyLauncherLanguage(this)
-                    BuildManifest.syncLanguageAtStartup(this, language)
-                } catch (e: Throwable) {
-                    Log.w(TAG, "Could not resynchronize updated build", e)
-                }
+            LauncherUpdater.beforeLaunch(this) {
+                BuildManifest.applyToDatabase(this)
                 refreshManifestUi()
             }
         }
@@ -153,7 +140,9 @@ class MainActivity : AppCompatActivity() {
 
         // Globe icon -> opens morrowind.site
         findViewById<ImageButton?>(R.id.btn_globe)?.setOnClickListener {
-            openUrl(UpdateDownloader.MORROWIND_SITE)
+            val link = BuildManifest.read(this)?.projectUrl.orEmpty()
+            try { openUrl(ContentUpdate.url(link.ifBlank { UpdateDownloader.MORROWIND_SITE })) }
+            catch (e: Exception) { Log.w(TAG, "Invalid project URL", e) }
         }
 
         if (prefs.getString("bugsnag_consent", "")!! == "") {
@@ -163,6 +152,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        try { LauncherUpdater.reconcileInstalledApk(this) }
+        catch (e: Exception) { Log.w(TAG, "Could not acknowledge installed APK", e) }
         // Keep the Android mod database aligned with an externally supplied
         // desktop build.ini as soon as the launcher becomes active. This also
         // covers replacing/editing build.ini while the app was in background;
@@ -185,7 +176,7 @@ class MainActivity : AppCompatActivity() {
         title = launcherName
 
         val updateButton = findViewById<ImageButton?>(R.id.btn_update)
-        val hasUpdate = !manifest?.updateUrl.isNullOrBlank()
+        val hasUpdate = !manifest?.checkUrl.isNullOrBlank()
         updateButton?.visibility = if (hasUpdate) View.VISIBLE else View.GONE
         updateButton?.isEnabled = hasUpdate
     }
@@ -265,6 +256,11 @@ class MainActivity : AppCompatActivity() {
      * - the game files must be selected
      * - there must be at least 1 activated mod (user can ignore this warning)
      */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        LauncherUpdater.onActivityResult(this, requestCode)
+    }
+
     private fun checkStartGame() {
         // First, check that there are game files present
         val inst = GameInstaller(prefs.getString("game_files", "")!!)
@@ -280,6 +276,20 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        val manifest = BuildManifest.read(this)
+        if (manifest?.useAlternativeServer == true) {
+            val port = manifest.altPort.toIntOrNull()
+            if (manifest.altAddress.isBlank() || port == null || port !in 1..65535) {
+                AlertDialog.Builder(this).setMessage(R.string.arena_alt_invalid)
+                    .setPositiveButton(android.R.string.ok, null).show()
+                return
+            }
+        }
+        LauncherUpdater.beforeLaunch(this) { checkStartGameAfterUpdate() }
+    }
+
+    private fun checkStartGameAfterUpdate() {
+        val inst = GameInstaller(prefs.getString("game_files", "")!!)
         // build.ini is authoritative when present, just like desktop ArenaMP.
         BuildManifest.applyToDatabase(this)
 
@@ -432,80 +442,8 @@ class MainActivity : AppCompatActivity() {
      * Removes old and creates new files located in private application directories
      * (i.e. under getFilesDir(), or /data/data/.../files)
      */
-    private fun normalizeVersionText(value: String): String {
-        return value.replace("\r\n", "\n").replace('\r', '\n').trim()
-    }
-
-    /**
-     * TES3MP uses resources/version as part of the low-level RakNet connection
-     * password (version + protocol + commit hash).  VERSION_CODE alone is not a
-     * sufficient resource deployment stamp because Android development builds
-     * can be rebuilt from a newer AMP commit without changing the Java version.
-     */
-    private fun bundledResourcesVersion(): String {
-        return assets.open("libopenmw/resources/version").bufferedReader().use {
-            normalizeVersionText(it.readText())
-        }
-    }
-
-    private fun installedResourcesVersion(): String {
-        val versionFile = File(Constants.RESOURCES, "version")
-        if (!versionFile.isFile)
-            return ""
-        return normalizeVersionText(versionFile.readText())
-    }
-
-    private fun staticFilesNeedReinstall(): Boolean {
-        val stampMatches = try {
-            File(Constants.VERSION_STAMP).readText().trim().toInt() == BuildConfig.VERSION_CODE
-        } catch (_: Exception) {
-            false
-        }
-
-        val bundledVersion = try {
-            bundledResourcesVersion()
-        } catch (e: Exception) {
-            Log.e("ArenaMP", "Could not read bundled resources/version", e)
-            return true
-        }
-        val installedVersion = try {
-            installedResourcesVersion()
-        } catch (e: Exception) {
-            Log.w("ArenaMP", "Could not read installed resources/version", e)
-            ""
-        }
-
-        val resourceVersionMatches = bundledVersion.isNotEmpty() && bundledVersion == installedVersion
-        if (!stampMatches || !resourceVersionMatches) {
-            val bundledCommit = bundledVersion.lineSequence().drop(1).firstOrNull().orEmpty().take(10)
-            val installedCommit = installedVersion.lineSequence().drop(1).firstOrNull().orEmpty().take(10)
-            Log.i(
-                "ArenaMP",
-                "Static resource refresh required: versionCodeOk=$stampMatches " +
-                    "bundledCommit=$bundledCommit installedCommit=$installedCommit"
-            )
-        }
-        return !stampMatches || !resourceVersionMatches
-    }
-
     private fun reinstallStaticFiles() {
-        // we store global "config" and "resources" under private files
-
-        // wipe old version first
-        removeStaticFiles()
-
-        // copy in the new version
-        val assetCopier = CopyFilesFromAssets(this)
-        assetCopier.copy("libopenmw/resources", Constants.RESOURCES)
-        assetCopier.copy("libopenmw/openmw", Constants.GLOBAL_CONFIG)
-
-        // set up user config (if not present)
-        File(Constants.USER_CONFIG).mkdirs()
-        if (!File(Constants.USER_OPENMW_CFG).exists())
-            File(Constants.USER_OPENMW_CFG).writeText("# This is the user openmw.cfg. Feel free to modify it as you wish.\n")
-
-        // set version stamp only after the complete resource/config copy succeeds.
-        File(Constants.VERSION_STAMP).writeText(BuildConfig.VERSION_CODE.toString())
+        AssetUpdater.ensureClientInstalled(this)
     }
 
     /**
@@ -514,6 +452,7 @@ class MainActivity : AppCompatActivity() {
     private fun removeStaticFiles() {
         // remove version stamp so that reinstallStaticFiles is called during game launch
         File(Constants.VERSION_STAMP).delete()
+        File(filesDir, "client-assets.sha256").delete()
 
         deleteRecursive(File(Constants.GLOBAL_CONFIG))
         deleteRecursive(File(Constants.RESOURCES))
@@ -582,9 +521,7 @@ class MainActivity : AppCompatActivity() {
                 // Keep deployed resources/version synchronized with the packaged
                 // ArenaMP network identity. Source revision and compatibility commit
                 // are intentionally separate in the Android builder.
-                if (staticFilesNeedReinstall()) {
-                    reinstallStaticFiles()
-                }
+                reinstallStaticFiles()
 
                 val inst = GameInstaller(prefs.getString("game_files", "")!!)
 
