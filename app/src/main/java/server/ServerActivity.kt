@@ -1,6 +1,7 @@
 package server
 
-import ui.theme.ArenaGlass
+import file.UpdateLog
+import android.view.View
 import android.app.AlertDialog
 import android.content.*
 import android.os.Bundle
@@ -34,6 +35,8 @@ class ServerActivity : AppCompatActivity() {
     private lateinit var fullReset: Button
     private var syncingServerToggle = false
     private var selectedMode = -1
+    private var screenReady = false
+    private var preparing = false
     private val handler = Handler()
 
     private val receiver = object : BroadcastReceiver() {
@@ -44,17 +47,78 @@ class ServerActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Use the original server Activity theme until device validation of the
+        // optional glass overlay; the shared color palette is still inherited.
+        setTheme(R.style.MyTheme)
         super.onCreate(savedInstanceState)
+        prepareServerScreen()
+    }
+
+    private fun prepareServerScreen() {
+        if (preparing || isFinishing || isDestroyed) return
+        preparing = true
+        screenReady = false
+        setSupportActionBar(null)
+        val panel = statusPanel(getString(R.string.arena_server_preparing))
+        panel.addView(ProgressBar(this))
+        setContentView(panel)
+        val app = applicationContext
+        Thread {
+            val failure = try {
+                ServerRuntime.ensureInstalled(app)
+                ServerController.initializeDesktopCompatibleDefaults(app)
+                null
+            } catch (e: Exception) { e }
+            runOnUiThread {
+                preparing = false
+                if (!isFinishing && !isDestroyed) {
+                    if (failure != null) showServerFailure(failure)
+                    else try { openServerScreen() } catch (e: Exception) { showServerFailure(e) }
+                }
+            }
+        }.start()
+    }
+
+    private fun statusPanel(message: String): LinearLayout {
+        val padding = (20 * resources.displayMetrics.density).toInt()
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding, padding, padding)
+            addView(TextView(this@ServerActivity).apply {
+                text = message
+                textSize = 16f
+                setTextIsSelectable(true)
+                setPadding(0, 0, 0, padding)
+            })
+        }
+    }
+
+    private fun showServerFailure(error: Exception) {
+        screenReady = false
+        UpdateLog.write(this, "server_screen_error", error.message ?: error.javaClass.simpleName, error)
+        setSupportActionBar(null)
+        val panel = statusPanel(getString(R.string.arena_server_prepare_failed,
+            error.message ?: error.javaClass.simpleName, UpdateLog.path(this)))
+        panel.addView(Button(this).apply {
+            setText(R.string.arena_server_retry)
+            setOnClickListener { prepareServerScreen() }
+        })
+        panel.addView(Button(this).apply {
+            setText(android.R.string.cancel)
+            setOnClickListener { finish() }
+        })
+        setContentView(ScrollView(this).apply { addView(panel) })
+    }
+
+    private fun serverAction(action: () -> Unit) {
+        try { action() } catch (e: Exception) { showServerFailure(e) }
+    }
+
+    private fun openServerScreen() {
         setContentView(R.layout.activity_server)
         setSupportActionBar(findViewById(R.id.server_toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.server_title)
-
-        // MainActivity requests legacy storage permission before this screen is
-        // reachable. ensureInstalled then deploys the writable portable runtime
-        // to /storage/emulated/0/ArenaMP (with an app-external fallback).
-        ServerRuntime.ensureInstalled(this)
-        ServerController.initializeDesktopCompatibleDefaults(this)
 
         status = findViewById(R.id.server_status)
         endpoint = findViewById(R.id.server_endpoint)
@@ -131,8 +195,8 @@ class ServerActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.server_save).setOnClickListener { saveConfig() }
-        findViewById<Button>(R.id.server_edit_script_config).setOnClickListener { showScriptConfigEditor() }
+        findViewById<Button>(R.id.server_save).setOnClickListener { serverAction { saveConfig() } }
+        findViewById<Button>(R.id.server_edit_script_config).setOnClickListener { serverAction { showScriptConfigEditor() } }
         findViewById<Button>(R.id.server_update_hashes).setOnClickListener {
             try {
                 // Match the PC launcher: a generated requiredDataFiles manifest
@@ -147,9 +211,9 @@ class ServerActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG).show()
             }
         }
-        clearCells.setOnClickListener { confirmClearCells() }
-        fullReset.setOnClickListener { confirmFullReset() }
-        findViewById<Button>(R.id.server_start).setOnClickListener {
+        clearCells.setOnClickListener { serverAction { confirmClearCells() } }
+        fullReset.setOnClickListener { serverAction { confirmFullReset() } }
+        findViewById<Button>(R.id.server_start).setOnClickListener { serverAction {
             saveConfig(false)
             if (!autoStart.isChecked) autoStart.isChecked = true
             else {
@@ -162,7 +226,7 @@ class ServerActivity : AppCompatActivity() {
                 }
                 refresh()
             }
-        }
+        } }
         findViewById<Button>(R.id.server_stop).setOnClickListener {
             // Stop is explicit and unconditional. Do not rely on the checkbox
             // listener as an indirect side effect: always send ACTION_STOP.
@@ -178,6 +242,7 @@ class ServerActivity : AppCompatActivity() {
             try { ServerRuntime.logFile(this).writeText("") } catch (_: Throwable) {}
             refresh()
         }
+        screenReady = true
         refresh()
     }
 
@@ -256,7 +321,7 @@ class ServerActivity : AppCompatActivity() {
             addView(editor, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        ArenaGlass.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle(R.string.server_script_config_title)
             .setMessage(getString(R.string.server_script_config_path, file.absolutePath))
             .setView(container)
@@ -285,7 +350,7 @@ class ServerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.server_stop_before_cleanup, Toast.LENGTH_LONG).show()
             return
         }
-        ArenaGlass.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle(R.string.server_clear_cells_confirm_title)
             .setMessage(R.string.server_clear_cells_confirm_message)
             .setNegativeButton(android.R.string.cancel, null)
@@ -303,7 +368,7 @@ class ServerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.server_stop_before_cleanup, Toast.LENGTH_LONG).show()
             return
         }
-        ArenaGlass.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle(R.string.server_full_reset_confirm_title)
             .setMessage(R.string.server_full_reset_confirm_message)
             .setNegativeButton(android.R.string.cancel, null)
@@ -317,6 +382,11 @@ class ServerActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
+        if (!screenReady) return
+        try { refreshReadyScreen() } catch (e: Exception) { showServerFailure(e) }
+    }
+
+    private fun refreshReadyScreen() {
         val cfg = ServerConfig.load(ServerRuntime.userConfig(this))
         val state = ServerRuntime.readStatus(this)
         val running = state == "running"

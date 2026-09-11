@@ -21,7 +21,6 @@
 package file.utils
 
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 
 import android.content.Context
@@ -39,20 +38,6 @@ class CopyFilesFromAssets(private val context: Context) {
      */
     @Throws(IOException::class)
     fun copy(src: String, dst: String) {
-        val children = context.assets.list(src) ?: throw IOException("Cannot list APK assets: $src")
-        val target = File(dst)
-        if (children.isEmpty()) {
-            if (target.parentFile?.isDirectory != true && target.parentFile?.mkdirs() != true)
-                throw IOException("Cannot create asset directory: $dst")
-            context.assets.open(src).use { input ->
-                FileOutputStream(target).use { output ->
-                    input.copyTo(output)
-                    output.fd.sync()
-                }
-            }
-        } else {
-            if (!target.isDirectory && !target.mkdirs()) throw IOException("Cannot create asset directory: $dst")
-            children.forEach { copy("$src/$it", File(target, it).absolutePath) }
-        }
+        ApkAssets.open(context).use { it.copy(src.trimEnd('/'), File(dst), false) }
     }
 }

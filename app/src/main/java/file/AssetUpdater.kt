@@ -5,8 +5,7 @@ import com.libopenmw.openmw.BuildConfig
 import constants.Constants
 import file.utils.CopyFilesFromAssets
 import java.io.File
-import java.security.MessageDigest
-import java.util.zip.ZipFile
+import file.utils.ApkAssets
 
 /** Deployment identity is computed from the actual APK assets, independently
  * of the TES3MP protocol/resources/version identity and build.ini revisions. */
@@ -21,9 +20,10 @@ object AssetUpdater {
      * the freshly installed ones until the process is restarted.
      */
     private fun apkIdentity(ctx: Context): String {
-        val source = File(ctx.applicationInfo.sourceDir)
         val info = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
-        return info.lastUpdateTime.toString() + ":" + source.length() + ":" + source.lastModified()
+        return info.lastUpdateTime.toString() + ":" + ApkAssets.sources(ctx).joinToString(";") {
+            it.path + ":" + it.length() + ":" + it.lastModified()
+        }
     }
 
     @Synchronized
@@ -40,17 +40,7 @@ object AssetUpdater {
     fun fingerprint(ctx: Context, prefix: String): String {
         val identity = apkIdentity(ctx)
         fingerprints[prefix]?.takeIf { it.apkIdentity == identity }?.let { return it.value }
-        val digest = MessageDigest.getInstance("SHA-256")
-        var count = 0
-        ZipFile(ctx.applicationInfo.sourceDir).use { apk ->
-            val entries = apk.entries().toList().filter { !it.isDirectory && it.name.startsWith("assets/$prefix/") }.sortedBy { it.name }
-            for (entry in entries) {
-                digest.update((entry.name + "\u0000" + entry.crc + ":" + entry.size + "\n").toByteArray(Charsets.UTF_8))
-                count++
-            }
-        }
-        check(count > 0) { "APK assets are missing: $prefix" }
-        val result = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+        val result = ApkAssets.open(ctx).use { it.fingerprint(prefix) }
         fingerprints[prefix] = CachedFingerprint(identity, result)
         return result
     }

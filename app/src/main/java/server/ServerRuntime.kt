@@ -4,7 +4,8 @@ import file.AssetTransaction
 import file.AssetUpdater
 import file.UpdateLog
 import file.ContentUpdate
-import file.utils.CopyFilesFromAssets
+import file.utils.ApkAssets
+import file.AssetInstallLock
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Environment
@@ -164,25 +165,6 @@ object ServerRuntime {
         return true
     }
 
-    private fun copyAssetTree(ctx: Context, assetPath: String, target: File, preserveServerData: Boolean) {
-        val children = ctx.assets.list(assetPath) ?: emptyArray()
-        if (children.isEmpty()) {
-            if (preserveServerData && target.exists()) return
-            target.parentFile?.mkdirs()
-            ctx.assets.open(assetPath).use { input ->
-                FileOutputStream(target).use { output -> input.copyTo(output) }
-            }
-            return
-        }
-        target.mkdirs()
-        children.forEach { name ->
-            val childAsset = "$assetPath/$name"
-            val childTarget = File(target, name)
-            val preserve = preserveServerData || childAsset.startsWith("$ASSET_ROOT/server/data/")
-            copyAssetTree(ctx, childAsset, childTarget, preserve)
-        }
-    }
-
     private fun copyMissingTree(source: File, target: File) {
         if (!source.exists()) return
         if (source.isDirectory) {
@@ -227,7 +209,20 @@ object ServerRuntime {
     fun ensureInstalled(ctx: Context) {
         val runtime = root(ctx).canonicalFile
         UpdateLog.write(ctx, "server_assets_check", "runtime=$runtime")
-        runtime.mkdirs()
+        AssetInstallLock(runtime).use {
+            ApkAssets.open(ctx).use { assets ->
+                // Validate before recovering/swapping managed trees. A broken
+                // APK must not discard the last installed scripts or user data.
+                assets.requireFile("$ASSET_ROOT/server/scripts/serverCore.lua")
+                assets.requireFile("$ASSET_ROOT/server/scripts/config.lua")
+                assets.requireFile("$ASSET_ROOT/resources/version")
+                assets.requireFile("$ASSET_ROOT/tes3mp-server-default.cfg")
+                installAssetsLocked(ctx, runtime, assets)
+            }
+        }
+    }
+
+    private fun installAssetsLocked(ctx: Context, runtime: File, assets: file.ApkAssetArchive) {
         AssetTransaction.recover(runtime)
         configDir(ctx).mkdirs()
 
@@ -237,10 +232,10 @@ object ServerRuntime {
         ensureDefaultDataDirectories(ctx)
         migrateLegacyPrivateRuntime(ctx)
 
-        val packagedStamp = ctx.assets.open("$ASSET_ROOT/runtime-stamp.txt")
-            .bufferedReader().use { it.readText().trim() }
+        val packagedStamp = if (assets.isFile("$ASSET_ROOT/runtime-stamp.txt"))
+            assets.readText("$ASSET_ROOT/runtime-stamp.txt").trim() else "apk-fingerprint-v1"
         // APK assets can change while the network/version stamp stays identical.
-        val fingerprint = AssetUpdater.fingerprint(ctx, ASSET_ROOT)
+        val fingerprint = assets.fingerprint(ASSET_ROOT)
         val expected = packagedStamp + "\n" + fingerprint
         val deployedStamp = File(runtime, "server-assets.sha256")
         val installedStamp = deployedStamp.takeIf { it.isFile }?.readText()?.trim().orEmpty()
@@ -258,25 +253,25 @@ object ServerRuntime {
             }
             val stage = File(runtime, ".arena-server-assets-stage")
             ContentUpdate.deleteTree(stage)
-            check(stage.mkdirs()) { "Cannot create server asset staging directory" }
+            check(stage.mkdirs()) { "Cannot create server asset staging directory: ${stage.absolutePath}" }
             try {
-                val copier = CopyFilesFromAssets(ctx)
                 val paths = arrayListOf<String>()
-                val children = ctx.assets.list("$ASSET_ROOT/server") ?: emptyArray()
+                val children = assets.list("$ASSET_ROOT/server")
                 for (name in children) {
                     // Saved players/world/cells/custom quests are never directory-swapped.
                     if (name == "data") continue
                     val relative = "server/$name"
-                    copier.copy("$ASSET_ROOT/$relative", File(stage, relative).absolutePath)
+                    assets.copy("$ASSET_ROOT/$relative", File(stage, relative), false)
                     paths.add(relative)
                 }
-                copier.copy("$ASSET_ROOT/resources", File(stage, "resources").absolutePath)
-                copier.copy("$ASSET_ROOT/tes3mp-server-default.cfg", File(stage, "tes3mp-server-default.cfg").absolutePath)
+                assets.copy("$ASSET_ROOT/resources", File(stage, "resources"), false)
+                assets.copy("$ASSET_ROOT/tes3mp-server-default.cfg", File(stage, "tes3mp-server-default.cfg"), false)
                 paths.add("resources")
                 paths.add("tes3mp-server-default.cfg")
                 check(File(stage, "server/scripts/serverCore.lua").isFile) { "Packaged server core is missing" }
                 // Add newly shipped default data, preserving ALL existing server data.
-                copyAssetTree(ctx, "$ASSET_ROOT/server/data", File(runtime, "server/data"), true)
+                if (assets.isDirectory("$ASSET_ROOT/server/data"))
+                    assets.copy("$ASSET_ROOT/server/data", File(runtime, "server/data"), true)
                 AssetTransaction.apply(runtime, stage, paths, "server-assets.sha256", expected)
                 UpdateLog.write(ctx, "server_assets_installed", "runtime=$runtime fingerprint=$fingerprint")
             } catch (e: Exception) {
@@ -288,7 +283,7 @@ object ServerRuntime {
 
         val cfg = userConfig(ctx)
         if (!cfg.isFile)
-            copyAssetTree(ctx, "$ASSET_ROOT/tes3mp-server-default.cfg", cfg, false)
+            assets.copy("$ASSET_ROOT/tes3mp-server-default.cfg", cfg, false)
         ServerConfig.ensurePluginHome(cfg)
 
         // Same idea as the PC launcher: config/server-config.lua is the

@@ -79,6 +79,17 @@ object BuildManifest {
         return File(root, "build.ini")
     }
 
+    /** Website-only override. build.ini remains the update/content manifest. */
+    fun projectWebsite(ctx: Context): String {
+        val manifest = manifestFile(ctx)
+        val websiteOverride = manifest?.parentFile?.let { findCaseInsensitive(it, "build.com") }
+        val explicit = websiteOverride?.takeIf { it.isFile }?.let {
+            parse(it.readText(Charsets.UTF_8)).projectUrl.trim()
+        }.orEmpty()
+        if (explicit.isNotEmpty()) return explicit
+        return read(ctx)?.projectUrl?.trim().orEmpty().ifBlank { "https://t.me/arena_mp" }
+    }
+
     private fun unquote(v: String): String {
         val t = v.trim()
         if (t.length < 2 || t.first() != '"' || t.last() != '"') return t

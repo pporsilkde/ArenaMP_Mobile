@@ -126,6 +126,7 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.content_frame, FragmentSettings()).commit()
 
         setSupportActionBar(findViewById(R.id.main_toolbar))
+        supportActionBar?.setDisplayShowTitleEnabled(false)
 
         val fab = findViewById<FloatingActionButton>(R.id.fab)
         fab.setOnTouchListener { view, event ->
@@ -164,11 +165,14 @@ class MainActivity : AppCompatActivity() {
         }
         refreshManifestUi()
 
-        // Globe icon -> opens morrowind.site
+        // Website comes from build.com/url or the regular build.ini/url.
         findViewById<ImageButton?>(R.id.btn_globe)?.setOnClickListener {
-            val link = BuildManifest.read(this)?.projectUrl.orEmpty()
-            try { openUrl(ContentUpdate.url(link.ifBlank { UpdateDownloader.MORROWIND_SITE })) }
-            catch (e: Exception) { Log.w(TAG, "Invalid project URL", e) }
+            try { openUrl(ContentUpdate.url(BuildManifest.projectWebsite(this))) }
+            catch (e: Exception) {
+                Log.w(TAG, "Invalid project URL", e)
+                Toast.makeText(this, getString(R.string.arena_project_url_failed,
+                    e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            }
         }
 
         if (prefs.getString("bugsnag_consent", "")!! == "") {
@@ -211,7 +215,7 @@ class MainActivity : AppCompatActivity() {
     fun refreshManifestUi() {
         val manifest = try { BuildManifest.read(this) } catch (_: Throwable) { null }
         val launcherName = manifest?.name?.trim().orEmpty().ifBlank { "ArenaMP" }
-        supportActionBar?.title = launcherName
+        findViewById<TextView>(R.id.arena_launcher_title).text = launcherName
         title = launcherName
 
         val updateButton = findViewById<ImageButton?>(R.id.btn_update)

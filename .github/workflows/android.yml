@@ -529,9 +529,10 @@ jobs:
       - name: Verify updater and APK asset transactions
         run: |
           mkdir -p "$RUNNER_TEMP/arena-updater-tests"
-          javac -source 8 -target 8 -d "$RUNNER_TEMP/arena-updater-tests" app/src/main/java/file/ContentUpdate.java app/src/main/java/file/AssetTransaction.java tests/ContentUpdateTest.java tests/AssetTransactionTest.java
+          javac -source 8 -target 8 -d "$RUNNER_TEMP/arena-updater-tests" app/src/main/java/file/ContentUpdate.java app/src/main/java/file/AssetTransaction.java app/src/main/java/file/ApkAssetArchive.java app/src/main/java/file/AssetInstallLock.java tests/ContentUpdateTest.java tests/AssetTransactionTest.java tests/ApkAssetArchiveTest.java
           java -cp "$RUNNER_TEMP/arena-updater-tests" ContentUpdateTest
           java -cp "$RUNNER_TEMP/arena-updater-tests" AssetTransactionTest
+          java -cp "$RUNNER_TEMP/arena-updater-tests" ApkAssetArchiveTest
           echo "ARENA_ANDROID_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
       - name: Build APK with original Gradle project
@@ -542,6 +543,9 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testMainlineDebugUnitTest assembleMainlineDebug
+
+      - name: Verify final APK contains usable server payload
+        run: python3 tests/verify_server_apk.py app/build/outputs/apk
 
       - name: Collect APK
         shell: bash

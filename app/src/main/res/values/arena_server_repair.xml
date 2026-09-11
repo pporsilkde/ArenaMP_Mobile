@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_server_preparing">Preparing server files…</string>
+    <string name="arena_server_prepare_failed">Could not prepare the server.\n\n%1$s\n\nLog: %2$s\n\nYour saved players and world have not been reset. If an APK asset is missing, install a corrected full APK.</string>
+    <string name="arena_server_retry">Retry</string>
+    <string name="arena_project_url_failed">Could not open the server website: %1$s</string>
+</resources>

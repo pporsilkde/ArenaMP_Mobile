@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="arena_server_preparing">Подготовка файлов сервера…</string>
+    <string name="arena_server_prepare_failed">Не удалось подготовить сервер.\n\n%1$s\n\nЛог: %2$s\n\nСохранённые игроки и мир не сброшены. Если в APK отсутствует ресурс, установите исправленный полный APK.</string>
+    <string name="arena_server_retry">Повторить</string>
+    <string name="arena_project_url_failed">Не удалось открыть сайт сервера: %1$s</string>
+</resources>
