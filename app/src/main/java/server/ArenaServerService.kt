@@ -8,6 +8,7 @@ import android.os.PowerManager
 import android.preference.PreferenceManager
 import android.util.Log
 import com.libopenmw.openmw.R
+import file.UpdateLog
 
 class ArenaServerService : Service() {
     private val CORE_RESTART_EXIT_CODE = 42
@@ -24,8 +25,15 @@ class ArenaServerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        System.loadLibrary("c++_shared")
-        System.loadLibrary("arenamp_server")
+        try {
+            System.loadLibrary("c++_shared")
+            System.loadLibrary("arenamp_server")
+            UpdateLog.write(this, "server_native_loaded", "process=${android.os.Process.myPid()} apk=${applicationInfo.sourceDir}")
+        } catch (e: Throwable) {
+            try { ServerRuntime.writeStatus(this, "error", 127) } catch (_: Throwable) {}
+            UpdateLog.write(this, "server_native_load_error", e.message ?: e.javaClass.simpleName, e)
+            throw e
+        }
         createChannel()
         startForeground(NOTIFICATION_ID, notification(getString(R.string.server_status_starting)))
     }
@@ -153,6 +161,7 @@ class ArenaServerService : Service() {
                 ServerRuntime.ensureInstalled(this)
                 val writableRoot = ServerRuntime.verifyWritableRuntime(this)
                 Log.i(TAG, "Writable ArenaMP server runtime: $writableRoot")
+                UpdateLog.write(this, "server_runtime_ready", "runtime=$writableRoot")
                 while (!stopRequested && !exitRequested) {
                     val now = System.currentTimeMillis()
                     if (lastStart != 0L && now - lastStart < 15000L) rapidCrashes++ else rapidCrashes = 0
@@ -172,6 +181,7 @@ class ArenaServerService : Service() {
                     val globalRoot = filesDir.parentFile?.absolutePath ?: filesDir.absolutePath
                     val userRoot = ServerRuntime.root(this).absolutePath
                     val code = nativeRun(globalRoot, userRoot, ServerRuntime.root(this).absolutePath)
+                    UpdateLog.write(this, "server_native_exit", "code=$code stopRequested=$stopRequested exitRequested=$exitRequested")
                     val scheduledCoreRestart = code == CORE_RESTART_EXIT_CODE
                     ServerRuntime.writeStatus(this, "stopped", code)
                     sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName)
@@ -200,6 +210,7 @@ class ArenaServerService : Service() {
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "ArenaMP server service failed", e)
+                UpdateLog.write(this, "server_service_error", e.message ?: e.javaClass.simpleName, e)
                 terminalState = "error"
                 ServerRuntime.writeStatus(this, "error", 125)
             } finally {

@@ -1,5 +1,6 @@
 package server
 
+import ui.theme.ArenaGlass
 import android.app.AlertDialog
 import android.content.*
 import android.os.Bundle
@@ -102,9 +103,18 @@ class ServerActivity : AppCompatActivity() {
             if (syncingServerToggle) return@setOnCheckedChangeListener
             prefs.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, checked).apply()
             if (checked) {
-                saveConfig(false)
-                ServerRuntime.syncPersistentScriptConfig(this)
-                ServerController.start(this, autoRestart.isChecked)
+                try {
+                    saveConfig(false)
+                    ServerRuntime.syncPersistentScriptConfig(this)
+                    ServerController.start(this, autoRestart.isChecked)
+                } catch (e: Throwable) {
+                    syncingServerToggle = true
+                    autoStart.isChecked = false
+                    syncingServerToggle = false
+                    prefs.edit().putBoolean(ServerController.PREF_SERVER_ENABLED, false).apply()
+                    Toast.makeText(this, getString(R.string.server_start_failed,
+                        e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
             } else {
                 ServerController.stop(this)
             }
@@ -112,8 +122,13 @@ class ServerActivity : AppCompatActivity() {
         }
         autoRestart.setOnCheckedChangeListener { _, checked ->
             prefs.edit().putBoolean(ServerController.PREF_AUTO_RESTART, checked).apply()
-            if (ServerRuntime.readStatus(this) == "running")
-                ServerController.start(this, checked)
+            if (ServerRuntime.readStatus(this) == "running") {
+                try { ServerController.start(this, checked) }
+                catch (e: Throwable) {
+                    Toast.makeText(this, getString(R.string.server_start_failed,
+                        e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
+            }
         }
 
         findViewById<Button>(R.id.server_save).setOnClickListener { saveConfig() }
@@ -138,8 +153,13 @@ class ServerActivity : AppCompatActivity() {
             saveConfig(false)
             if (!autoStart.isChecked) autoStart.isChecked = true
             else {
-                ServerRuntime.syncPersistentScriptConfig(this)
-                ServerController.start(this, autoRestart.isChecked)
+                try {
+                    ServerRuntime.syncPersistentScriptConfig(this)
+                    ServerController.start(this, autoRestart.isChecked)
+                } catch (e: Throwable) {
+                    Toast.makeText(this, getString(R.string.server_start_failed,
+                        e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
                 refresh()
             }
         }
@@ -205,7 +225,11 @@ class ServerActivity : AppCompatActivity() {
             handler.postDelayed({
                 PreferenceManager.getDefaultSharedPreferences(this).edit()
                     .putBoolean(ServerController.PREF_SERVER_ENABLED, true).apply()
-                ServerController.start(this, autoRestart.isChecked)
+                try { ServerController.start(this, autoRestart.isChecked) }
+                catch (e: Throwable) {
+                    Toast.makeText(this, getString(R.string.server_start_failed,
+                        e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
             }, 2300L)
         }
         if (showToast) Toast.makeText(this, R.string.server_saved, Toast.LENGTH_SHORT).show()
@@ -232,7 +256,7 @@ class ServerActivity : AppCompatActivity() {
             addView(editor, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        AlertDialog.Builder(this)
+        ArenaGlass.Builder(this)
             .setTitle(R.string.server_script_config_title)
             .setMessage(getString(R.string.server_script_config_path, file.absolutePath))
             .setView(container)
@@ -261,7 +285,7 @@ class ServerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.server_stop_before_cleanup, Toast.LENGTH_LONG).show()
             return
         }
-        AlertDialog.Builder(this)
+        ArenaGlass.Builder(this)
             .setTitle(R.string.server_clear_cells_confirm_title)
             .setMessage(R.string.server_clear_cells_confirm_message)
             .setNegativeButton(android.R.string.cancel, null)
@@ -279,7 +303,7 @@ class ServerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.server_stop_before_cleanup, Toast.LENGTH_LONG).show()
             return
         }
-        AlertDialog.Builder(this)
+        ArenaGlass.Builder(this)
             .setTitle(R.string.server_full_reset_confirm_title)
             .setMessage(R.string.server_full_reset_confirm_message)
             .setNegativeButton(android.R.string.cancel, null)

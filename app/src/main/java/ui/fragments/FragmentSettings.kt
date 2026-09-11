@@ -21,6 +21,7 @@
 package ui.fragments
 
 import android.Manifest
+import ui.theme.ArenaGlass
 import android.app.AlertDialog
 import android.content.DialogInterface
 import android.content.Intent
@@ -163,7 +164,7 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         list.divider = ColorDrawable(ContextCompat.getColor(activity, R.color.bgDivider))
         list.dividerHeight = (1 * density).toInt().coerceAtLeast(1)
         list.setSelector(android.R.color.transparent)
-        list.setBackgroundColor(ContextCompat.getColor(activity, R.color.bgPrimary))
+        list.setBackgroundColor(android.graphics.Color.TRANSPARENT)
     }
 
     /**
@@ -215,7 +216,7 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
      * @param message Message string resource
      */
     private fun showError(title: Int, message: Int, url: String? = null) {
-        val dialog = AlertDialog.Builder(activity)
+        val dialog = ArenaGlass.Builder(activity)
             .setTitle(title)
             .setMessage(message)
             .setPositiveButton(android.R.string.ok) { _: DialogInterface, _: Int -> }

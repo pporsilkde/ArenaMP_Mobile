@@ -1,6 +1,7 @@
 package file
 
 import android.app.Activity
+import ui.theme.ArenaGlass
 import android.app.AlertDialog
 import android.app.ProgressDialog
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.libopenmw.openmw.R
+import server.ServerRuntime
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -32,7 +34,7 @@ object LauncherUpdater {
             state(activity).edit().putString("last_error", message).commit()
             return
         }
-        AlertDialog.Builder(activity)
+        ArenaGlass.Builder(activity)
             .setTitle(R.string.update_failed_title)
             .setMessage(message + "\n\n" + activity.getString(R.string.arena_update_log_hint, UpdateLog.path(activity)))
             .setPositiveButton(android.R.string.ok, null)
@@ -123,6 +125,12 @@ object LauncherUpdater {
         // look unfinished and caused the APK to be downloaded again.
         if (version < expected || (beforeVersion >= 0 && version <= beforeVersion)
             || (beforeVersion < 0 && installed.lastUpdateTime <= pending.getLong("before_update", Long.MAX_VALUE))) return
+        // The system installer can hand control back to an existing process.
+        // Drop fingerprints from the previous APK before testing/deploying the
+        // new client/server assets.
+        AssetUpdater.invalidateAll()
+        try { ServerRuntime.prepareAfterPackageUpdate(activity) }
+        catch (e: Throwable) { UpdateLog.write(activity, "server_post_apk_prepare_error", e.message ?: e.javaClass.simpleName, e) }
         val manifestFile = BuildManifest.manifestFile(activity) ?: return
         if (manifestFile.canonicalPath != pending.getString("manifest", "")) return
         if (!AssetUpdater.clientIsCurrent(activity)) {
@@ -151,7 +159,7 @@ object LauncherUpdater {
         val journal = File(manifestFile.parentFile, ".arena-android-update.properties")
         busy = true
         val cancel = AtomicBoolean(false)
-        val dialog = ProgressDialog(activity).apply {
+        val dialog = ArenaGlass.Progress(activity).apply {
             setTitle(R.string.arena_update_title)
             setMessage(activity.getString(R.string.arena_update_check))
             setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)

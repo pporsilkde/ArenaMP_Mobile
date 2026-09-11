@@ -5,6 +5,7 @@ import file.AssetUpdater
 import file.UpdateLog
 import file.ContentUpdate
 import file.utils.CopyFilesFromAssets
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Environment
 import android.util.Log
@@ -57,8 +58,111 @@ object ServerRuntime {
     fun logFile(ctx: Context) = File(configDir(ctx), "tes3mp-server.log")
     fun statusFile(ctx: Context) = File(configDir(ctx), "android-server.status")
     fun runtimeStamp(ctx: Context) = File(configDir(ctx), ".server-runtime-stamp")
+    private fun packageUpdateMarker(ctx: Context) = File(configDir(ctx), ".server-apk-update-time")
     private fun legacyMigrationMarker(ctx: Context) = File(configDir(ctx), ".legacy-private-runtime-migrated")
     fun backupDir(ctx: Context) = File(root(ctx), "Backup")
+
+    private val ACTIVE_STATES = setOf("starting", "running", "restarting", "stopping", "exiting")
+
+    private fun statusValues(file: File): Map<String, String> {
+        if (!file.isFile) return emptyMap()
+        return try {
+            file.readLines(Charsets.UTF_8).mapNotNull { line ->
+                val split = line.indexOf('=')
+                if (split <= 0) null else line.substring(0, split).trim() to line.substring(split + 1).trim()
+            }.toMap()
+        } catch (_: Throwable) {
+            emptyMap()
+        }
+    }
+
+    private fun packageLastUpdateTime(ctx: Context): Long = try {
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime
+    } catch (_: Throwable) {
+        0L
+    }
+
+    private fun serverProcessAlive(ctx: Context, pid: Int): Boolean {
+        if (pid <= 0) return false
+        val expected = ctx.packageName + ":arenamp_server"
+        try {
+            val cmdline = File("/proc/$pid/cmdline")
+            if (cmdline.isFile) {
+                val processName = cmdline.readText(Charsets.UTF_8).replace("\u0000", "").trim()
+                if (processName == expected) return true
+            }
+        } catch (_: Throwable) {}
+        return try {
+            val manager = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            manager.runningAppProcesses?.any { it.pid == pid && it.processName == expected } == true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun writeRecoveredStoppedStatus(ctx: Context, reason: String) {
+        configDir(ctx).mkdirs()
+        statusFile(ctx).writeText(buildString {
+            append("state=stopped\n")
+            append("pid=0\n")
+            append("recovered=").append(reason).append('\n')
+            append("time=").append(System.currentTimeMillis()).append('\n')
+        })
+        UpdateLog.write(ctx, "server_state_recovered", "reason=$reason")
+    }
+
+    /**
+     * Package replacement kills the dedicated :arenamp_server process, but its
+     * portable status file survives. Repair stale running/starting states before
+     * the launcher decides whether a local server is already active.
+     */
+    @Synchronized
+    fun reconcileProcessState(ctx: Context, source: String = "status_check"): String {
+        val file = statusFile(ctx)
+        val values = statusValues(file)
+        val state = values["state"] ?: "stopped"
+        if (state !in ACTIVE_STATES) return state
+
+        val pid = values["pid"]?.toIntOrNull() ?: -1
+        val packageUpdated = packageLastUpdateTime(ctx)
+        val statusTime = values["time"]?.toLongOrNull() ?: file.lastModified()
+        val replacedAfterStatus = packageUpdated > 0L && statusTime > 0L && packageUpdated > statusTime + 1000L
+        val alive = !replacedAfterStatus && serverProcessAlive(ctx, pid)
+        if (alive) return state
+
+        val reason = if (replacedAfterStatus) "apk_replaced:$source" else "process_missing:$source"
+        writeRecoveredStoppedStatus(ctx, reason)
+        return "stopped"
+    }
+
+    /**
+     * Called before every server start. A newly installed APK must never reuse
+     * the previous process' fingerprint cache or server-assets stamp.
+     */
+    @Synchronized
+    fun prepareAfterPackageUpdate(ctx: Context): Boolean {
+        val current = packageLastUpdateTime(ctx)
+        if (current <= 0L) {
+            reconcileProcessState(ctx, "package_unknown")
+            return false
+        }
+        val marker = packageUpdateMarker(ctx)
+        val previous = marker.takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull() ?: -1L
+        if (previous == current) {
+            reconcileProcessState(ctx, "package_current")
+            return false
+        }
+
+        AssetUpdater.invalidate(ASSET_ROOT)
+        val deployed = File(root(ctx), "server-assets.sha256")
+        if (deployed.isFile && !deployed.delete())
+            Log.w(TAG, "Could not remove stale server asset stamp: ${deployed.absolutePath}")
+        reconcileProcessState(ctx, "package_replaced")
+        marker.parentFile?.mkdirs()
+        marker.writeText(current.toString())
+        UpdateLog.write(ctx, "server_package_replaced", "previous=$previous current=$current assetsInvalidated=true")
+        return true
+    }
 
     private fun copyAssetTree(ctx: Context, assetPath: String, target: File, preserveServerData: Boolean) {
         val children = ctx.assets.list(assetPath) ?: emptyArray()
@@ -265,11 +369,7 @@ object ServerRuntime {
         })
     }
 
-    fun readStatus(ctx: Context): String {
-        val file = statusFile(ctx)
-        if (!file.isFile) return "stopped"
-        return file.readLines().firstOrNull { it.startsWith("state=") }?.substringAfter('=') ?: "stopped"
-    }
+    fun readStatus(ctx: Context): String = reconcileProcessState(ctx)
 
     fun lanAddress(): String {
         try {

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Inherits flavor-specific MyTheme, so existing action bars and navigation remain intact. -->
+    <style name="ArenaGlass.Launcher" parent="MyTheme">
+        <item name="android:windowBackground">@drawable/arena_glass_backdrop</item>
+        <item name="android:colorAccent">@color/accentGold</item>
+        <item name="colorAccent">@color/accentGold</item>
+        <item name="android:textColorPrimary">@color/textPrimary</item>
+        <item name="android:textColorSecondary">@color/textSecondary</item>
+        <item name="android:alertDialogTheme">@style/ArenaGlassDialog</item>
+        <item name="android:buttonStyle">@style/ArenaGlassButton</item>
+        <item name="buttonStyle">@style/ArenaGlassButtonCompat</item>
+    </style>
+    <style name="ArenaGlassDialog" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/arena_glass_panel</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:colorAccent">@color/accentGold</item>
+        <item name="android:textColorPrimary">@color/textPrimary</item>
+        <item name="android:textColorSecondary">@color/textSecondary</item>
+        <item name="android:windowMinWidthMajor">86%</item>
+        <item name="android:windowMinWidthMinor">92%</item>
+        <item name="android:backgroundDimAmount">0.55</item>
+        <item name="android:progressBarStyleHorizontal">@style/ArenaGlassProgress</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/ArenaGlassDialogButton</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/ArenaGlassDialogButton</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/ArenaGlassDialogButton</item>
+    </style>
+    <style name="ArenaGlassButton" parent="android:style/Widget.Material.Button">
+        <item name="android:background">@drawable/arena_glass_button</item>
+        <item name="android:backgroundTint">@null</item>
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingLeft">16dp</item>
+        <item name="android:paddingRight">16dp</item>
+    </style>
+    <style name="ArenaGlassButtonCompat" parent="Widget.AppCompat.Button">
+        <item name="android:background">@drawable/arena_glass_button</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingLeft">16dp</item>
+        <item name="android:paddingRight">16dp</item>
+    </style>
+    <style name="ArenaGlassDialogButton" parent="android:style/Widget.Material.Button.Borderless">
+        <item name="android:textColor">@color/accentGold</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+    <style name="ArenaGlassProgress" parent="android:style/Widget.Material.ProgressBar.Horizontal">
+        <item name="android:progressDrawable">@drawable/arena_glass_progress</item>
+        <item name="android:indeterminateTint">@color/accentGold</item>
+        <item name="android:minHeight">12dp</item>
+        <item name="android:maxHeight">12dp</item>
+    </style>
+</resources>

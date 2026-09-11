@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- ========================================================= -->
-    <!-- OMW.Net AMOLED palette (Pelagiad-gold).                    -->
+    <!-- ArenaMP obsidian-glass palette (Morrowind brass/gold).     -->
     <!-- Единая палитра для всех флейворов и всех системных тем:   -->
-    <!-- тёмная/светлая тема Android не меняет вид лаунчера.        -->
+    <!-- Тёплые поверхности ближе к desktop Launcher/Wizard.        -->
     <!-- ========================================================= -->
 
     <!-- Фоны -->
-    <color name="bgPrimary">#000000</color>          <!-- AMOLED чёрный -->
-    <color name="bgSurface">#0A0907</color>          <!-- карточки, поля, toolbar -->
-    <color name="bgSurfaceAlt">#14120F</color>       <!-- вторичные кнопки ("Отмена") -->
-    <color name="bgDivider">#1F1C18</color>          <!-- обводки, разделители -->
+    <color name="bgPrimary">#18191C</color>          <!-- обсидиан -->
+    <color name="bgSurface">#202124</color>          <!-- стеклянная тёмная поверхность -->
+    <color name="bgSurfaceAlt">#2C2C2E</color>       <!-- поднятая поверхность -->
+    <color name="bgDivider">#514C43</color>          <!-- латунно-тёмная обводка -->
 
     <!-- Акценты (золото, как на дизайне) -->
-    <color name="accentGold">#E4C487</color>         <!-- основные кнопки, активные элементы -->
-    <color name="accentGoldDark">#B8995F</color>     <!-- pressed / ripple -->
-    <color name="accentGoldMuted">#8A7A5C</color>    <!-- капс-лейблы, вторичный акцент -->
+    <color name="accentGold">#D9B56C</color>         <!-- основные кнопки, активные элементы -->
+    <color name="accentGoldDark">#A8844C</color>     <!-- pressed / ripple -->
+    <color name="accentGoldMuted">#9C896A</color>    <!-- вторичный латунный акцент -->
 
     <!-- Текст -->
-    <color name="textPrimary">#E8E4DB</color>        <!-- основной текст -->
-    <color name="textSecondary">#969088</color>      <!-- подсказки, hint -->
-    <color name="textOnAccent">#1A1410</color>       <!-- текст на золотых кнопках -->
+    <color name="textPrimary">#E8E1D4</color>        <!-- основной текст -->
+    <color name="textSecondary">#A39784</color>      <!-- подсказки, hint -->
+    <color name="textOnAccent">#18130E</color>       <!-- текст на золотых кнопках -->
 
     <!-- ========================================================= -->
     <!-- Обратная совместимость: старые имена, используемые в темах -->
@@ -54,5 +54,5 @@
     <!-- FAB -->
     <color name="fabBackground">@color/bgSurface</color>
     <color name="fabRipple">@color/accentGoldDark</color>
-    <color name="fabShadow">#66000000</color>
+    <color name="fabShadow">#8020160D</color>
 </resources>

@@ -22,6 +22,7 @@ package ui.activity
 
 import android.annotation.SuppressLint
 import android.app.AlarmManager
+import ui.theme.ArenaGlass
 import android.app.AlertDialog
 import android.app.PendingIntent
 import android.app.ProgressDialog
@@ -180,6 +181,16 @@ class MainActivity : AppCompatActivity() {
         LauncherUpdater.showPendingFailure(this)
         try { LauncherUpdater.reconcileInstalledApk(this) }
         catch (e: Exception) { Log.w(TAG, "Could not acknowledge installed APK", e) }
+        try {
+            // A package update can kill the dedicated :arenamp_server process
+            // while leaving its portable status/asset stamps behind. Repair that
+            // state before the settings screen decides whether the server is alive.
+            ServerRuntime.prepareAfterPackageUpdate(this)
+            ServerRuntime.reconcileProcessState(this, "launcher_resume")
+        } catch (e: Throwable) {
+            Log.w(TAG, "Could not reconcile Android server after package update", e)
+            UpdateLog.write(this, "server_resume_reconcile_error", e.message ?: e.javaClass.simpleName, e)
+        }
         try { BuildManifest.syncConnectionPreferences(this) }
         catch (e: Throwable) { Log.w(TAG, "Could not refresh build.ini endpoint", e) }
         // Keep the Android mod database aligned with an externally supplied
@@ -216,7 +227,7 @@ class MainActivity : AppCompatActivity() {
         val button = findViewById<FloatingActionButton>(R.id.fab)
         button.contentDescription = text
         button.isEnabled = !updateCheckRunning
-        button.setImageResource(if (updateAvailable) R.drawable.ic_update else R.drawable.ic_start_button)
+        button.setImageResource(if (updateAvailable) R.drawable.arena_ic_update else R.drawable.arena_ic_play)
         findViewById<TextView>(R.id.fab_label).text = text
         findViewById<ImageButton>(R.id.btn_update).isEnabled = !updateCheckRunning
     }
@@ -299,7 +310,7 @@ class MainActivity : AppCompatActivity() {
             changelogText()
         } catch (e: Throwable) {
             Log.e(TAG, "Could not read changelog", e)
-            AlertDialog.Builder(this)
+            ArenaGlass.Builder(this)
                 .setTitle(R.string.arena_changelog_title)
                 .setMessage(R.string.arena_changelog_error)
                 .setPositiveButton(android.R.string.ok, null)
@@ -328,7 +339,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        AlertDialog.Builder(this)
+        ArenaGlass.Builder(this)
             .setTitle(R.string.arena_changelog_title)
             .setView(scrollView)
             .setPositiveButton(R.string.arena_changelog_close, null)
@@ -355,7 +366,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (needRestart) {
-            AlertDialog.Builder(this)
+            ArenaGlass.Builder(this)
                 .setOnDismissListener { System.exit(0) }
                 .setTitle(R.string.bugsnag_consent_restart_title)
                 .setMessage(R.string.bugsnag_consent_restart_message)
@@ -373,7 +384,7 @@ class MainActivity : AppCompatActivity() {
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             startActivity(browserIntent)
         } catch (e: ActivityNotFoundException) {
-            AlertDialog.Builder(this)
+            ArenaGlass.Builder(this)
                 .setTitle(R.string.no_browser_title)
                 .setMessage(getString(R.string.no_browser_message, url))
                 .setPositiveButton(android.R.string.ok) { _, _ -> }
@@ -389,7 +400,7 @@ class MainActivity : AppCompatActivity() {
         if (!MyApp.haveBugsnagApiKey)
             return
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = ArenaGlass.Builder(this)
             .setTitle(R.string.bugsnag_consent_title)
             .setMessage(R.string.bugsnag_consent_message)
             .setNeutralButton(R.string.bugsnag_policy) { _, _ -> /* set up below */ }
@@ -422,7 +433,7 @@ class MainActivity : AppCompatActivity() {
         // First, check that there are game files present
         val inst = GameInstaller(prefs.getString("game_files", "")!!)
         if (!inst.check()) {
-            AlertDialog.Builder(this)
+            ArenaGlass.Builder(this)
                 .setTitle(R.string.no_data_files_title)
                 .setMessage(R.string.no_data_files_message)
                 .setNeutralButton(R.string.dialog_howto) { _, _ ->
@@ -442,7 +453,7 @@ class MainActivity : AppCompatActivity() {
         if (manifest?.useAlternativeServer == true) {
             val port = manifest.altPort.toIntOrNull()
             if (manifest.altAddress.isBlank() || port == null || port !in 1..65535) {
-                AlertDialog.Builder(this).setMessage(R.string.arena_alt_invalid)
+                ArenaGlass.Builder(this).setMessage(R.string.arena_alt_invalid)
                     .setPositiveButton(android.R.string.ok, null).show()
                 return
             }
@@ -462,7 +473,7 @@ class MainActivity : AppCompatActivity() {
             ModsDatabaseOpenHelper.getInstance(this))
         if (plugins.mods.count { it.enabled } == 0) {
             // No mods enabled, show a warning
-            AlertDialog.Builder(this)
+            ArenaGlass.Builder(this)
                 .setTitle(R.string.no_content_files_title)
                 .setMessage(R.string.no_content_files_message)
                 .setNeutralButton(R.string.dialog_howto) { _, _ ->
@@ -507,11 +518,24 @@ class MainActivity : AppCompatActivity() {
             UpdateLog.write(this, "game_start", "mode=host endpoint=127.0.0.1:$launchLocalServerPort")
 
             val startAndLaunch = {
-                ServerController.start(this, prefs.getBoolean(ServerController.PREF_AUTO_RESTART, true))
-                Handler().postDelayed({
-                    finish()
-                    this@MainActivity.startActivityForResult(intent, 1)
-                }, 900L)
+                try {
+                    ServerController.start(this, prefs.getBoolean(ServerController.PREF_AUTO_RESTART, true))
+                    Handler().postDelayed({
+                        val state = ServerRuntime.readStatus(this)
+                        if (state == "error") {
+                            Toast.makeText(this, getString(R.string.server_start_failed,
+                                getString(R.string.server_status_error)), Toast.LENGTH_LONG).show()
+                            UpdateLog.write(this, "game_start_blocked", "Local server entered error state before client launch")
+                        } else {
+                            finish()
+                            this@MainActivity.startActivityForResult(intent, 1)
+                        }
+                    }, 1200L)
+                } catch (e: Throwable) {
+                    UpdateLog.write(this, "game_start_server_error", e.message ?: e.javaClass.simpleName, e)
+                    Toast.makeText(this, getString(R.string.server_start_failed,
+                        e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
             }
 
             if (restartLocalServerBeforeLaunch) {
@@ -679,8 +703,12 @@ class MainActivity : AppCompatActivity() {
             // can't really do much if that fails...
         }
 
-        val dialog = ProgressDialog.show(
-            this, "", getString(R.string.preparing_launch), true)
+        val dialog = ArenaGlass.Progress(this).apply {
+            setMessage(getString(R.string.preparing_launch))
+            isIndeterminate = true
+            setCancelable(false)
+            show()
+        }
 
         val activity = this
 
@@ -969,7 +997,7 @@ class MainActivity : AppCompatActivity() {
                     .bufferedReader()
                     .use { it.readText() }
 
-                AlertDialog.Builder(this)
+                ArenaGlass.Builder(this)
                     .setTitle(getString(R.string.about_title))
                     .setMessage(text)
                     .show()

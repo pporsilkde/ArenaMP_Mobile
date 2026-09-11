@@ -11,10 +11,35 @@ import java.util.zip.ZipFile
 /** Deployment identity is computed from the actual APK assets, independently
  * of the TES3MP protocol/resources/version identity and build.ini revisions. */
 object AssetUpdater {
-    private val fingerprints = HashMap<String, String>()
+    private data class CachedFingerprint(val apkIdentity: String, val value: String)
+    private val fingerprints = HashMap<String, CachedFingerprint>()
+
+    /**
+     * PackageInstaller can return to an already running launcher process after
+     * replacing the APK. Key the cache by the actual installed package identity,
+     * otherwise client/server assets from the previous APK can be mistaken for
+     * the freshly installed ones until the process is restarted.
+     */
+    private fun apkIdentity(ctx: Context): String {
+        val source = File(ctx.applicationInfo.sourceDir)
+        val info = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
+        return info.lastUpdateTime.toString() + ":" + source.length() + ":" + source.lastModified()
+    }
+
+    @Synchronized
+    fun invalidateAll() {
+        fingerprints.clear()
+    }
+
+    @Synchronized
+    fun invalidate(prefix: String) {
+        fingerprints.remove(prefix)
+    }
+
     @Synchronized
     fun fingerprint(ctx: Context, prefix: String): String {
-        fingerprints[prefix]?.let { return it }
+        val identity = apkIdentity(ctx)
+        fingerprints[prefix]?.takeIf { it.apkIdentity == identity }?.let { return it.value }
         val digest = MessageDigest.getInstance("SHA-256")
         var count = 0
         ZipFile(ctx.applicationInfo.sourceDir).use { apk ->
@@ -26,7 +51,7 @@ object AssetUpdater {
         }
         check(count > 0) { "APK assets are missing: $prefix" }
         val result = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
-        fingerprints[prefix] = result
+        fingerprints[prefix] = CachedFingerprint(identity, result)
         return result
     }
 
