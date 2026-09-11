@@ -18,6 +18,20 @@
         app:subtitleTextColor="@color/toolbarSubtitle"
         app:titleTextColor="@color/toolbarTitle">
 
+        <Button
+            android:id="@+id/btn_changelog"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:minWidth="0dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="@string/arena_changelog_button"
+            android:textAllCaps="false"
+            android:textColor="@color/toolbarTitle"
+            android:textSize="14sp" />
+
         <!-- globe: opens morrowind.site -->
         <ImageButton
             android:id="@+id/btn_globe"

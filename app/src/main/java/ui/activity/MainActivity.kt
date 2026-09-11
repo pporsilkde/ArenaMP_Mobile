@@ -29,6 +29,11 @@ import android.content.*
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
+import android.graphics.Typeface
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.preference.PreferenceManager
 import android.system.ErrnoException
 import android.system.Os
@@ -40,6 +45,8 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ScrollView
 import android.widget.Toast
 import com.bugsnag.android.Bugsnag
 
@@ -151,6 +158,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton?>(R.id.btn_update)?.setOnClickListener {
             startLauncherUpdate()
         }
+        findViewById<View?>(R.id.btn_changelog)?.setOnClickListener {
+            showChangelog()
+        }
         refreshManifestUi()
 
         // Globe icon -> opens morrowind.site
@@ -238,6 +248,91 @@ class MainActivity : AppCompatActivity() {
             BuildManifest.applyToDatabase(this)
             refreshManifestUi()
         }
+    }
+
+    private fun changelogText(): String {
+        return assets.open("arena_changelog.md").bufferedReader(Charsets.UTF_8).use { it.readText() }
+    }
+
+    private fun formatChangelog(markdown: String): CharSequence {
+        val result = SpannableStringBuilder()
+        val lines = markdown.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+
+        fun appendStyled(text: String, scale: Float, bold: Boolean, topGap: Boolean) {
+            if (topGap && result.isNotEmpty() && result.last() != '\n') result.append('\n')
+            if (topGap && result.isNotEmpty()) result.append('\n')
+            val start = result.length
+            result.append(text.replace("**", "").replace("`", ""))
+            val end = result.length
+            if (bold) result.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (scale != 1.0f) result.setSpan(RelativeSizeSpan(scale), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            result.append('\n')
+        }
+
+        lines.forEach { raw ->
+            val line = raw.trimEnd()
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("### ") -> appendStyled(trimmed.substring(4), 1.10f, true, true)
+                trimmed.startsWith("## ") -> appendStyled(trimmed.substring(3), 1.28f, true, true)
+                trimmed.startsWith("# ") -> appendStyled(trimmed.substring(2), 1.40f, true, true)
+                trimmed.startsWith("- ") -> {
+                    result.append("  • ")
+                    result.append(trimmed.substring(2).replace("**", "").replace("`", ""))
+                    result.append('\n')
+                }
+                trimmed == "---" -> result.append("────────────────────────\n")
+                trimmed.isBlank() -> {
+                    if (result.isNotEmpty() && !result.endsWith("\n\n")) result.append('\n')
+                }
+                else -> {
+                    result.append(trimmed.replace("**", "").replace("`", ""))
+                    result.append("\n\n")
+                }
+            }
+        }
+        return result
+    }
+
+    private fun showChangelog() {
+        val markdown = try {
+            changelogText()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Could not read changelog", e)
+            AlertDialog.Builder(this)
+                .setTitle(R.string.arena_changelog_title)
+                .setMessage(R.string.arena_changelog_error)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        val padding = (18f * density).toInt()
+        val textView = TextView(this).apply {
+            text = formatChangelog(markdown)
+            textSize = 15f
+            setTextIsSelectable(true)
+            setLineSpacing(0f, 1.12f)
+            setPadding(padding, padding / 2, padding, padding)
+        }
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = true
+            addView(textView, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.72f).toInt()
+            )
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.arena_changelog_title)
+            .setView(scrollView)
+            .setPositiveButton(R.string.arena_changelog_close, null)
+            .show()
     }
 
     /**

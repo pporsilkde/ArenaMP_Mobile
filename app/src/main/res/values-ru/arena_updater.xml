@@ -15,4 +15,8 @@
     <string name="arena_alt_port">Порт другого сервера</string>
     <string name="arena_alt_invalid">Укажите адрес и порт от 1 до 65535.</string>
     <string name="arena_update_assets">Обновление ресурсов из установленного APK…</string>
+    <string name="arena_changelog_button">Changelog</string>
+    <string name="arena_changelog_title">ArenaMP — список изменений</string>
+    <string name="arena_changelog_close">Закрыть</string>
+    <string name="arena_changelog_error">Не удалось открыть список изменений.</string>
 </resources>

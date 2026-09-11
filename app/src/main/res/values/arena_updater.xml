@@ -15,4 +15,8 @@
     <string name="arena_alt_port">Alternative server port</string>
     <string name="arena_alt_invalid">Enter an address and a port from 1 to 65535.</string>
     <string name="arena_update_assets">Updating resources from the installed APK…</string>
+    <string name="arena_changelog_button">Changelog</string>
+    <string name="arena_changelog_title">ArenaMP — Changelog</string>
+    <string name="arena_changelog_close">Close</string>
+    <string name="arena_changelog_error">Could not open the changelog.</string>
 </resources>
