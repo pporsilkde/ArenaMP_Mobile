@@ -84,6 +84,7 @@ import ui.fragments.FragmentSettings
 import permission.PermissionHelper
 import utils.MyApp
 import utils.Utils.hideAndroidControls
+import voice.VoicePermissions
 import java.util.*
 
 @Suppress("DEPRECATION")
@@ -140,6 +141,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_mods).setOnClickListener { startActivity(Intent(this, ModsActivity::class.java)) }
         findViewById<View>(R.id.btn_controls).setOnClickListener { startActivity(Intent(this, ConfigureControls::class.java)) }
         findViewById<View>(R.id.btn_server).setOnClickListener { startActivity(Intent(this, ServerActivity::class.java)) }
+        findViewById<View>(R.id.btn_chat_voice).setOnClickListener { startActivity(Intent(this, ChatVoiceActivity::class.java)) }
         findViewById<View>(R.id.btn_more).setOnClickListener { anchor ->
             PopupMenu(ContextThemeWrapper(this, R.style.MyPopupTheme), anchor).apply {
                 menuInflater.inflate(R.menu.menu_settings, menu)
@@ -150,7 +152,7 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<TextView>(R.id.fab_label).setOnClickListener { fab.performClick() }
         for (id in intArrayOf(R.id.btn_graphics, R.id.btn_mods, R.id.btn_controls,
-                R.id.btn_globe, R.id.btn_update, R.id.btn_server, R.id.btn_more)) {
+                R.id.btn_globe, R.id.btn_update, R.id.btn_server, R.id.btn_chat_voice, R.id.btn_more)) {
             val action = findViewById<View>(id)
             TooltipCompat.setTooltipText(action, action.contentDescription)
         }
@@ -698,6 +700,18 @@ class MainActivity : AppCompatActivity() {
             Os.setenv("OPENMW_GAMMA", "%.2f".format(Locale.ROOT, gamma), true)
         } catch (e: ErrnoException) {
             // can't really do much if that fails...
+        }
+
+        // U026: native ArenaMP VoiceChat reads these before multiplayer init.
+        // The launcher never starts a second microphone/audio service.
+        try {
+            val voiceOn = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_ENABLED, false) &&
+                VoicePermissions.granted(this)
+            val ptt = prefs.getString(ChatVoiceActivity.PREF_VOICE_PTT, "V").orEmpty().ifBlank { "V" }
+            Os.setenv("ARENAMP_VOICE_ENABLED", if (voiceOn) "1" else "0", true)
+            Os.setenv("ARENAMP_VOICE_PTT_KEY", ptt, true)
+        } catch (e: ErrnoException) {
+            Log.w(TAG, "Could not export ArenaMP voice settings", e)
         }
 
         val dialog = ArenaGlass.Progress(this).apply {

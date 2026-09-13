@@ -25,6 +25,13 @@
 		<CheckBoxPreference android:title="@string/pref_hide_controls" android:key="pref_hide_controls"  android:defaultValue="false" />
 		<CheckBoxPreference android:title="@string/pref_screen_keeper" android:key="pref_screen_keeper" android:defaultValue="true" />
 	</PreferenceCategory>
+
+	<PreferenceCategory android:title="@string/voice_title" android:key="voice_settings">
+		<Preference android:key="pref_chat_voice" android:title="@string/chat_voice_title" android:summary="@string/chat_voice_summary" />
+		<CheckBoxPreference android:key="pref_voice_enabled" android:title="@string/voice_enable" android:summary="@string/voice_enable_summary" android:defaultValue="false" />
+		<EditTextPreference android:key="pref_voice_ptt_key" android:title="@string/voice_ptt_key" android:summary="@string/voice_ptt_summary" android:defaultValue="V" android:inputType="textCapCharacters" />
+		<Preference android:key="pref_voice_permissions" android:title="@string/voice_permissions" android:summary="@string/voice_permissions_summary" />
+	</PreferenceCategory>
 	<PreferenceCategory android:title="@string/pref_advanced">
 		<ListPreference android:entries="@array/pref_debug_level_entries" android:title="@string/pref_debug_level" android:key="pref_debug_level" android:summary="%s" android:defaultValue="@string/pref_debug_level_default" android:dialogTitle="@string/pref_debug_level" android:entryValues="@array/pref_debug_level_values" />
 	</PreferenceCategory>

@@ -1011,4 +1011,34 @@
     <string name="arena_quick_server">Server</string>
     <string name="arena_more_actions">More actions</string>
     <string name="arena_action_checking_short">Checking…</string>
+
+    <!-- U026: launcher chat + native voice controls -->
+    <string name="chat_voice_title">Chat &amp; voice</string>
+    <string name="chat_voice_summary">Launcher chat and in-game microphone controls</string>
+    <string name="chat_title">Chat</string>
+    <string name="chat_login_hint">Use the same character name and server password as in game. You can also use a /chatlink code.</string>
+    <string name="chat_character_name">Character name</string>
+    <string name="chat_password">Password</string>
+    <string name="chat_in_game_code">In-game code</string>
+    <string name="chat_use_code">Use an in-game /chatlink code</string>
+    <string name="chat_login_button">Sign in</string>
+    <string name="chat_message_hint">Message…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_from_game">from game</string>
+    <string name="chat_enter_credentials">Enter the character name and password/code.</string>
+    <string name="chat_no_server">No server address is configured.</string>
+    <string name="chat_connecting">Connecting to %1$s:%2$d…</string>
+    <string name="chat_logged_in">%1$s · level %2$d</string>
+    <string name="chat_login_failed">Sign-in failed.</string>
+    <string name="voice_title">Voice chat</string>
+    <string name="voice_enable">Enable voice chat</string>
+    <string name="voice_enable_summary">Uses ArenaMP native proximity voice in game</string>
+    <string name="voice_native_summary">Voice is handled by the game engine, so there is no second Android audio service. Grant microphone access and use the PTT key in game.</string>
+    <string name="voice_ptt_key">Push-to-talk key</string>
+    <string name="voice_ptt_summary">Default: V</string>
+    <string name="voice_permissions">Microphone permission</string>
+    <string name="voice_permissions_summary">Grant Android microphone access for in-game voice</string>
+    <string name="voice_denied">Voice is off: microphone access was not granted.</string>
+    <string name="voice_ready_ptt">Voice enabled · PTT: %1$s</string>
+    <string name="voice_state_off">Voice is disabled</string>
 </resources>

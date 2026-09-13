@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.libopenmw.openmw">
-    <!-- Allow writing to external storage -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -11,6 +10,9 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
         android:requestLegacyExternalStorage="true"
@@ -38,10 +40,15 @@
             android:screenOrientation="fullUser">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="ui.activity.ChatVoiceActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:screenOrientation="fullUser"
+            android:theme="@style/ArenaGlass.Launcher"
+            android:label="@string/chat_voice_title" />
         <activity
             android:name="ui.activity.GameActivity"
             android:configChanges="keyboardHidden|orientation"
@@ -71,8 +78,7 @@
             android:screenOrientation="fullUser"
             android:theme="@style/ArenaGlass.Launcher"
             android:exported="true"
-            android:label="@string/activity_mods"
-            />
+            android:label="@string/activity_mods" />
         <activity
             android:name="server.ServerActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
@@ -86,5 +92,4 @@
             android:exported="false"
             android:stopWithTask="false" />
     </application>
-
 </manifest>

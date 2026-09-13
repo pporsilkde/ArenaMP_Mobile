@@ -29,6 +29,7 @@ import android.content.SharedPreferences
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Build
 import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.widget.ListView
@@ -52,11 +53,13 @@ import ui.activity.MainActivity
 import ui.activity.ModsActivity
 import ui.activity.GraphicsSettingsActivity
 import ui.activity.HelpActivity
+import ui.activity.ChatVoiceActivity
 import server.ServerActivity
 import server.ServerController
 import server.ServerConfig
 import server.ServerConfigData
 import server.ServerRuntime
+import voice.VoicePermissions
 
 class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener {
 
@@ -137,6 +140,26 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             true
         }
 
+        findPreference("pref_chat_voice")?.setOnPreferenceClickListener {
+            startActivity(Intent(activity, ChatVoiceActivity::class.java))
+            true
+        }
+
+        findPreference("pref_voice_permissions")?.setOnPreferenceClickListener {
+            if (Build.VERSION.SDK_INT >= 23 && !VoicePermissions.granted(activity))
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), VoicePermissions.REQUEST_CODE)
+            true
+        }
+
+        findPreference("pref_voice_enabled")?.setOnPreferenceChangeListener { _, value ->
+            val enable = value as? Boolean ?: false
+            if (enable && !VoicePermissions.granted(activity)) {
+                if (Build.VERSION.SDK_INT >= 23)
+                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), VoicePermissions.REQUEST_CODE)
+                false
+            } else true
+        }
+
         findPreference("game_files").setOnPreferenceClickListener {
             if (ContextCompat.checkSelfPermission(activity,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -170,6 +193,17 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             }
             true
         }
+    }
+
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != VoicePermissions.REQUEST_CODE) return
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        preferenceScreen.sharedPreferences.edit().putBoolean(ChatVoiceActivity.PREF_VOICE_ENABLED, granted).apply()
+        (findPreference("pref_voice_enabled") as? CheckBoxPreference)?.isChecked = granted
+        if (!granted)
+            Toast.makeText(activity, R.string.voice_denied, Toast.LENGTH_LONG).show()
     }
 
 

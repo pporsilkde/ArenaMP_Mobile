@@ -775,4 +775,34 @@
     <string name="arena_quick_server">Сервер</string>
     <string name="arena_more_actions">Дополнительные действия</string>
     <string name="arena_action_checking_short">Проверка…</string>
+
+    <!-- U026: чат лаунчера + нативный голос -->
+    <string name="chat_voice_title">Чат и голос</string>
+    <string name="chat_voice_summary">Чат лаунчера и управление микрофоном в игре</string>
+    <string name="chat_title">Чат</string>
+    <string name="chat_login_hint">Используйте то же имя персонажа и пароль сервера, что в игре. Также можно войти по коду /chatlink.</string>
+    <string name="chat_character_name">Имя персонажа</string>
+    <string name="chat_password">Пароль</string>
+    <string name="chat_in_game_code">Код из игры</string>
+    <string name="chat_use_code">Использовать код /chatlink из игры</string>
+    <string name="chat_login_button">Войти</string>
+    <string name="chat_message_hint">Сообщение…</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_from_game">из игры</string>
+    <string name="chat_enter_credentials">Введите имя персонажа и пароль/код.</string>
+    <string name="chat_no_server">Адрес сервера не задан.</string>
+    <string name="chat_connecting">Подключение к %1$s:%2$d…</string>
+    <string name="chat_logged_in">%1$s · уровень %2$d</string>
+    <string name="chat_login_failed">Не удалось войти в чат.</string>
+    <string name="voice_title">Голосовой чат</string>
+    <string name="voice_enable">Включить голосовой чат</string>
+    <string name="voice_enable_summary">Использует нативный голос ArenaMP по расстоянию в игре</string>
+    <string name="voice_native_summary">Голос обрабатывает сам движок игры — второй Android-аудиосервис не запускается. Разрешите микрофон и используйте кнопку рации в игре.</string>
+    <string name="voice_ptt_key">Кнопка рации</string>
+    <string name="voice_ptt_summary">По умолчанию: V</string>
+    <string name="voice_permissions">Разрешение микрофона</string>
+    <string name="voice_permissions_summary">Разрешить Android доступ к микрофону для голоса в игре</string>
+    <string name="voice_denied">Голос выключен: доступ к микрофону не разрешён.</string>
+    <string name="voice_ready_ptt">Голос включён · кнопка рации: %1$s</string>
+    <string name="voice_state_off">Голос выключен</string>
 </resources>
