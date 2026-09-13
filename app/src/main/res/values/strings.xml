@@ -999,4 +999,16 @@
     <string name="help_mp_server_desc">ArenaMP can manage the bundled server from the launcher. Client connection settings and local server settings are separate, so make sure the client endpoint points to the server you actually want to use.</string>
     <string name="help_mp_compat_title">Client / server compatibility</string>
     <string name="help_mp_compat_desc">Use compatible ArenaMP client and server builds. A protocol or script/content mismatch can cause connection failures or behaviour that differs from the server configuration.</string>
+    <string name="arena_status_title">Selected server · tap to refresh</string>
+    <string name="arena_status_online">Online</string>
+    <string name="arena_status_checking">Checking…</string>
+    <string name="arena_status_no_response">No response</string>
+    <string name="arena_status_duration">%1$dd %2$dh %3$dm</string>
+    <string name="arena_status_summary">%1$s\n%2$s · Players: %3$s\nServer uptime: %4$s</string>
+    <string name="arena_quick_website">Website</string>
+    <string name="arena_quick_mods">Mods</string>
+    <string name="arena_quick_controls">Controls</string>
+    <string name="arena_quick_server">Server</string>
+    <string name="arena_more_actions">More actions</string>
+    <string name="arena_action_checking_short">Checking…</string>
 </resources>

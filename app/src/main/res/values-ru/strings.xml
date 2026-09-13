@@ -763,4 +763,16 @@
     <string name="help_mp_server_desc">ArenaMP умеет управлять комплектным сервером из лаунчера. Настройки подключения клиента и параметры локального сервера независимы — убедитесь, что клиент подключается именно к нужному адресу.</string>
     <string name="help_mp_compat_title">Совместимость клиента и сервера</string>
     <string name="help_mp_compat_desc">Используйте совместимые сборки клиента и сервера ArenaMP. Несовпадение протокола, скриптов или контента может привести к отказу подключения или отличающемуся от сервера поведению.</string>
+    <string name="arena_status_title">Выбранный сервер · нажмите для обновления</string>
+    <string name="arena_status_online">Доступен</string>
+    <string name="arena_status_checking">Проверка…</string>
+    <string name="arena_status_no_response">Нет ответа</string>
+    <string name="arena_status_duration">%1$d д %2$d ч %3$d мин</string>
+    <string name="arena_status_summary">%1$s\n%2$s · Игроки: %3$s\nВремя работы: %4$s</string>
+    <string name="arena_quick_website">Сайт</string>
+    <string name="arena_quick_mods">Моды</string>
+    <string name="arena_quick_controls">Управление</string>
+    <string name="arena_quick_server">Сервер</string>
+    <string name="arena_more_actions">Дополнительные действия</string>
+    <string name="arena_action_checking_short">Проверка…</string>
 </resources>

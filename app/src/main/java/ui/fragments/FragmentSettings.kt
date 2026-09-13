@@ -60,6 +60,8 @@ import server.ServerRuntime
 
 class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener {
 
+    private var statusMonitor: ui.ServerStatusMonitor? = null
+    private var statusEndpoint = ""
     private var generalCategory: PreferenceCategory? = null
     private var serverIpPreference: Preference? = null
     private var serverPortPreference: Preference? = null
@@ -72,6 +74,25 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         super.onCreate(savedInstanceState)
 
         addPreferencesFromResource(R.xml.settings)
+        statusMonitor = ui.ServerStatusMonitor { phase, status ->
+            if (isAdded) {
+                val state = getString(when (phase) {
+                    ui.ServerStatusMonitor.Phase.ONLINE -> R.string.arena_status_online
+                    ui.ServerStatusMonitor.Phase.CHECKING -> R.string.arena_status_checking
+                    ui.ServerStatusMonitor.Phase.NO_ADDRESS -> R.string.arena_alt_address
+                    else -> R.string.arena_status_no_response
+                })
+                val count = if (status.details) "${status.players} / ${status.capacity}" else "—"
+                val uptime = if (status.details) getString(R.string.arena_status_duration,
+                    status.uptime / 86400, (status.uptime / 3600) % 24, (status.uptime / 60) % 60) else "—"
+                findPreference("pref_remote_server_status")?.summary = getString(R.string.arena_status_summary,
+                    statusEndpoint, state, count, uptime)
+            }
+        }
+        findPreference("pref_remote_server_status")?.setOnPreferenceClickListener {
+            statusMonitor?.refresh()
+            true
+        }
         generalCategory = findPreference("general_settings") as? PreferenceCategory
         serverIpPreference = findPreference("pref_server_ip")
         serverPortPreference = findPreference("pref_server_port")
@@ -247,6 +268,37 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         }
         syncServerRunningState()
         updateServerLockState()
+        statusMonitor?.start()
+    }
+
+    override fun onPause() {
+        statusMonitor?.stop()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        statusMonitor?.close()
+        preferenceScreen.sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
+        super.onDestroy()
+    }
+
+    private fun updateRemoteServerStatus() {
+        val shared = preferenceScreen.sharedPreferences
+        val manifest = BuildManifest.read(activity)
+        val host: String
+        val port: String
+        if (shared.getBoolean(ServerController.PREF_SERVER_ENABLED, false)) {
+            host = "127.0.0.1"
+            port = try { ServerConfig.load(ServerRuntime.userConfig(activity)).port } catch (_: Exception) { "25565" }
+        } else if (shared.getBoolean("pref_use_alt_server", false)) {
+            host = shared.getString("pref_alt_address", "").orEmpty()
+            port = shared.getString("pref_alt_port", "25565").orEmpty()
+        } else {
+            host = manifest?.serverAddress ?: shared.getString("pref_server_ip", BuildManifest.DEFAULT_SERVER_ADDRESS).orEmpty()
+            port = manifest?.serverPort ?: shared.getString("pref_server_port", "25565").orEmpty()
+        }
+        statusEndpoint = if (host.isBlank()) "—" else "$host:$port"
+        statusMonitor?.setEndpoint(host, port.toIntOrNull() ?: 0)
     }
 
     private fun syncServerRunningState() {
@@ -325,6 +377,7 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
 
 
     private fun updateServerLockState() {
+        updateRemoteServerStatus()
         val manifest = BuildManifest.read(activity)
         val locked = manifest?.complete == true
         val serverEnabled = preferenceScreen.sharedPreferences

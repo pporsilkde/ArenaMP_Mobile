@@ -6,6 +6,8 @@
         <CheckBoxPreference android:title="@string/arena_alt_server" android:key="pref_use_alt_server" android:defaultValue="false" />
         <EditTextPreference android:title="@string/arena_alt_address" android:key="pref_alt_address" android:defaultValue="" android:inputType="textUri" />
         <EditTextPreference android:title="@string/arena_alt_port" android:key="pref_alt_port" android:defaultValue="25565" android:inputType="number" />
+        <Preference android:key="pref_remote_server_status" android:title="@string/arena_status_title"
+            android:layout="@layout/preference_server_status" android:persistent="false" />
         <EditTextPreference android:title="@string/pref_server_ip" android:key="pref_server_ip" android:defaultValue="@string/pref_server_ip_default" android:dialogTitle="@string/pref_server_ip" android:inputType="textUri" />
         <EditTextPreference android:title="@string/pref_server_port" android:key="pref_server_port" android:defaultValue="@string/pref_server_port_default" android:dialogTitle="@string/pref_server_port" android:inputType="number" />
         <CheckBoxPreference android:title="@string/server_run_toggle" android:key="pref_server_enabled" android:defaultValue="false" android:summary="@string/server_run_toggle_summary" />

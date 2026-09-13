@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="14dp"
+    android:background="@drawable/arena_glass_card" android:minHeight="110dp">
+    <TextView android:id="@android:id/title" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:textColor="@color/accentGold"
+        android:textSize="16sp" android:textStyle="bold" />
+    <TextView android:id="@android:id/summary" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="7dp"
+        android:textColor="@color/textPrimary" android:textSize="14sp"
+        android:singleLine="false" />
+</LinearLayout>

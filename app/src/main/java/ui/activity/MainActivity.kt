@@ -40,11 +40,12 @@ import android.system.ErrnoException
 import android.system.Os
 import android.util.DisplayMetrics
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import androidx.appcompat.widget.TooltipCompat
+import androidx.appcompat.widget.PopupMenu
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
-import android.view.Menu
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ScrollView
@@ -62,11 +63,11 @@ import file.LauncherUpdater
 import file.UpdateLog
 import file.BuildManifest
 import file.UpdateDownloader
+import server.ServerActivity
 import server.ServerConfig
 import server.ServerController
 import server.ServerRuntime
 import server.ServerScriptConfig
-import android.widget.ImageButton
 import android.widget.TextView
 
 import java.io.BufferedReader
@@ -125,48 +126,38 @@ class MainActivity : AppCompatActivity() {
         fragmentManager.beginTransaction()
             .replace(R.id.content_frame, FragmentSettings()).commit()
 
-        setSupportActionBar(findViewById(R.id.main_toolbar))
-        supportActionBar?.setDisplayShowTitleEnabled(false)
-
         val fab = findViewById<FloatingActionButton>(R.id.fab)
-        fab.setOnTouchListener { view, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    view.animate()
-                        .scaleX(0.92f)
-                        .scaleY(0.92f)
-                        .translationY(6f)
-                        .setDuration(80)
-                        .start()
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    view.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .translationY(0f)
-                        .setDuration(120)
-                        .start()
-                }
-            }
-            false
-        }
         fab.setOnClickListener {
             if (!updateCheckRunning && !LauncherUpdater.isBusy()) {
                 if (updateAvailable) startLauncherUpdate() else checkStartGame()
             }
         }
-        findViewById<TextView>(R.id.fab_label).setOnClickListener { fab.performClick() }
 
-        findViewById<ImageButton?>(R.id.btn_update)?.setOnClickListener {
+        findViewById<View?>(R.id.btn_update)?.setOnClickListener {
             startLauncherUpdate()
         }
-        findViewById<View?>(R.id.btn_changelog)?.setOnClickListener {
-            showChangelog()
+        findViewById<View>(R.id.btn_graphics).setOnClickListener { startActivity(Intent(this, GraphicsSettingsActivity::class.java)) }
+        findViewById<View>(R.id.btn_mods).setOnClickListener { startActivity(Intent(this, ModsActivity::class.java)) }
+        findViewById<View>(R.id.btn_controls).setOnClickListener { startActivity(Intent(this, ConfigureControls::class.java)) }
+        findViewById<View>(R.id.btn_server).setOnClickListener { startActivity(Intent(this, ServerActivity::class.java)) }
+        findViewById<View>(R.id.btn_more).setOnClickListener { anchor ->
+            PopupMenu(ContextThemeWrapper(this, R.style.MyPopupTheme), anchor).apply {
+                menuInflater.inflate(R.menu.menu_settings, menu)
+                menu.findItem(R.id.action_bugsnag_consent).isVisible = MyApp.haveBugsnagApiKey
+                setOnMenuItemClickListener { onOptionsItemSelected(it) }
+                show()
+            }
+        }
+        findViewById<TextView>(R.id.fab_label).setOnClickListener { fab.performClick() }
+        for (id in intArrayOf(R.id.btn_graphics, R.id.btn_mods, R.id.btn_controls,
+                R.id.btn_globe, R.id.btn_update, R.id.btn_server, R.id.btn_more)) {
+            val action = findViewById<View>(id)
+            TooltipCompat.setTooltipText(action, action.contentDescription)
         }
         refreshManifestUi()
 
         // Website comes from build.com/url or the regular build.ini/url.
-        findViewById<ImageButton?>(R.id.btn_globe)?.setOnClickListener {
+        findViewById<View?>(R.id.btn_globe)?.setOnClickListener {
             try { openUrl(ContentUpdate.url(BuildManifest.projectWebsite(this))) }
             catch (e: Exception) {
                 Log.w(TAG, "Invalid project URL", e)
@@ -218,9 +209,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.arena_launcher_title).text = launcherName
         title = launcherName
 
-        val updateButton = findViewById<ImageButton?>(R.id.btn_update)
+        val updateButton = findViewById<View?>(R.id.btn_update)
         val hasCheck = !manifest?.checkUrl.isNullOrBlank()
-        updateButton?.visibility = if (hasCheck) View.VISIBLE else View.GONE
+        updateButton?.visibility = View.VISIBLE
         updateButton?.isEnabled = hasCheck && !LauncherUpdater.isBusy()
         checkLauncherUpdates()
     }
@@ -229,11 +220,13 @@ class MainActivity : AppCompatActivity() {
         val text = getString(if (updateCheckRunning) R.string.arena_update_check
             else if (updateAvailable) R.string.arena_action_update else R.string.arena_action_play)
         val button = findViewById<FloatingActionButton>(R.id.fab)
+        val ready = !updateCheckRunning && !LauncherUpdater.isBusy()
+        button.setImageResource(if (updateCheckRunning) R.drawable.arena_ic_checking else if (updateAvailable) R.drawable.arena_ic_update else R.drawable.arena_ic_play)
+        findViewById<TextView>(R.id.fab_label).text = if (updateCheckRunning) getString(R.string.arena_action_checking_short) else text
         button.contentDescription = text
-        button.isEnabled = !updateCheckRunning
-        button.setImageResource(if (updateAvailable) R.drawable.arena_ic_update else R.drawable.arena_ic_play)
-        findViewById<TextView>(R.id.fab_label).text = text
-        findViewById<ImageButton>(R.id.btn_update).isEnabled = !updateCheckRunning
+        button.isEnabled = ready
+        button.alpha = if (ready) 1f else 0.55f
+        findViewById<View>(R.id.btn_update).isEnabled = ready && !BuildManifest.read(this)?.checkUrl.isNullOrBlank()
     }
 
     private fun checkLauncherUpdates() {
@@ -978,17 +971,9 @@ class MainActivity : AppCompatActivity() {
         th.start()
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.clear()
-        val inflater = menuInflater
-        inflater.inflate(R.menu.menu_settings, menu)
-        if (!MyApp.haveBugsnagApiKey)
-            menu.findItem(R.id.action_bugsnag_consent).setVisible(false)
-        return super.onPrepareOptionsMenu(menu)
-    }
-
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_changelog -> { showChangelog(); true }
             R.id.action_reset_config -> {
                 removeUserConfig()
                 removeStaticFiles()

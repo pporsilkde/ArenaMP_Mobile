@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:context=".MainActivity">
     <group android:id="@+id/main_menu_group">
+        <item android:id="@+id/action_changelog" android:title="@string/arena_changelog_button" app:showAsAction="never" />
 
         <item
             android:id="@+id/action_reset_config"
