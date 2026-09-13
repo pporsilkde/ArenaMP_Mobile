@@ -1,0 +1,42 @@
+<!-- ArenaMP U025 — строки для values/strings.xml (английские).
+     Русские лежат в values-ru/strings.u025.snippet.xml. Набор name=
+     обязан совпадать в обоих файлах: отсутствующий перевод Android
+     молча заменит английским. -->
+<resources>
+    <string name="voice_title">Voice chat</string>
+    <string name="voice_enable">Enable voice</string>
+    <string name="voice_enable_summary">Only nearby players are audible; volume depends on distance</string>
+    <string name="voice_mode">Transmit mode</string>
+    <string name="voice_mic_gain">Microphone sensitivity</string>
+    <string name="voice_volume">Voice volume</string>
+    <string name="voice_low_power">Power saving mode</string>
+    <string name="voice_low_power_summary">The server mixes voices itself: lighter load, no left/right positioning</string>
+    <string name="voice_permissions">Permissions</string>
+    <string name="voice_permissions_summary">Microphone and notifications</string>
+    <string name="voice_state_active">Microphone on</string>
+    <string name="voice_state_muted">Microphone off</string>
+    <string name="voice_mute">Mute</string>
+    <string name="voice_unmute">Unmute</string>
+    <string name="voice_disable">Turn voice off</string>
+    <string name="voice_denied">Voice is off: no microphone access</string>
+
+    <string name="chat_title">Chat</string>
+    <string name="chat_login_title">ArenaMP chat sign-in</string>
+    <string name="chat_login_hint">The character name and password of the game server. A character is created in game only.</string>
+    <string name="chat_login_button">Sign in</string>
+    <string name="chat_login_code">Sign in with an in-game code (/chatlink)</string>
+    <string name="chat_message_hint">Message…</string>
+    <string name="chat_level_badge">%1$d</string>
+    <string name="chat_from_game">from the game</string>
+
+    <string-array name="pref_voice_mode_entries">
+        <item>Push to talk</item>
+        <item>Voice activity</item>
+        <item>Off</item>
+    </string-array>
+    <string-array name="pref_voice_mode_values">
+        <item>ptt</item>
+        <item>vad</item>
+        <item>off</item>
+    </string-array>
+</resources>

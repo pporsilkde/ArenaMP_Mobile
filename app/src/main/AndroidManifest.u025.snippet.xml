@@ -1,0 +1,30 @@
+<!--
+  ArenaMP U025 — фрагмент AndroidManifest.xml для голоса.
+  Вставить в существующий манифест ArenaMP_Mobile якорным патчем,
+  не заменяя файл целиком.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- API 34+: без этого startForeground с типом microphone бросает исключение -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- API 33+: иначе уведомление сервиса не показывается -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- API 31+: выбор bluetooth-гарнитуры как устройства связи -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <!-- Микрофон не обязателен: сборка должна ставиться и на устройства без него -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <application>
+        <service
+            android:name="voice.VoiceService"
+            android:exported="false"
+            android:foregroundServiceType="microphone"
+            android:stopWithTask="true" />
+    </application>
+</manifest>
