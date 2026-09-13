@@ -28,6 +28,33 @@ object LauncherUpdater {
     private fun apk(activity: Activity) = File(activity.filesDir, "updates/engine.apk")
     fun isBusy(): Boolean = busy
 
+    private fun installedVersionCode(activity: Activity): Long {
+        val info = activity.packageManager.getPackageInfo(activity.packageName, 0)
+        return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+    }
+
+    private fun archiveVersionCode(info: android.content.pm.PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+
+    /** Optional check.ini hint. Old manifests remain valid when this key is absent. */
+    private fun advertisedApkVersion(remote: Map<String, String>): Long? {
+        val raw = sequenceOf("apk_version", "apk_version_code", "android_version_code", "version_code")
+            .mapNotNull { remote[it]?.trim()?.takeIf { value -> value.isNotEmpty() } }
+            .firstOrNull() ?: return null
+        return raw.toLongOrNull()?.takeIf { it > 0 }
+            ?: throw IllegalArgumentException("Invalid APK versionCode in check.ini: $raw")
+    }
+
+    private fun acknowledgeEngineBuild(activity: Activity, manifestFile: File, build: String, reason: String) {
+        val current = BuildManifest.read(activity)
+            ?: throw IllegalStateException("build.ini is missing while acknowledging engine build")
+        if (ContentUpdate.revision(build) > ContentUpdate.revision(current.engineBuild))
+            ContentUpdate.stampEngineBuild(manifestFile, build)
+        state(activity).edit().clear().commit()
+        apk(activity).delete()
+        UpdateLog.write(activity, "apk_install_skipped", "build=$build; $reason")
+    }
+
     private fun showFailure(activity: Activity, message: String) {
         UpdateLog.write(activity, "failure", message)
         if (activity.isFinishing || activity.isDestroyed) {
@@ -200,44 +227,78 @@ object LauncherUpdater {
                 if (remote == null || cancel.get()) { finish { onReady() }; return@Thread }
                 val contentNeeded = ContentUpdate.revision(remote["version"]) > ContentUpdate.revision(current.contentVersion)
                 val engineNeeded = ContentUpdate.revision(remote["build"]) > ContentUpdate.revision(current.engineBuild)
+                val remoteBuild = remote["build"] ?: throw IllegalStateException("check.ini has no build")
                 UpdateLog.write(activity, "comparison", "contentNeeded=$contentNeeded engineNeeded=$engineNeeded")
-                // APK is fully downloaded and validated before applying content, so an invalid
-                // engine download does not leave a partially updated content/engine combination.
+                // build= is an engine/update revision, while Android package versionCode is
+                // the authoritative answer to whether an APK replacement is actually needed.
+                // Never send the same APK to PackageInstaller only because build= increased.
                 var downloadedApk: File? = null
                 if (engineNeeded) {
-                    if (current.androidUrl.isBlank())
-                        throw IllegalStateException("build.ini has no url_android for this engine update")
-                    ui { dialog.setMessage(activity.getString(R.string.arena_update_engine)); dialog.isIndeterminate = true }
-                    val finalApk = apk(activity)
-                    finalApk.parentFile?.mkdirs()
-                    val pending = state(activity)
-                    val reuse = finalApk.isFile && pending.getString("build", "") == remote["build"]
-                        && pending.getString("manifest", "") == manifestFile.canonicalPath
-                        && pending.getString("url", "") == current.androidUrl
-                        && pending.getString("sha256", "") == remote["sha256_android"].orEmpty()
-                    if (!reuse) {
-                        val part = File(finalApk.parentFile, "engine.apk.part")
-                        try {
-                            UpdateLog.write(activity, "apk_download", "url=${ContentUpdate.url(current.androidUrl)} target=$part sha256=${remote["sha256_android"]}")
-                            ContentUpdate.download(current.androidUrl, part, false, remote["sha256_android"].orEmpty(), cancel, progress)
-                            UpdateLog.write(activity, "apk_download_complete", "bytes=${part.length()}")
-                            validateApk(activity, part)
-                            if (finalApk.exists() && !finalApk.delete()) throw IllegalStateException("Cannot replace cached APK")
-                            if (!part.renameTo(finalApk)) throw IllegalStateException("Cannot save downloaded APK")
-                        } finally { part.delete() }
-                    } else UpdateLog.write(activity, "apk_cached", "Reusing validated $finalApk")
-                    val info = validateApk(activity, finalApk)
-                    val installed = activity.packageManager.getPackageInfo(activity.packageName, 0)
-                    val apkVersion = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
-                    if (!pending.edit().putString("build", remote["build"])
-                            .putString("manifest", manifestFile.canonicalPath)
-                            .putString("url", current.androidUrl)
-                            .putString("sha256", remote["sha256_android"].orEmpty())
-                            .putLong("apk_version", apkVersion)
-                            .putLong("before_version", if (Build.VERSION.SDK_INT >= 28) installed.longVersionCode else installed.versionCode.toLong())
-                            .putLong("before_update", installed.lastUpdateTime).commit())
-                        throw IllegalStateException("Cannot save APK installation state")
-                    downloadedApk = finalApk
+                    val installedVersion = installedVersionCode(activity)
+                    val advertisedVersion = advertisedApkVersion(remote)
+                    if (advertisedVersion != null)
+                        UpdateLog.write(activity, "apk_version_hint",
+                            "check.ini=$advertisedVersion installed=$installedVersion")
+
+                    if (advertisedVersion != null && advertisedVersion <= installedVersion) {
+                        acknowledgeEngineBuild(activity, manifestFile, remoteBuild,
+                            "check.ini APK versionCode=$advertisedVersion is not newer than installed=$installedVersion")
+                    } else {
+                        if (current.androidUrl.isBlank())
+                            throw IllegalStateException("build.ini has no url_android for this engine update")
+                        ui { dialog.setMessage(activity.getString(R.string.arena_update_engine)); dialog.isIndeterminate = true }
+                        val finalApk = apk(activity)
+                        finalApk.parentFile?.mkdirs()
+                        val pending = state(activity)
+                        val reuse = finalApk.isFile && pending.getString("build", "") == remoteBuild
+                            && pending.getString("manifest", "") == manifestFile.canonicalPath
+                            && pending.getString("url", "") == current.androidUrl
+                            && pending.getString("sha256", "") == remote["sha256_android"].orEmpty()
+                        if (!reuse) {
+                            val part = File(finalApk.parentFile, "engine.apk.part")
+                            try {
+                                UpdateLog.write(activity, "apk_download",
+                                    "url=${ContentUpdate.url(current.androidUrl)} target=$part sha256=${remote["sha256_android"]}")
+                                ContentUpdate.download(current.androidUrl, part, false,
+                                    remote["sha256_android"].orEmpty(), cancel, progress)
+                                UpdateLog.write(activity, "apk_download_complete", "bytes=${part.length()}")
+                                validateApk(activity, part)
+                                if (finalApk.exists() && !finalApk.delete())
+                                    throw IllegalStateException("Cannot replace cached APK")
+                                if (!part.renameTo(finalApk))
+                                    throw IllegalStateException("Cannot save downloaded APK")
+                            } finally { part.delete() }
+                        } else UpdateLog.write(activity, "apk_cached", "Reusing validated $finalApk")
+
+                        val info = validateApk(activity, finalApk)
+                        val apkVersion = archiveVersionCode(info)
+                        val actualInstalledVersion = installedVersionCode(activity)
+                        if (advertisedVersion != null && advertisedVersion != apkVersion)
+                            UpdateLog.write(activity, "apk_version_hint_mismatch",
+                                "check.ini=$advertisedVersion downloaded=$apkVersion; downloaded APK is authoritative")
+
+                        when {
+                            apkVersion < actualInstalledVersion ->
+                                throw IllegalStateException(
+                                    "Downloaded APK versionCode $apkVersion is older than installed $actualInstalledVersion")
+                            apkVersion == actualInstalledVersion -> {
+                                acknowledgeEngineBuild(activity, manifestFile, remoteBuild,
+                                    "downloaded APK versionCode=$apkVersion equals installed version; PackageInstaller skipped")
+                            }
+                            else -> {
+                                val installed = activity.packageManager.getPackageInfo(activity.packageName, 0)
+                                if (!pending.edit().putString("build", remoteBuild)
+                                        .putString("manifest", manifestFile.canonicalPath)
+                                        .putString("url", current.androidUrl)
+                                        .putString("sha256", remote["sha256_android"].orEmpty())
+                                        .putLong("apk_version", apkVersion)
+                                        .putLong("before_version", actualInstalledVersion)
+                                        .putLong("before_update", installed.lastUpdateTime).commit())
+                                    throw IllegalStateException("Cannot save APK installation state")
+                                downloadedApk = finalApk
+                            }
+                        }
+                    }
                 }
                 if (contentNeeded) {
                     if (current.updateUrl.isBlank())
@@ -296,10 +357,11 @@ object LauncherUpdater {
         require(signatures.isNotEmpty() && signatures == installed.signatures?.map { it.toCharsString() }?.toSet()) {
             "APK must be signed with the same release key as the installed launcher"
         }
-        val newVersion = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+        val newVersion = archiveVersionCode(info)
         val oldVersion = if (Build.VERSION.SDK_INT >= 28) installed.longVersionCode else installed.versionCode.toLong()
         UpdateLog.write(activity, "apk_versions", "downloaded=$newVersion installed=$oldVersion")
-        require(newVersion > oldVersion) { "APK versionCode must be higher than the installed version" }
+        // Equality is valid for the updater: in that case we skip PackageInstaller
+        // and acknowledge only build=. Downgrades are rejected by the caller.
         return info
     }
 

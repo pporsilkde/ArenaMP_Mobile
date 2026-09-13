@@ -205,6 +205,30 @@ object ServerRuntime {
         file.writeText(CJSON_COMPAT, Charsets.UTF_8)
     }
 
+    /**
+     * Deploy packaged defaults into server/data without ever replacing the
+     * host-generated requiredDataFiles.json. The manifest is derived from the
+     * user's actual content order/CRC list and must survive APK/client updates.
+     * If it does not exist yet, the packaged file may be installed once as a
+     * bootstrap default.
+     */
+    private fun installPackagedServerDataPreservingManifest(assets: file.ApkAssetArchive, runtime: File, ctx: Context) {
+        val assetRoot = "$ASSET_ROOT/server/data"
+        if (!assets.isDirectory(assetRoot)) return
+        val targetRoot = File(runtime, "server/data").apply { mkdirs() }
+        val existingManifest = targetRoot.listFiles()?.firstOrNull {
+            it.isFile && it.name.equals("requiredDataFiles.json", ignoreCase = true)
+        }
+        for (name in assets.list(assetRoot)) {
+            if (name.equals("requiredDataFiles.json", ignoreCase = true) && existingManifest != null) {
+                UpdateLog.write(ctx, "server_manifest_preserved",
+                    "path=${existingManifest.absolutePath}; packaged requiredDataFiles.json skipped")
+                continue
+            }
+            assets.copy("$assetRoot/$name", File(targetRoot, name), true)
+        }
+    }
+
     @Synchronized
     fun ensureInstalled(ctx: Context) {
         val runtime = root(ctx).canonicalFile
@@ -269,9 +293,9 @@ object ServerRuntime {
                 paths.add("resources")
                 paths.add("tes3mp-server-default.cfg")
                 check(File(stage, "server/scripts/serverCore.lua").isFile) { "Packaged server core is missing" }
-                // Add newly shipped default data, preserving ALL existing server data.
-                if (assets.isDirectory("$ASSET_ROOT/server/data"))
-                    assets.copy("$ASSET_ROOT/server/data", File(runtime, "server/data"), true)
+                // Add newly shipped default data while explicitly preserving the
+                // host-generated requiredDataFiles.json across APK/client updates.
+                installPackagedServerDataPreservingManifest(assets, runtime, ctx)
                 AssetTransaction.apply(runtime, stage, paths, "server-assets.sha256", expected)
                 UpdateLog.write(ctx, "server_assets_installed", "runtime=$runtime fingerprint=$fingerprint")
             } catch (e: Exception) {

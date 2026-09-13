@@ -507,7 +507,7 @@
     <string name="pref_lighting_method">Lighting method</string>
     <string name="pref_lighting_method_default">legacy</string>
     <string-array name="pref_lighting_method_entries">
-	<item>Shaders</item>
+	<item>Compatible shaders</item>
 	<item>Legacy</item>
     </string-array>
     <string-array name="pref_lighting_method_values">
@@ -789,7 +789,7 @@
     <string name="pref_graphics_settings_title">Graphics</string>
     <string name="pref_graphics_settings_summary">Presets, terrain, distance, water, shadows, grass and shaders</string>
     <string name="gfx_overall">Overall preset</string><string name="gfx_safe_note">Mobile-safe limits: world distance up to 40960, shadow distance up to 8192 and shadow maps up to 1024. Unsafe native depth effects stay disabled.</string>
-    <string name="gfx_distance">Viewing distance</string><string name="gfx_terrain">Terrain quality</string><string name="gfx_preload">Preloading</string><string name="gfx_water">Water</string><string name="gfx_shadows">Shadows</string><string name="gfx_shadow_map">Shadow map</string><string name="gfx_shadow_distance">Shadow distance</string><string name="gfx_grass">Grass</string><string name="gfx_shaders">Shaders</string><string name="gfx_apply">Apply settings</string><string name="gfx_applied">Graphics settings saved</string>
+    <string name="gfx_distance">Viewing distance</string><string name="gfx_terrain">Terrain quality</string><string name="gfx_preload">Preloading</string><string name="gfx_water">Water</string><string name="gfx_shadows">Shadows</string><string name="gfx_shadow_map">Shadow map</string><string name="gfx_shadow_distance">Shadow distance</string><string name="gfx_grass">Grass</string><string name="gfx_shaders">Material maps</string><string name="gfx_apply">Apply settings</string><string name="gfx_applied">Graphics settings saved</string>
     <string-array name="gfx_preset_entries"><item>Very Low — reference profile</item><item>Performance</item><item>Balanced</item><item>Quality</item><item>Battery saver</item><item>Custom</item></string-array>
     <string-array name="gfx_distance_entries"><item>4096</item><item>5120</item><item>6144</item><item>8192</item><item>12288</item><item>16384</item><item>24576</item><item>32768</item><item>40960</item></string-array>
     <string-array name="gfx_terrain_entries"><item>Very Low</item><item>Low</item><item>Balanced</item><item>Medium (maximum mobile)</item></string-array>

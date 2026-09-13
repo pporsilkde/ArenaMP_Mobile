@@ -8,6 +8,9 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.Spinner
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.graphics.Color
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.libopenmw.openmw.R
@@ -24,6 +27,9 @@ class GraphicsSettingsActivity : AppCompatActivity() {
     private lateinit var shadowDistance: Spinner
     private lateinit var grass: Spinner
     private lateinit var shaders: Spinner
+    private lateinit var lighting: Spinner
+    private var selectedCategory = 0
+    private val lightingValues = listOf("shaders compatibility", "legacy")
     private var ready = false
     private var applyingPreset = false
 
@@ -52,6 +58,9 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         shadowMap = findViewById(R.id.gfx_shadow_map); shadowDistance = findViewById(R.id.gfx_shadow_distance)
         grass = findViewById(R.id.gfx_grass)
         shaders = findViewById(R.id.gfx_shaders)
+        lighting = findViewById(R.id.gfx_lighting)
+        bind(lighting, R.array.pref_lighting_method_entries)
+        setupCategories(savedInstanceState?.getInt("graphicsCategory", 0) ?: 0)
 
         bind(preset, R.array.gfx_preset_entries)
         bind(fpsLimit, R.array.gfx_fps_limit_entries)
@@ -65,6 +74,7 @@ class GraphicsSettingsActivity : AppCompatActivity() {
         bind(shaders, R.array.gfx_shader_entries)
 
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        select(lighting, lightingValues, prefs.getString("pref_lighting_method", "shaders compatibility") ?: "shaders compatibility")
         val storedPreset = prefs.getString("pref_graphics_preset", "balanced") ?: "balanced"
         val initialPreset = if (storedPreset == "auto") "balanced" else storedPreset
         select(preset, presetValues, initialPreset)
@@ -112,11 +122,51 @@ class GraphicsSettingsActivity : AppCompatActivity() {
                 .putString("pref_gfx_shadow_distance", value(shadowDistance, shadowDistanceValues))
                 .putString("pref_gfx_grass", value(grass, grassValues))
                 .putString("pref_gfx_shaders", value(shaders, shaderValues))
+                .putString("pref_lighting_method", value(lighting, lightingValues))
                 .apply()
             try { GraphicsPresets.applyToSettings(prefs) } catch (_: Exception) { }
             Toast.makeText(this, R.string.gfx_applied, Toast.LENGTH_SHORT).show()
             finish()
         }
+    }
+
+    private fun setupCategories(initial: Int) {
+        val navigation = findViewById<LinearLayout>(R.id.gfx_categories)
+        val scroll = findViewById<ScrollView>(R.id.gfx_category_scroll)
+        val pages = listOf(R.id.gfx_quality_page, R.id.gfx_scene_page, R.id.gfx_water_page,
+            R.id.gfx_lighting_page, R.id.gfx_shadow_page).map { findViewById<View>(it) }
+        val titles = listOf(R.string.gfx_overall, R.string.gfx_scene_section, R.string.gfx_water,
+            R.string.pref_lighting_method, R.string.gfx_shadows)
+        val buttons = titles.map { title ->
+            Button(this).apply {
+                setText(title)
+                isAllCaps = false
+                textSize = 13f
+                minWidth = 0
+                minimumWidth = 0
+                setPadding(6, 8, 6, 8)
+                navigation.addView(this, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            }
+        }
+        fun selectCategory(index: Int) {
+            selectedCategory = index.coerceIn(0, pages.lastIndex)
+            pages.forEachIndexed { i, view -> view.visibility = if (i == selectedCategory) View.VISIBLE else View.GONE }
+            buttons.forEachIndexed { i, button ->
+                button.isSelected = i == selectedCategory
+                button.setTextColor(resources.getColor(if (i == selectedCategory) R.color.accentGold else R.color.textPrimary))
+                if (i == selectedCategory) button.setBackgroundResource(R.drawable.launcher_field_background)
+                else button.setBackgroundColor(Color.TRANSPARENT)
+            }
+            scroll.post { scroll.scrollTo(0, 0) }
+        }
+        buttons.forEachIndexed { index, button -> button.setOnClickListener { selectCategory(index) } }
+        selectCategory(initial)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("graphicsCategory", selectedCategory)
+        super.onSaveInstanceState(outState)
     }
 
     private fun bind(spinner: Spinner, array: Int) {

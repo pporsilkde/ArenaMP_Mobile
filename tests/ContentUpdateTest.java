@@ -26,6 +26,8 @@ public class ContentUpdateTest {
         try {
             expect(ContentUpdate.revision("00010").compareTo(ContentUpdate.revision("00009")) > 0, "numeric revisions");
             expect(ContentUpdate.check("\uFEFFversion=00002\nbuild=00001\n").get("version").equals("00002"), "BOM check");
+            expect(ContentUpdate.check("version=00002\nbuild=00003\napk_version=48\n").get("apk_version").equals("48"),
+                "optional Android APK version hint");
             expect(ContentUpdate.url("t.me/arena_mp").equals("https://t.me/arena_mp"), "URL normalization");
             for (String bad : new String[]{"", "-1", "1.1"}) {
                 try { ContentUpdate.revision(bad); throw new AssertionError("bad revision accepted"); }

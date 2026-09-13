@@ -396,7 +396,7 @@
     </string-array>
 
     <string-array name="pref_lighting_method_entries">
-        <item>Шейдеры</item>
+        <item>Совместимые шейдеры</item>
         <item>Классическое</item>
     </string-array>
 
@@ -553,7 +553,7 @@
     <string name="pref_graphics_settings_title">Графика</string>
     <string name="pref_graphics_settings_summary">Пресеты, ландшафт, дистанция, вода, тени, трава и шейдеры</string>
     <string name="gfx_overall">Общий пресет</string><string name="gfx_safe_note">Безопасные мобильные пределы: дистанция мира до 40960, дальность теней до 8192, карта теней до 1024. Нерабочие native depth-эффекты всегда выключены.</string>
-    <string name="gfx_distance">Дистанция мира</string><string name="gfx_terrain">Качество ландшафта</string><string name="gfx_preload">Предзагрузка</string><string name="gfx_water">Вода</string><string name="gfx_shadows">Тени</string><string name="gfx_shadow_map">Карта теней</string><string name="gfx_shadow_distance">Дальность теней</string><string name="gfx_grass">Трава</string><string name="gfx_shaders">Шейдеры</string><string name="gfx_apply">Применить настройки</string><string name="gfx_applied">Настройки графики сохранены</string>
+    <string name="gfx_distance">Дистанция мира</string><string name="gfx_terrain">Качество ландшафта</string><string name="gfx_preload">Предзагрузка</string><string name="gfx_water">Вода</string><string name="gfx_shadows">Тени</string><string name="gfx_shadow_map">Карта теней</string><string name="gfx_shadow_distance">Дальность теней</string><string name="gfx_grass">Трава</string><string name="gfx_shaders">Карты материалов</string><string name="gfx_apply">Применить настройки</string><string name="gfx_applied">Настройки графики сохранены</string>
     <string-array name="gfx_preset_entries"><item>Очень низкие — эталон</item><item>Производительность</item><item>Баланс</item><item>Качество</item><item>Энергосбережение</item><item>Свои настройки</item></string-array>
     <string-array name="gfx_distance_entries"><item>4096</item><item>5120</item><item>6144</item><item>8192</item><item>12288</item><item>16384</item><item>24576</item><item>32768</item><item>40960</item></string-array>
     <string-array name="gfx_terrain_entries"><item>Очень низкое</item><item>Низкое</item><item>Баланс</item><item>Среднее (максимум Android)</item></string-array>

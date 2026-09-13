@@ -204,7 +204,9 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
             val encoding = sharedPref.getString(
                 "pref_encoding", GameInstaller.DEFAULT_CHARSET_PREF
             ) ?: GameInstaller.DEFAULT_CHARSET_PREF
-            BuildManifest.syncSelectedGame(activity, encoding)
+            val selectedBuild = BuildManifest.syncSelectedGame(activity, encoding)
+            if (selectedBuild != null)
+                ui.BuildShortcut.request(activity, selectedBuild.name)
             (activity as? MainActivity)?.refreshManifestUi()
             updateServerLockState()
         }

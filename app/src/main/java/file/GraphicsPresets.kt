@@ -215,7 +215,9 @@ object GraphicsPresets {
         // completely off on NG-GL4ES; C++ enforces the same policy as a fail-safe.
         w("Shaders", "force shaders", "true")
         w("Shaders", "force per pixel lighting", "false")
-        w("Shaders", "lighting method", "shaders compatibility")
+        val lighting = if (prefs.getString("pref_lighting_method", "shaders compatibility") == "legacy")
+            "legacy" else "shaders compatibility"
+        w("Shaders", "lighting method", lighting)
         w("Shaders", "enhanced pbr lighting", "false")
         val standard = p.shaderProfile == "standard"
         w("Shaders", "material quality", if (standard) "balanced" else "none")
