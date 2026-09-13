@@ -8,6 +8,7 @@ import android.preference.PreferenceManager
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import chat.ArenaLinkClient
@@ -57,7 +58,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(14), dp(18), dp(24))
         }
-        scroll.addView(root, ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT))
+        scroll.addView(root, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         fun heading(text: String): TextView = TextView(this).apply {
             this.text = text
@@ -93,7 +94,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         history = TextView(this).apply {
             setPadding(dp(10), dp(10), dp(10), dp(10))
             minHeight = dp(180)
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         root.addView(history, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
