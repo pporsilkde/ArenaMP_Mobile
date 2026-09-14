@@ -50,13 +50,13 @@ object GraphicsPresets {
             "SingleThreaded", 1, 1, 1, 4, true,
             4096, .40f, -2, -3, 1024, true, true,
             1000, 1, 30, 30.0f, "simple", 256, false, 1,
-            "off", 512, 4096, true, .80f, 7100, "compatibility", "performance"
+            "off", 512, 4096, false, .30f, 3500, "compatibility", "performance"
         ),
         "performance" to Preset(
             "SingleThreaded", 1, 1, 1, 5, true,
             8192, .50f, -2, -3, 1024, true, true,
             1000, 1, 30, 30.0f, "simple", 256, false, 1,
-            "off", 512, 4096, true, .65f, 5000, "compatibility", "performance"
+            "off", 512, 4096, false, .35f, 4000, "compatibility", "performance"
         ),
         "balanced" to Preset(
             "SingleThreaded", 1, 1, 1, 6, true,

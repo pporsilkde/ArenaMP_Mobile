@@ -16,6 +16,8 @@ import chat.LinkChannel
 import chat.LinkMessage
 import chat.LinkProfile
 import com.libopenmw.openmw.R
+import constants.Constants
+import java.io.File
 import file.BuildManifest
 import server.ServerConfig
 import server.ServerController
@@ -80,7 +82,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        codeMode = CheckBox(this).apply { text = getString(R.string.chat_use_code) }
+        codeMode = CheckBox(this).apply { text = getString(R.string.chat_use_code); visibility = View.GONE }
         connectButton = Button(this).apply { text = getString(R.string.chat_login_button) }
         status = TextView(this).apply { setPadding(0, dp(5), 0, dp(8)) }
         root.addView(nameEdit)
@@ -125,6 +127,8 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             secretEdit.inputType = if (checked) InputType.TYPE_CLASS_TEXT
                 else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             secretEdit.hint = getString(if (checked) R.string.chat_in_game_code else R.string.chat_password)
+            secretEdit.text.clear()
+            if (!checked) loadGameLogin()
         }
         connectButton.setOnClickListener { connect() }
         sendButton.setOnClickListener { sendMessage() }
@@ -134,6 +138,9 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (position in channels.indices && client.authorized) {
                     channelId = channels[position].id
+                    sendButton.isEnabled = channels[position].writable
+                    messageEdit.isEnabled = channels[position].writable
+                    history.text = ""
                     client.joinChannel(channelId)
                     client.requestHistory(channelId, 0L, 50)
                 }
@@ -159,7 +166,28 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         nameEdit.setText(prefs.getString(PREF_CHAT_NAME, "").orEmpty())
         voiceEnabled.isChecked = prefs.getBoolean(PREF_VOICE_ENABLED, false) && VoicePermissions.granted(this)
         pttKey.setText(prefs.getString(PREF_VOICE_PTT, "V").orEmpty().ifBlank { "V" })
+        loadGameLogin()
         updateVoiceStatus()
+    }
+
+    private fun loadGameLogin() {
+        var section = ""
+        runCatching {
+            File(Constants.USER_CONFIG, "settings.cfg").forEachLine(Charsets.UTF_8) { raw ->
+                val line = raw.trim().removePrefix("\uFEFF")
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    section = line.substring(1, line.length - 1).trim()
+                } else if (section.equals("Login", true) && !line.startsWith("#") && !line.startsWith(";")) {
+                    val split = line.indexOf('=')
+                    if (split > 0) {
+                        val key = line.substring(0, split).trim()
+                        val value = line.substring(split + 1).trim()
+                        if (key.equals("name", true)) nameEdit.setText(value)
+                        if (key.equals("password", true) && !codeMode.isChecked) secretEdit.setText(value)
+                    }
+                }
+            }
+        }
     }
 
     private fun savePttKey() {
@@ -204,9 +232,8 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         }
         prefs.edit().putString(PREF_CHAT_NAME, name).apply()
         connectButton.isEnabled = false
-        status.text = getString(R.string.chat_connecting, ep.first, ep.second)
+        status.text = getString(R.string.chat_connecting, ep.first, ep.second + 2)
         client.connect(ep.first, ep.second, name, secret, codeMode.isChecked)
-        secretEdit.text.clear()
     }
 
     private fun sendMessage() {
@@ -224,11 +251,13 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     override fun onLoggedIn(profile: LinkProfile) {
         connectButton.isEnabled = true
         status.text = getString(R.string.chat_logged_in, profile.name, profile.level)
-        sendButton.isEnabled = true
+        secretEdit.text.clear()
+        sendButton.isEnabled = false
     }
 
     override fun onLoginFailed(reason: Int, text: String) {
         connectButton.isEnabled = true
+        sendButton.isEnabled = false
         status.text = if (text.isNotBlank()) text else getString(R.string.chat_login_failed)
     }
 
@@ -238,7 +267,9 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         if (channels.isNotEmpty()) channelSpinner.setSelection(0)
     }
 
-    override fun onMessage(message: LinkMessage) = appendMessage(message)
+    override fun onMessage(message: LinkMessage) {
+        if (message.channel == channelId) appendMessage(message)
+    }
 
     override fun onHistory(channel: Int, messages: List<LinkMessage>) {
         if (channel != channelId) return

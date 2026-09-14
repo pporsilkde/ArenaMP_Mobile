@@ -803,6 +803,6 @@
     <string name="voice_permissions">Разрешение микрофона</string>
     <string name="voice_permissions_summary">Разрешить Android доступ к микрофону для голоса в игре</string>
     <string name="voice_denied">Голос выключен: доступ к микрофону не разрешён.</string>
-    <string name="voice_ready_ptt">Голос включён · кнопка рации: %1$s</string>
+    <string name="voice_ready_ptt">Игровой голос включён · кнопка рации: %1$s</string>
     <string name="voice_state_off">Голос выключен</string>
 </resources>

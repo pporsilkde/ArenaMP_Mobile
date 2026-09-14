@@ -1039,6 +1039,6 @@
     <string name="voice_permissions">Microphone permission</string>
     <string name="voice_permissions_summary">Grant Android microphone access for in-game voice</string>
     <string name="voice_denied">Voice is off: microphone access was not granted.</string>
-    <string name="voice_ready_ptt">Voice enabled · PTT: %1$s</string>
+    <string name="voice_ready_ptt">In-game voice enabled · PTT: %1$s</string>
     <string name="voice_state_off">Voice is disabled</string>
 </resources>
