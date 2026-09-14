@@ -111,7 +111,7 @@ private class Cur(val data: ByteArray, var pos: Int = 0, val end: Int = data.siz
     fun text16(): String = String(raw(u16()), Charsets.UTF_8)
 }
 
-class ArenaLinkClient {
+class ArenaLinkClient(private val diagnostics: ChatDiagnostics? = null) {
 
     interface Listener {
         fun onLoggedIn(profile: LinkProfile)
@@ -125,7 +125,10 @@ class ArenaLinkClient {
     }
 
     private val main = Handler(Looper.getMainLooper())
-    private class Session(val name: String, var secret: String, val useCode: Boolean) {
+    private class Session(val id: Long, val name: String, var secret: String, val useCode: Boolean) {
+        val started = System.nanoTime()
+        @Volatile var stage = "connecting"
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
         val socket = Socket()
         val writer = Executors.newSingleThreadScheduledExecutor { task ->
             Thread(task, "arena-link-write").apply { isDaemon = true }
@@ -133,38 +136,54 @@ class ArenaLinkClient {
         @Volatile var out: DataOutputStream? = null
         var challenged = false
     }
+    private var nextAttempt = 0L
     @Volatile private var current: Session? = null
     @Volatile var listener: Listener? = null
     @Volatile var authorized = false
         private set
+
+    private fun log(session: Session?, event: String) {
+        val elapsed = if (session == null) 0L else (System.nanoTime() - session.started) / 1000000L
+        diagnostics?.event("attempt=${session?.id ?: 0} elapsed_ms=$elapsed stage=${session?.stage ?: "idle"} $event")
+    }
 
     /** A session owns its socket and tasks; an old reader cannot close a new login. */
     fun connect(host: String, gamePort: Int, name: String, secret: String, useCode: Boolean) {
         disconnect()
         if (host.isBlank() || gamePort !in 1..65533 || name.toByteArray(Charsets.UTF_8).size > 120 ||
             secret.toByteArray(Charsets.UTF_8).size > 128) {
+            log(null, "LOCAL_VALIDATION_FAILED")
             main.post { listener?.onDisconnected("Invalid endpoint or credentials exceed protocol limits") }
             return
         }
-        val session = Session(name, secret, useCode)
+        val session = Session(++nextAttempt, name, secret, useCode)
         current = session
+        log(session, "CONNECT build=U031 protocol=${Alk.PROTOCOL} host=$host tcp_port=${gamePort + 2} name_present=${name.isNotEmpty()} password_present=${secret.isNotEmpty()}")
         thread(name = "arena-link-read", isDaemon = true) {
             try {
                 val socket = session.socket
                 socket.tcpNoDelay = true
                 socket.soTimeout = 10000
-                socket.connect(InetSocketAddress(host, gamePort + 2), 8000)
+                session.stage = "resolving_host"
+                log(session, "DNS_START")
+                val address = InetSocketAddress(host, gamePort + 2)
+                log(session, "DNS_RESULT resolved=${!address.isUnresolved} address=${address.address?.hostAddress ?: "unresolved"}")
+                session.stage = "connecting"
+                socket.connect(address, 8000)
+                log(session, "TCP_CONNECTED peer=${socket.inetAddress?.hostAddress} peer_port=${socket.port}")
+                session.stage = "waiting_challenge"
                 if (current !== session) return@thread
                 session.out = DataOutputStream(socket.getOutputStream())
-                send(Buf().apply { u16(Alk.PROTOCOL); u8(1); text("ArenaMP U030", 32); text(session.name, 120) }.frame(Alk.HELLO), session)
+                send(Buf().apply { u16(Alk.PROTOCOL); u8(1); text("ArenaMP U031", 32); text(session.name, 120) }.frame(Alk.HELLO), session)
                 session.writer.schedule({
-                    if (current === session && !authorized) fail(session, "Chat sign-in timed out")
+                    if (current === session && !authorized) { log(session, "AUTH_TIMEOUT"); fail(session, "Chat sign-in timed out") }
                 }, 10, TimeUnit.SECONDS)
                 session.writer.scheduleAtFixedRate({
                     if (current === session && authorized) ping()
                 }, 30, 30, TimeUnit.SECONDS)
                 readLoop(session)
             } catch (e: Exception) {
+                log(session, "SOCKET_EXCEPTION class=${e.javaClass.simpleName}")
                 fail(session, e.message ?: "Chat service unavailable (TCP port ${gamePort + 2})")
             } finally {
                 session.secret = ""
@@ -176,6 +195,8 @@ class ArenaLinkClient {
 
     fun disconnect() {
         val old = current
+        log(old, "LOCAL_DISCONNECT")
+        old?.finished?.set(true)
         current = null
         authorized = false
         old?.secret = ""
@@ -203,8 +224,13 @@ class ArenaLinkClient {
             active.writer.execute {
                 if (current === active) {
                     try {
-                        active.out?.let { it.write(frame); it.flush() }
+                        active.out?.let {
+                            it.write(frame); it.flush()
+                            val type = if (frame.size >= Alk.HEADER) frame[4].toInt() and 255 else -1
+                            log(active, "TX type=$type bytes=${frame.size}")
+                        }
                     } catch (e: Exception) {
+                        log(active, "WRITE_EXCEPTION class=${e.javaClass.simpleName}")
                         fail(active, e.message ?: "Connection lost")
                     }
                 }
@@ -215,6 +241,9 @@ class ArenaLinkClient {
     }
 
     private fun fail(session: Session, reason: String) {
+        if (!session.finished.compareAndSet(false, true)) return
+        // reason is shown in UI only; never store server-provided text in the log.
+        log(session, "CONNECTION_END socket_closed=${session.socket.isClosed}")
         runCatching { session.socket.close() }
         session.writer.shutdownNow()
         main.post {
@@ -238,17 +267,17 @@ class ArenaLinkClient {
 
         while (!s.isClosed && current === session) {
             val read = input.read(chunk)
-            if (read <= 0) break
+            if (read <= 0) { log(session, "TCP_EOF"); break }
             buffer += chunk.copyOf(read)
 
             // Разбор потока: пока в буфере есть целый кадр — обрабатываем.
             while (buffer.size >= Alk.HEADER) {
                 val cur = Cur(buffer)
-                if (cur.u32() != Alk.MAGIC) { fail(session, "Некорректные данные от сервера"); return }
+                if (cur.u32() != Alk.MAGIC) { log(session, "MALFORMED_MAGIC"); fail(session, "Некорректные данные от сервера"); return }
                 val type = cur.u8()
                 cur.u8()
                 val length = cur.u16()
-                if (length > Alk.MAX_PAYLOAD) { fail(session, "Слишком большой кадр"); return }
+                if (length > Alk.MAX_PAYLOAD) { log(session, "FRAME_TOO_LARGE bytes=$length"); fail(session, "Слишком большой кадр"); return }
                 if (buffer.size < Alk.HEADER + length) break
                 val payload = buffer.copyOfRange(Alk.HEADER, Alk.HEADER + length)
                 buffer = buffer.copyOfRange(Alk.HEADER + length, buffer.size)
@@ -260,14 +289,17 @@ class ArenaLinkClient {
 
     private fun handle(session: Session, type: Int, payload: ByteArray) {
         if (current !== session) return
+        log(session, "RX type=$type bytes=${payload.size}")
         val c = Cur(payload)
         when (type) {
             Alk.CHALLENGE -> {
                 val nonce = c.raw(Alk.NONCE)
                 val serverMode = c.u8()
                 val salt = c.text()
+                log(session, "CHALLENGE mode=$serverMode salt_bytes=${salt.toByteArray(Charsets.UTF_8).size} valid=${!c.failed}")
                 val mode = if (session.useCode) Alk.AUTH_CODE else serverMode
                 if (c.failed || session.challenged || mode !in listOf(Alk.AUTH_PROOF, Alk.AUTH_CODE, Alk.AUTH_TES3MP_PROOF)) {
+                    log(session, "AUTH_METHOD_UNSUPPORTED_OR_PROTOCOL_MISMATCH")
                     fail(session, "Chat server needs a supported secure sign-in method")
                     return
                 }
@@ -279,6 +311,8 @@ class ArenaLinkClient {
                     text(session.name, 120); u8(mode)
                     u8(secret.size); raw(secret)
                 }
+                session.stage = "waiting_auth_result"
+                log(session, "AUTH_SEND mode=$mode")
                 send(b.frame(Alk.AUTH), session)
                 session.secret = ""            // пароль в памяти не держим
             }
@@ -288,13 +322,17 @@ class ArenaLinkClient {
                     color = c.u32(), className = c.text(), voicePort = c.u16()
                 )
                 c.u8()
-                if (c.failed || !session.challenged) { fail(session, "Malformed sign-in response"); return }
+                if (c.failed || !session.challenged) { log(session, "AUTH_OK_MALFORMED"); fail(session, "Malformed sign-in response"); return }
+                session.stage = "authorized"
+                log(session, "AUTH_OK")
                 session.socket.soTimeout = 90000
                 // State and its UI notification are serialized with disconnect/reconnect.
                 post(session) { authorized = true; it.onLoggedIn(profile) }
             }
             Alk.AUTH_FAIL -> {
                 val reason = c.u8(); val text = c.text16()
+                session.finished.set(true)
+                log(session, "AUTH_FAIL reason=$reason valid=${!c.failed}")
                 post(session) {
                     disconnect()
                     it.onLoginFailed(reason, text)

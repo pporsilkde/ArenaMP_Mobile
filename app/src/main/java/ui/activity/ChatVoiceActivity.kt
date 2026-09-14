@@ -12,6 +12,10 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import chat.ArenaLinkClient
+import chat.ChatDiagnostics
+import android.content.Intent
+import android.app.Activity
+import androidx.appcompat.app.AlertDialog
 import chat.LinkChannel
 import chat.LinkMessage
 import chat.LinkProfile
@@ -39,7 +43,11 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     private lateinit var pttKey: EditText
     private lateinit var voiceStatus: TextView
 
-    private val client = ArenaLinkClient()
+    private val diagnostics by lazy {
+        ChatDiagnostics(File(getExternalFilesDir(null) ?: filesDir, "Chat.log"), File(filesDir, "Chat.log"))
+    }
+    private val client by lazy { ArenaLinkClient(diagnostics) }
+    private var exportedChatLog: String? = null
     private val channels = ArrayList<LinkChannel>()
     private var channelId = 0
     private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(this) }
@@ -90,6 +98,10 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         root.addView(codeMode)
         root.addView(connectButton)
         root.addView(status)
+        root.addView(Button(this).apply {
+            text = getString(R.string.chat_open_log)
+            setOnClickListener { showChatLog() }
+        })
 
         channelSpinner = Spinner(this)
         root.addView(channelSpinner, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)))
@@ -172,7 +184,9 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
 
     private fun loadGameLogin() {
         var section = ""
-        runCatching {
+        var hasName = false
+        var hasPassword = false
+        val loaded = runCatching {
             File(Constants.USER_CONFIG, "settings.cfg").forEachLine(Charsets.UTF_8) { raw ->
                 val line = raw.trim().removePrefix("\uFEFF")
                 if (line.startsWith("[") && line.endsWith("]")) {
@@ -182,12 +196,56 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
                     if (split > 0) {
                         val key = line.substring(0, split).trim()
                         val value = line.substring(split + 1).trim()
-                        if (key.equals("name", true)) nameEdit.setText(value)
-                        if (key.equals("password", true) && !codeMode.isChecked) secretEdit.setText(value)
+                        if (key.equals("name", true)) { hasName = value.isNotEmpty(); nameEdit.setText(value) }
+                        if (key.equals("password", true)) { hasPassword = value.isNotEmpty(); if (!codeMode.isChecked) secretEdit.setText(value) }
                     }
                 }
             }
+        }.isSuccess
+        diagnostics.event("CONFIG_SOURCE settings_readable=$loaded name_present=$hasName password_present=$hasPassword")
+    }
+
+    private fun showChatLog() {
+        val snapshot = diagnostics.snapshot()
+        val heading = diagnostics.file.absolutePath + "\n" +
+            (if (diagnostics.writeFailed) getString(R.string.chat_log_write_failed) + "\n" else "")
+        val text = TextView(this).apply {
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setTextIsSelectable(true)
+            typeface = Typeface.MONOSPACE
+            textSize = 11f
+            this.text = heading + snapshot.takeLast(65536)
         }
+        val scroll = ScrollView(this).apply { addView(text) }
+        AlertDialog.Builder(this).setTitle(R.string.chat_open_log).setView(scroll)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.chat_save_log) { _, _ ->
+                exportedChatLog = snapshot
+                try {
+                    startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TITLE, "Chat.log")
+                    }, REQUEST_SAVE_CHAT_LOG)
+                } catch (_: Exception) {
+                    exportedChatLog = null
+                    Toast.makeText(this, R.string.chat_log_save_failed, Toast.LENGTH_LONG).show()
+                }
+            }.show()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_SAVE_CHAT_LOG) return
+        val snapshot = exportedChatLog
+        exportedChatLog = null
+        if (resultCode != Activity.RESULT_OK || snapshot == null) return
+        val uri = data?.data ?: return
+        val saved = runCatching {
+            val output = contentResolver.openOutputStream(uri) ?: throw java.io.IOException()
+            output.use { it.write(snapshot.toByteArray(Charsets.UTF_8)) }
+        }.isSuccess
+        Toast.makeText(this, if (saved) R.string.chat_log_saved else R.string.chat_log_save_failed, Toast.LENGTH_LONG).show()
     }
 
     private fun savePttKey() {
@@ -222,11 +280,13 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         val name = nameEdit.text.toString().trim()
         val secret = secretEdit.text.toString()
         if (name.isEmpty() || secret.isEmpty()) {
+            diagnostics.event("LOCAL_VALIDATION_FAILED name_present=${name.isNotEmpty()} password_present=${secret.isNotEmpty()}")
             status.text = getString(R.string.chat_enter_credentials)
             return
         }
         val ep = endpoint()
         if (ep.first.isBlank()) {
+            diagnostics.event("LOCAL_VALIDATION_FAILED host_missing=true")
             status.text = getString(R.string.chat_no_server)
             return
         }
@@ -307,6 +367,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     }
 
     companion object {
+        private const val REQUEST_SAVE_CHAT_LOG = 731
         const val PREF_CHAT_NAME = "pref_chat_name"
         const val PREF_VOICE_ENABLED = "pref_voice_enabled"
         const val PREF_VOICE_PTT = "pref_voice_ptt_key"

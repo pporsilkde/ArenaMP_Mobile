@@ -805,4 +805,9 @@
     <string name="voice_denied">Голос выключен: доступ к микрофону не разрешён.</string>
     <string name="voice_ready_ptt">Игровой голос включён · кнопка рации: %1$s</string>
     <string name="voice_state_off">Голос выключен</string>
+    <string name="chat_open_log">Журнал чата</string>
+    <string name="chat_save_log">Сохранить Chat.log</string>
+    <string name="chat_log_write_failed">Не удалось записать журнал. Проверьте свободное место и доступ к папке.</string>
+    <string name="chat_log_save_failed">Не удалось сохранить Chat.log</string>
+    <string name="chat_log_saved">Chat.log сохранён</string>
 </resources>

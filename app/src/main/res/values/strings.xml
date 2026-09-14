@@ -1041,4 +1041,9 @@
     <string name="voice_denied">Voice is off: microphone access was not granted.</string>
     <string name="voice_ready_ptt">In-game voice enabled · PTT: %1$s</string>
     <string name="voice_state_off">Voice is disabled</string>
+    <string name="chat_open_log">Chat log</string>
+    <string name="chat_save_log">Save Chat.log</string>
+    <string name="chat_log_write_failed">Could not write the log. Check free space and folder access.</string>
+    <string name="chat_log_save_failed">Could not save Chat.log</string>
+    <string name="chat_log_saved">Chat.log saved</string>
 </resources>
