@@ -797,17 +797,32 @@
     <string name="voice_title">Голосовой чат</string>
     <string name="voice_enable">Включить голосовой чат</string>
     <string name="voice_enable_summary">Использует нативный голос ArenaMP по расстоянию в игре</string>
-    <string name="voice_native_summary">Голос обрабатывает сам движок игры — второй Android-аудиосервис не запускается. Разрешите микрофон и используйте кнопку рации в игре.</string>
+    <string name="voice_native_summary">Перед запуском игры включите голос и разрешите доступ к микрофону.</string>
     <string name="voice_ptt_key">Кнопка рации</string>
     <string name="voice_ptt_summary">По умолчанию: V</string>
     <string name="voice_permissions">Разрешение микрофона</string>
     <string name="voice_permissions_summary">Разрешить Android доступ к микрофону для голоса в игре</string>
     <string name="voice_denied">Голос выключен: доступ к микрофону не разрешён.</string>
-    <string name="voice_ready_ptt">Игровой голос включён · кнопка рации: %1$s</string>
+    <string name="voice_ready_ptt">Голос включён · клавиша на клавиатуре: %1$s</string>
     <string name="voice_state_off">Голос выключен</string>
     <string name="chat_open_log">Журнал чата</string>
     <string name="chat_save_log">Сохранить Chat.log</string>
     <string name="chat_log_write_failed">Не удалось записать журнал. Проверьте свободное место и доступ к папке.</string>
     <string name="chat_log_save_failed">Не удалось сохранить Chat.log</string>
     <string name="chat_log_saved">Chat.log сохранён</string>
+
+    <!-- U032 native voice controls -->
+    <string name="voice_button_on">Голос включён</string>
+    <string name="voice_button_off">Включить голос</string>
+    <string name="voice_touch_hold">Удерживайте, чтобы говорить</string>
+    <string name="voice_touch_summary">В игре удерживайте кнопку микрофона. Золотая подсветка — передача, зелёная и шкала — звук с микрофона. Положение и размер меняются в разделе «Управление».</string>
+    <string name="voice_touch_permission">Разрешите доступ к микрофону в настройках голоса лаунчера.</string>
+    <string name="voice_touch_enable">Включите голос в лаунчере и перезапустите игру.</string>
+    <string name="voice_touch_login">Войдите в игру, чтобы использовать голос.</string>
+    <string name="voice_touch_no_mic">Микрофон недоступен. Проверьте разрешение и устройство записи.</string>
+    <string name="voice_touch_paused">Закройте меню или ввод чата, чтобы говорить.</string>
+    <string name="voice_native_update_required">Для кнопки голоса нужно обновить нативный движок игры.</string>
+    <string name="voice_hud_speaking">Вы говорите</string>
+    <string name="voice_hud_transmitting">Микрофон: передача</string>
+    <string name="voice_hud_players">Говорят: %1$s</string>
 </resources>

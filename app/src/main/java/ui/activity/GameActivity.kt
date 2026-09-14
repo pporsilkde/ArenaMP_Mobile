@@ -40,6 +40,8 @@ import file.GraphicsPresets
 import file.BuildManifest
 import parser.CommandlineParser
 import ui.controls.Osc
+import voice.NativeVoice
+import voice.VoiceHudView
 
 import utils.Utils.hideAndroidControls
 
@@ -182,6 +184,14 @@ class GameActivity : SDLActivity() {
         KeepScreenOn()
         getPathToJni(filesDir.parent, Constants.USER_FILE_STORAGE)
         showControls()
+        // U032: passive speech status remains available with external controls.
+        layout.addView(VoiceHudView(this), RelativeLayout.LayoutParams(
+            RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            addRule(RelativeLayout.CENTER_HORIZONTAL)
+            addRule(RelativeLayout.ALIGN_PARENT_TOP)
+            topMargin = (54 * resources.displayMetrics.density).toInt()
+        })
     }
 
     private fun showControls() {
@@ -210,13 +220,26 @@ class GameActivity : SDLActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        NativeVoice.foreground(hasWindowFocus())
+    }
+
+    override fun onPause() {
+        osc?.releaseVoiceInput()
+        NativeVoice.foreground(false)
+        super.onPause()
+    }
+
     public override fun onDestroy() {
+        NativeVoice.foreground(false)
         finish()
         Process.killProcess(Process.myPid())
         super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
+        NativeVoice.foreground(hasFocus)
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             hideAndroidControls(this)
@@ -293,3 +316,4 @@ class GameActivity : SDLActivity() {
         }
     }
 }
+

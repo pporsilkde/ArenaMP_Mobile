@@ -39,7 +39,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     private lateinit var history: TextView
     private lateinit var messageEdit: EditText
     private lateinit var sendButton: Button
-    private lateinit var voiceEnabled: CheckBox
+    private lateinit var voiceEnabled: ToggleButton
     private lateinit var pttKey: EditText
     private lateinit var voiceStatus: TextView
 
@@ -121,7 +121,19 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
 
         root.addView(heading(getString(R.string.voice_title)))
         root.addView(TextView(this).apply { text = getString(R.string.voice_native_summary) })
-        voiceEnabled = CheckBox(this).apply { text = getString(R.string.voice_enable) }
+        voiceEnabled = ToggleButton(this).apply {
+            textOn = getString(R.string.voice_button_on)
+            textOff = getString(R.string.voice_button_off)
+            isAllCaps = false
+            textSize = 15f
+            minHeight = dp(54)
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setTextColor(android.graphics.Color.rgb(229, 204, 161))
+            backgroundTintList = null
+            setBackgroundResource(R.drawable.arena_voice_toggle)
+            setCompoundDrawablesWithIntrinsicBounds(R.drawable.arena_ic_microphone, 0, 0, 0)
+            compoundDrawablePadding = dp(12)
+        }
         voiceStatus = TextView(this).apply { setPadding(0, dp(2), 0, dp(5)) }
         pttKey = EditText(this).apply {
             hint = getString(R.string.voice_ptt_key)
@@ -130,7 +142,14 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             setSelectAllOnFocus(true)
         }
         val permissionButton = Button(this).apply { text = getString(R.string.voice_permissions) }
-        root.addView(voiceEnabled)
+        root.addView(voiceEnabled, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(8); bottomMargin = dp(8) })
+        root.addView(TextView(this).apply {
+            text = getString(R.string.voice_touch_summary)
+            textSize = 13f
+            setPadding(0, 0, 0, dp(6))
+        })
         root.addView(voiceStatus)
         root.addView(pttKey)
         root.addView(permissionButton)

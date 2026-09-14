@@ -1033,7 +1033,7 @@
     <string name="voice_title">Voice chat</string>
     <string name="voice_enable">Enable voice chat</string>
     <string name="voice_enable_summary">Uses ArenaMP native proximity voice in game</string>
-    <string name="voice_native_summary">Voice is handled by the game engine, so there is no second Android audio service. Grant microphone access and use the PTT key in game.</string>
+    <string name="voice_native_summary">Enable voice and allow microphone access before starting the game.</string>
     <string name="voice_ptt_key">Push-to-talk key</string>
     <string name="voice_ptt_summary">Default: V</string>
     <string name="voice_permissions">Microphone permission</string>
@@ -1046,4 +1046,19 @@
     <string name="chat_log_write_failed">Could not write the log. Check free space and folder access.</string>
     <string name="chat_log_save_failed">Could not save Chat.log</string>
     <string name="chat_log_saved">Chat.log saved</string>
+
+    <!-- U032 native voice controls -->
+    <string name="voice_button_on">Voice enabled</string>
+    <string name="voice_button_off">Enable voice</string>
+    <string name="voice_touch_hold">Hold to talk</string>
+    <string name="voice_touch_summary">In game, hold the microphone button to talk. Gold means transmitting; green and the meter show microphone sound. Move or resize the button in Controls.</string>
+    <string name="voice_touch_permission">Allow microphone access in launcher voice settings.</string>
+    <string name="voice_touch_enable">Enable voice in the launcher, then restart the game.</string>
+    <string name="voice_touch_login">Join the game to use voice.</string>
+    <string name="voice_touch_no_mic">Microphone unavailable. Check permission and the recording device.</string>
+    <string name="voice_touch_paused">Close the menu or chat input to talk.</string>
+    <string name="voice_native_update_required">Update the native game engine to use this voice button.</string>
+    <string name="voice_hud_speaking">You are speaking</string>
+    <string name="voice_hud_transmitting">Microphone transmitting</string>
+    <string name="voice_hud_players">Speaking: %1$s</string>
 </resources>

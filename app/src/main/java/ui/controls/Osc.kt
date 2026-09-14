@@ -587,6 +587,7 @@ class Osc {
     private var elements = arrayListOf(
         joystickLeft,
         joystickRight,
+        OscVoiceButton(), // U032: native push-to-talk and capture indicator
 
         // Scroll wheel keeps normal mouse-wheel gestures. Holding it sends TAB once.
         OscGestureButton("scroll_wheel", "scroll_wheel.png", OscVisibility.ESSENTIAL,
@@ -688,6 +689,10 @@ class Osc {
         elements.addAll(quickButtons)
         elements.add(qp)
         elements.addAll(topButtons)
+    }
+
+    fun releaseVoiceInput() {
+        elements.filterIsInstance<OscVoiceButton>().forEach { it.releaseInput() }
     }
 
     fun placeElements(target: RelativeLayout) {
@@ -850,3 +855,4 @@ class Osc {
     }
 
 }
+

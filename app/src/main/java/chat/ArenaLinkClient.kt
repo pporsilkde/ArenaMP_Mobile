@@ -158,7 +158,7 @@ class ArenaLinkClient(private val diagnostics: ChatDiagnostics? = null) {
         }
         val session = Session(++nextAttempt, name, secret, useCode)
         current = session
-        log(session, "CONNECT build=U031 protocol=${Alk.PROTOCOL} host=$host tcp_port=${gamePort + 2} name_present=${name.isNotEmpty()} password_present=${secret.isNotEmpty()}")
+        log(session, "CONNECT build=U032 protocol=${Alk.PROTOCOL} host=$host tcp_port=${gamePort + 2} name_present=${name.isNotEmpty()} password_present=${secret.isNotEmpty()}")
         thread(name = "arena-link-read", isDaemon = true) {
             try {
                 val socket = session.socket
@@ -174,7 +174,7 @@ class ArenaLinkClient(private val diagnostics: ChatDiagnostics? = null) {
                 session.stage = "waiting_challenge"
                 if (current !== session) return@thread
                 session.out = DataOutputStream(socket.getOutputStream())
-                send(Buf().apply { u16(Alk.PROTOCOL); u8(1); text("ArenaMP U031", 32); text(session.name, 120) }.frame(Alk.HELLO), session)
+                send(Buf().apply { u16(Alk.PROTOCOL); u8(1); text("ArenaMP U032", 32); text(session.name, 120) }.frame(Alk.HELLO), session)
                 session.writer.schedule({
                     if (current === session && !authorized) { log(session, "AUTH_TIMEOUT"); fail(session, "Chat sign-in timed out") }
                 }, 10, TimeUnit.SECONDS)
