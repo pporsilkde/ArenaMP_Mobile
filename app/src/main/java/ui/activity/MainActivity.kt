@@ -708,8 +708,12 @@ class MainActivity : AppCompatActivity() {
             val voiceOn = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_ENABLED, false) &&
                 VoicePermissions.granted(this)
             val ptt = prefs.getString(ChatVoiceActivity.PREF_VOICE_PTT, "V").orEmpty().ifBlank { "V" }
+            val radioMode = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_TOGGLE, false)
             Os.setenv("ARENAMP_VOICE_ENABLED", if (voiceOn) "1" else "0", true)
             Os.setenv("ARENAMP_VOICE_PTT_KEY", ptt, true)
+            // U035: radio mode - the key latches the microphone instead of
+            // having to be held. Read by mwmp::Main before VoiceChat::configure.
+            Os.setenv("ARENAMP_VOICE_TOGGLE", if (radioMode) "1" else "0", true)
         } catch (e: ErrnoException) {
             Log.w(TAG, "Could not export ArenaMP voice settings", e)
         }

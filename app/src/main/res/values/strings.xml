@@ -1040,6 +1040,9 @@
     <string name="voice_permissions_summary">Grant Android microphone access for in-game voice</string>
     <string name="voice_denied">Voice is off: microphone access was not granted.</string>
     <string name="voice_ready_ptt">In-game voice enabled · PTT: %1$s</string>
+    <string name="voice_ready_radio">In-game voice enabled · radio mode: %1$s toggles the mic</string>
+    <string name="voice_radio_mode">Radio mode (press to toggle)</string>
+    <string name="voice_radio_mode_summary">Instead of holding the key, press it once to open the microphone and again to close it. The in-game overlay shows an amber line while the mic stays open.</string>
     <string name="voice_state_off">Voice is disabled</string>
     <string name="chat_open_log">Chat log</string>
     <string name="chat_save_log">Save Chat.log</string>

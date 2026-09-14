@@ -804,6 +804,9 @@
     <string name="voice_permissions_summary">Разрешить Android доступ к микрофону для голоса в игре</string>
     <string name="voice_denied">Голос выключен: доступ к микрофону не разрешён.</string>
     <string name="voice_ready_ptt">Голос включён · клавиша на клавиатуре: %1$s</string>
+    <string name="voice_ready_radio">Голос включён · режим рации: %1$s включает и выключает микрофон</string>
+    <string name="voice_radio_mode">Режим рации (нажатие вкл/выкл)</string>
+    <string name="voice_radio_mode_summary">Вместо удержания клавиши: нажали — микрофон открыт, нажали ещё раз — закрыт. Пока микрофон открыт, в игре горит янтарная строка, чтобы он не остался включённым незаметно.</string>
     <string name="voice_state_off">Голос выключен</string>
     <string name="chat_open_log">Журнал чата</string>
     <string name="chat_save_log">Сохранить Chat.log</string>

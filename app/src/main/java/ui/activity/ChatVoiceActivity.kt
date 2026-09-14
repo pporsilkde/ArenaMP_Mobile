@@ -6,6 +6,11 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.text.InputType
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
+import android.view.inputmethod.EditorInfo
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -36,7 +41,9 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     private lateinit var connectButton: Button
     private lateinit var status: TextView
     private lateinit var channelSpinner: Spinner
+    private lateinit var historyScroll: ScrollView
     private lateinit var history: TextView
+    private lateinit var voiceToggleMode: CheckBox
     private lateinit var messageEdit: EditText
     private lateinit var sendButton: Button
     private lateinit var voiceEnabled: ToggleButton
@@ -50,6 +57,12 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     private var exportedChatLog: String? = null
     private val channels = ArrayList<LinkChannel>()
     private var channelId = 0
+    // U035: the rendered history is kept as a model, not as ever growing text.
+    // Appending to a TextView forever is what made a long session unusable -
+    // the outer ScrollView grew without bound and the compose box walked off
+    // the bottom of the screen.
+    private val shown = ArrayList<LinkMessage>()
+    private var ownName: String = ""
     private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,15 +118,31 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
 
         channelSpinner = Spinner(this)
         root.addView(channelSpinner, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)))
+
+        // The history gets its own fixed-height scroller. Without it the chat
+        // lived inside the page scroll, so reading old messages meant scrolling
+        // the whole settings page and losing sight of the input box.
         history = TextView(this).apply {
             setPadding(dp(10), dp(10), dp(10), dp(10))
-            minHeight = dp(180)
             setTextIsSelectable(true)
+            textSize = 14f
         }
-        root.addView(history, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        historyScroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(history, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        root.addView(historyScroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(260)))
 
         val compose = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        messageEdit = EditText(this).apply { hint = getString(R.string.chat_message_hint); maxLines = 3 }
+        messageEdit = EditText(this).apply {
+            hint = getString(R.string.chat_message_hint)
+            maxLines = 3
+            // Enter sends instead of inserting a newline nobody wanted.
+            imeOptions = EditorInfo.IME_ACTION_SEND
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
         sendButton = Button(this).apply { text = getString(R.string.chat_send); isEnabled = false }
         compose.addView(messageEdit, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         compose.addView(sendButton)
@@ -141,6 +170,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             maxLines = 1
             setSelectAllOnFocus(true)
         }
+        voiceToggleMode = CheckBox(this).apply { text = getString(R.string.voice_radio_mode) }
         val permissionButton = Button(this).apply { text = getString(R.string.voice_permissions) }
         root.addView(voiceEnabled, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -152,6 +182,12 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         })
         root.addView(voiceStatus)
         root.addView(pttKey)
+        root.addView(voiceToggleMode)
+        root.addView(TextView(this).apply {
+            text = getString(R.string.voice_radio_mode_summary)
+            textSize = 13f
+            setPadding(0, 0, 0, dp(6))
+        })
         root.addView(permissionButton)
 
         codeMode.setOnCheckedChangeListener { _, checked ->
@@ -163,18 +199,20 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         }
         connectButton.setOnClickListener { connect() }
         sendButton.setOnClickListener { sendMessage() }
-        messageEdit.setOnEditorActionListener { _, _, _ -> sendMessage(); true }
+        messageEdit.setOnEditorActionListener { _, actionId, event ->
+            // Only react to a real send action; the old catch-all consumed every
+            // IME event, including the ones that just move focus.
+            val isSend = actionId == EditorInfo.IME_ACTION_SEND
+                || actionId == EditorInfo.IME_ACTION_DONE
+                || (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER
+                    && event.action == android.view.KeyEvent.ACTION_DOWN)
+            if (isSend) sendMessage()
+            isSend
+        }
         channelSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position in channels.indices && client.authorized) {
-                    channelId = channels[position].id
-                    sendButton.isEnabled = channels[position].writable
-                    messageEdit.isEnabled = channels[position].writable
-                    history.text = ""
-                    client.joinChannel(channelId)
-                    client.requestHistory(channelId, 0L, 50)
-                }
+                selectChannel(position)
             }
         }
         voiceEnabled.setOnCheckedChangeListener { _, checked ->
@@ -188,6 +226,10 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             }
         }
         pttKey.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) savePttKey() }
+        voiceToggleMode.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(PREF_VOICE_TOGGLE, checked).apply()
+            updateVoiceStatus()
+        }
         permissionButton.setOnClickListener { VoicePermissions.request(this) }
 
         return scroll
@@ -197,6 +239,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         nameEdit.setText(prefs.getString(PREF_CHAT_NAME, "").orEmpty())
         voiceEnabled.isChecked = prefs.getBoolean(PREF_VOICE_ENABLED, false) && VoicePermissions.granted(this)
         pttKey.setText(prefs.getString(PREF_VOICE_PTT, "V").orEmpty().ifBlank { "V" })
+        voiceToggleMode.isChecked = prefs.getBoolean(PREF_VOICE_TOGGLE, false)
         loadGameLogin()
         updateVoiceStatus()
     }
@@ -274,9 +317,12 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     }
 
     private fun updateVoiceStatus() {
-        voiceStatus.text = if (voiceEnabled.isChecked)
-            getString(R.string.voice_ready_ptt, pttKey.text.toString().ifBlank { "V" })
-        else getString(R.string.voice_state_off)
+        voiceStatus.text = when {
+            !voiceEnabled.isChecked -> getString(R.string.voice_state_off)
+            voiceToggleMode.isChecked ->
+                getString(R.string.voice_ready_radio, pttKey.text.toString().ifBlank { "V" })
+            else -> getString(R.string.voice_ready_ptt, pttKey.text.toString().ifBlank { "V" })
+        }
     }
 
     private fun endpoint(): Pair<String, Int> {
@@ -323,12 +369,41 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     }
 
     private fun appendMessage(message: LinkMessage) {
-        val badge = if (message.fromGame) " · ${getString(R.string.chat_from_game)}" else ""
-        history.append("[${message.author}$badge] ${message.text}\n")
+        shown.add(message)
+        // Hard cap the model, not the widget: an all-day session used to keep
+        // every line in memory and re-lay out a TextView that grew past the
+        // point where scrolling it was smooth.
+        while (shown.size > MAX_HISTORY_LINES) shown.removeAt(0)
+        renderHistory()
+    }
+
+    private fun renderHistory() {
+        val text = SpannableStringBuilder()
+        for (message in shown) {
+            val badge = if (message.fromGame) " · " + getString(R.string.chat_from_game) else ""
+            val head = "[" + message.author + badge + "] "
+            val start = text.length
+            text.append(head)
+            // Own lines stand out, game-bridged lines are tinted so it is clear
+            // which side of the bridge a message came from.
+            val colour = when {
+                ownName.isNotEmpty() && message.author.equals(ownName, true) -> 0xFF8FD98F.toInt()
+                message.fromGame -> 0xFFE5CCA1.toInt()
+                else -> 0xFF9FD7FF.toInt()
+            }
+            text.setSpan(ForegroundColorSpan(colour), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.setSpan(StyleSpan(Typeface.BOLD), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.append(message.text).append("\n")
+        }
+        history.text = text
+        // Jump to the newest line after the layout pass, otherwise the scroll
+        // happens against the previous (shorter) content and lands short.
+        historyScroll.post { historyScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     override fun onLoggedIn(profile: LinkProfile) {
         connectButton.isEnabled = true
+        ownName = profile.name
         status.text = getString(R.string.chat_logged_in, profile.name, profile.level)
         secretEdit.text.clear()
         sendButton.isEnabled = false
@@ -343,7 +418,24 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     override fun onChannels(newChannels: List<LinkChannel>) {
         channels.clear(); channels.addAll(newChannels)
         channelSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, channels.map { it.name })
-        if (channels.isNotEmpty()) channelSpinner.setSelection(0)
+        if (channels.isEmpty()) return
+
+        // setSelection(0) does not always deliver onItemSelected when position 0
+        // was already selected before the adapter was replaced, which left the
+        // send button permanently disabled after a reconnect. Select explicitly.
+        channelSpinner.setSelection(0)
+        selectChannel(0)
+    }
+
+    private fun selectChannel(position: Int) {
+        if (position !in channels.indices || !client.authorized) return
+        channelId = channels[position].id
+        sendButton.isEnabled = channels[position].writable
+        messageEdit.isEnabled = channels[position].writable
+        shown.clear()
+        renderHistory()
+        client.joinChannel(channelId)
+        client.requestHistory(channelId, 0L, 50)
     }
 
     override fun onMessage(message: LinkMessage) {
@@ -352,8 +444,18 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
 
     override fun onHistory(channel: Int, messages: List<LinkMessage>) {
         if (channel != channelId) return
-        history.text = ""
-        messages.forEach { appendMessage(it) }
+        // History can land after live messages for the same channel have already
+        // been shown. Rebuild from history and re-append anything newer that was
+        // received in the meantime, instead of dropping it on the floor.
+        val live = ArrayList(shown)
+        shown.clear()
+        shown.addAll(messages)
+        for (message in live) {
+            if (messages.none { it.author == message.author && it.text == message.text })
+                shown.add(message)
+        }
+        while (shown.size > MAX_HISTORY_LINES) shown.removeAt(0)
+        renderHistory()
     }
 
     override fun onVoiceTicket(ticket: ByteArray, port: Int, ttl: Int) = Unit
@@ -390,5 +492,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         const val PREF_CHAT_NAME = "pref_chat_name"
         const val PREF_VOICE_ENABLED = "pref_voice_enabled"
         const val PREF_VOICE_PTT = "pref_voice_ptt_key"
+        const val PREF_VOICE_TOGGLE = "pref_voice_toggle_mode"
+        private const val MAX_HISTORY_LINES = 400
     }
 }
