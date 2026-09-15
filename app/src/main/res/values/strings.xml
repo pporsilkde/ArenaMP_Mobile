@@ -1067,9 +1067,9 @@
     <string name="voice_hud_players">Speaking: %1$s</string>
     <!-- U035e first-install permission explanations -->
     <string name="permission_mic_title">Microphone access</string>
-    <string name="permission_mic_message">ArenaMP uses the microphone only for proximity voice chat. Voice is enabled by default. In radio mode, press V once to open the microphone and press V again to close it. The next window is Android's system microphone permission.</string>
+    <string name="permission_mic_message">ArenaMP uses the microphone only for proximity voice chat. Voice is enabled by default. In radio mode, press V once to open the microphone and press V again to close it. The next window is Android\'s system microphone permission.</string>
     <string name="permission_storage_title">Game files access</string>
-    <string name="permission_storage_message">ArenaMP needs file/storage access to select and read Morrowind Data Files and to install content updates. The next window is Android's system storage permission.</string>
+    <string name="permission_storage_message">ArenaMP needs file/storage access to select and read Morrowind Data Files and to install content updates. The next window is Android\'s system storage permission.</string>
     <string name="permission_continue">Continue</string>
     <string name="permission_later">Not now</string>
 
