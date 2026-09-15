@@ -21,14 +21,17 @@
 package ui.activity
 
 import android.annotation.SuppressLint
+import android.Manifest
 import android.app.AlarmManager
 import ui.theme.ArenaGlass
 import android.app.AlertDialog
 import android.app.PendingIntent
 import android.app.ProgressDialog
 import android.content.*
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.graphics.Typeface
 import android.text.Spannable
@@ -41,6 +44,7 @@ import android.system.Os
 import android.util.DisplayMetrics
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import androidx.appcompat.widget.TooltipCompat
+import androidx.core.content.ContextCompat
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.app.AppCompatActivity
@@ -102,7 +106,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         MyApp.app.defaultScaling = determineScaling()
 
-        PermissionHelper.getWriteExternalStoragePermission(this@MainActivity)
         setContentView(R.layout.main)
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
         UpdateLog.start(this, "launcher_open")
@@ -168,8 +171,67 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (prefs.getString("bugsnag_consent", "")!! == "") {
+        val permissionsAlreadyExplained = prefs.getBoolean(PREF_PERMISSION_ONBOARDING_DONE, false)
+        startFirstInstallPermissionFlow()
+
+        // Avoid stacking the telemetry-consent dialog over Android permission
+        // onboarding on the very first launch. It will appear on the next open.
+        if (permissionsAlreadyExplained && prefs.getString("bugsnag_consent", "")!! == "") {
             askBugsnagConsent()
+        }
+    }
+
+    /**
+     * First-install permission onboarding. Every Android runtime permission is
+     * preceded by an ArenaMP explanation so the system dialog never appears
+     * without context. Microphone comes first because voice is enabled by
+     * default; storage follows for selecting/reading Morrowind Data Files.
+     */
+    private fun startFirstInstallPermissionFlow() {
+        if (prefs.getBoolean(PREF_PERMISSION_ONBOARDING_DONE, false)) return
+
+        if (!VoicePermissions.granted(this)) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.permission_mic_title)
+                .setMessage(R.string.permission_mic_message)
+                .setPositiveButton(R.string.permission_continue) { _, _ -> VoicePermissions.request(this) }
+                .setNegativeButton(R.string.permission_later) { _, _ -> showStoragePermissionExplanation() }
+                .setOnCancelListener { showStoragePermissionExplanation() }
+                .show()
+        } else {
+            showStoragePermissionExplanation()
+        }
+    }
+
+    private fun showStoragePermissionExplanation() {
+        if (prefs.getBoolean(PREF_PERMISSION_ONBOARDING_DONE, false)) return
+
+        if (Build.VERSION.SDK_INT < 23 || ContextCompat.checkSelfPermission(this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            prefs.edit().putBoolean(PREF_PERMISSION_ONBOARDING_DONE, true).apply()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.permission_storage_title)
+            .setMessage(R.string.permission_storage_message)
+            .setPositiveButton(R.string.permission_continue) { _, _ ->
+                prefs.edit().putBoolean(PREF_PERMISSION_ONBOARDING_DONE, true).apply()
+                PermissionHelper.getWriteExternalStoragePermission(this@MainActivity)
+            }
+            .setNegativeButton(R.string.permission_later) { _, _ ->
+                prefs.edit().putBoolean(PREF_PERMISSION_ONBOARDING_DONE, true).apply()
+            }
+            .show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == VoicePermissions.REQUEST_CODE) {
+            // Keep the preference enabled even after a denial: the native game
+            // still gates capture on Android permission, and granting it later
+            // makes the default voice setting immediately usable.
+            showStoragePermissionExplanation()
         }
     }
 
@@ -705,10 +767,10 @@ class MainActivity : AppCompatActivity() {
         // U026: native ArenaMP VoiceChat reads these before multiplayer init.
         // The launcher never starts a second microphone/audio service.
         try {
-            val voiceOn = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_ENABLED, false) &&
+            val voiceOn = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_ENABLED, true) &&
                 VoicePermissions.granted(this)
             val ptt = prefs.getString(ChatVoiceActivity.PREF_VOICE_PTT, "V").orEmpty().ifBlank { "V" }
-            val radioMode = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_TOGGLE, false)
+            val radioMode = prefs.getBoolean(ChatVoiceActivity.PREF_VOICE_TOGGLE, true)
             Os.setenv("ARENAMP_VOICE_ENABLED", if (voiceOn) "1" else "0", true)
             Os.setenv("ARENAMP_VOICE_PTT_KEY", ptt, true)
             // U035: radio mode - the key latches the microphone instead of
@@ -1024,6 +1086,7 @@ class MainActivity : AppCompatActivity() {
 
 
     companion object {
+        private const val PREF_PERMISSION_ONBOARDING_DONE = "arena_permissions_onboarding_v1"
         private const val TAG = "OpenMW-Launcher"
 
         var resolutionX = 0

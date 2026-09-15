@@ -28,7 +28,7 @@
 
 	<PreferenceCategory android:title="@string/voice_title" android:key="voice_settings">
 		<Preference android:key="pref_chat_voice" android:title="@string/chat_voice_title" android:summary="@string/chat_voice_summary" />
-		<CheckBoxPreference android:key="pref_voice_enabled" android:title="@string/voice_enable" android:summary="@string/voice_enable_summary" android:defaultValue="false" />
+		<CheckBoxPreference android:key="pref_voice_enabled" android:title="@string/voice_enable" android:summary="@string/voice_enable_summary" android:defaultValue="true" />
 		<EditTextPreference android:key="pref_voice_ptt_key" android:title="@string/voice_ptt_key" android:summary="@string/voice_ptt_summary" android:defaultValue="V" android:inputType="textCapCharacters" />
 		<Preference android:key="pref_voice_permissions" android:title="@string/voice_permissions" android:summary="@string/voice_permissions_summary" />
 	</PreferenceCategory>

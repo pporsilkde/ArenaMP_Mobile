@@ -1033,17 +1033,18 @@
     <string name="voice_title">Voice chat</string>
     <string name="voice_enable">Enable voice chat</string>
     <string name="voice_enable_summary">Uses ArenaMP native proximity voice in game</string>
-    <string name="voice_native_summary">Enable voice and allow microphone access before starting the game.</string>
-    <string name="voice_ptt_key">Push-to-talk key</string>
-    <string name="voice_ptt_summary">Default: V</string>
+    <string name="voice_native_summary">Voice is enabled by default. Allow microphone access; V works as a radio toggle: press once to open the mic and again to close it.</string>
+    <string name="voice_ptt_key">Radio key</string>
+    <string name="voice_ptt_summary">Default: V · press once on / press again off</string>
     <string name="voice_permissions">Microphone permission</string>
     <string name="voice_permissions_summary">Grant Android microphone access for in-game voice</string>
-    <string name="voice_denied">Voice is off: microphone access was not granted.</string>
+    <string name="voice_denied">Voice remains enabled, but Android microphone permission was not granted. Transmission stays blocked until permission is allowed.</string>
     <string name="voice_ready_ptt">In-game voice enabled · PTT: %1$s</string>
     <string name="voice_ready_radio">In-game voice enabled · radio mode: %1$s toggles the mic</string>
-    <string name="voice_radio_mode">Radio mode (press to toggle)</string>
+    <string name="voice_radio_mode">Radio mode (default: press to toggle)</string>
     <string name="voice_radio_mode_summary">Instead of holding the key, press it once to open the microphone and again to close it. The in-game overlay shows an amber line while the mic stays open.</string>
     <string name="voice_state_off">Voice is disabled</string>
+    <string name="voice_state_permission">Voice is enabled · microphone permission required</string>
     <string name="chat_open_log">Chat log</string>
     <string name="chat_save_log">Save Chat.log</string>
     <string name="chat_log_write_failed">Could not write the log. Check free space and folder access.</string>
@@ -1053,8 +1054,8 @@
     <!-- U032 native voice controls -->
     <string name="voice_button_on">Voice enabled</string>
     <string name="voice_button_off">Enable voice</string>
-    <string name="voice_touch_hold">Hold to talk</string>
-    <string name="voice_touch_summary">In game, hold the microphone button to talk. Gold means transmitting; green and the meter show microphone sound. Move or resize the button in Controls.</string>
+    <string name="voice_touch_hold">Toggle radio microphone</string>
+    <string name="voice_touch_summary">In game, tap the microphone button once to open the radio mic and tap it again to close it. Gold means the mic is open; green and the meter show detected speech. Move or resize the button in Controls.</string>
     <string name="voice_touch_permission">Allow microphone access in launcher voice settings.</string>
     <string name="voice_touch_enable">Enable voice in the launcher, then restart the game.</string>
     <string name="voice_touch_login">Join the game to use voice.</string>
@@ -1064,4 +1065,12 @@
     <string name="voice_hud_speaking">You are speaking</string>
     <string name="voice_hud_transmitting">Microphone transmitting</string>
     <string name="voice_hud_players">Speaking: %1$s</string>
+    <!-- U035e first-install permission explanations -->
+    <string name="permission_mic_title">Microphone access</string>
+    <string name="permission_mic_message">ArenaMP uses the microphone only for proximity voice chat. Voice is enabled by default. In radio mode, press V once to open the microphone and press V again to close it. The next window is Android's system microphone permission.</string>
+    <string name="permission_storage_title">Game files access</string>
+    <string name="permission_storage_message">ArenaMP needs file/storage access to select and read Morrowind Data Files and to install content updates. The next window is Android's system storage permission.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_later">Not now</string>
+
 </resources>

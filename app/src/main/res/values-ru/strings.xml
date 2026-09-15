@@ -797,17 +797,18 @@
     <string name="voice_title">Голосовой чат</string>
     <string name="voice_enable">Включить голосовой чат</string>
     <string name="voice_enable_summary">Использует нативный голос ArenaMP по расстоянию в игре</string>
-    <string name="voice_native_summary">Перед запуском игры включите голос и разрешите доступ к микрофону.</string>
+    <string name="voice_native_summary">Голос включён по умолчанию. Разрешите доступ к микрофону; V работает как рация: нажали — микрофон открыт, нажали ещё раз — закрыт.</string>
     <string name="voice_ptt_key">Кнопка рации</string>
-    <string name="voice_ptt_summary">По умолчанию: V</string>
+    <string name="voice_ptt_summary">По умолчанию: V · одно нажатие вкл / следующее выкл</string>
     <string name="voice_permissions">Разрешение микрофона</string>
     <string name="voice_permissions_summary">Разрешить Android доступ к микрофону для голоса в игре</string>
-    <string name="voice_denied">Голос выключен: доступ к микрофону не разрешён.</string>
+    <string name="voice_denied">Голос остаётся включённым, но Android не дал доступ к микрофону. Передача будет заблокирована, пока разрешение не выдано.</string>
     <string name="voice_ready_ptt">Голос включён · клавиша на клавиатуре: %1$s</string>
     <string name="voice_ready_radio">Голос включён · режим рации: %1$s включает и выключает микрофон</string>
-    <string name="voice_radio_mode">Режим рации (нажатие вкл/выкл)</string>
+    <string name="voice_radio_mode">Режим рации (по умолчанию: нажатие вкл/выкл)</string>
     <string name="voice_radio_mode_summary">Вместо удержания клавиши: нажали — микрофон открыт, нажали ещё раз — закрыт. Пока микрофон открыт, в игре горит янтарная строка, чтобы он не остался включённым незаметно.</string>
     <string name="voice_state_off">Голос выключен</string>
+    <string name="voice_state_permission">Голос включён · требуется разрешение на микрофон</string>
     <string name="chat_open_log">Журнал чата</string>
     <string name="chat_save_log">Сохранить Chat.log</string>
     <string name="chat_log_write_failed">Не удалось записать журнал. Проверьте свободное место и доступ к папке.</string>
@@ -817,8 +818,8 @@
     <!-- U032 native voice controls -->
     <string name="voice_button_on">Голос включён</string>
     <string name="voice_button_off">Включить голос</string>
-    <string name="voice_touch_hold">Удерживайте, чтобы говорить</string>
-    <string name="voice_touch_summary">В игре удерживайте кнопку микрофона. Золотая подсветка — передача, зелёная и шкала — звук с микрофона. Положение и размер меняются в разделе «Управление».</string>
+    <string name="voice_touch_hold">Включить/выключить микрофон рации</string>
+    <string name="voice_touch_summary">В игре нажмите кнопку микрофона один раз, чтобы открыть рацию, и ещё раз, чтобы закрыть. Золотая подсветка — микрофон открыт, зелёная и шкала — определяется речь. Положение и размер меняются в разделе «Управление».</string>
     <string name="voice_touch_permission">Разрешите доступ к микрофону в настройках голоса лаунчера.</string>
     <string name="voice_touch_enable">Включите голос в лаунчере и перезапустите игру.</string>
     <string name="voice_touch_login">Войдите в игру, чтобы использовать голос.</string>
@@ -828,4 +829,12 @@
     <string name="voice_hud_speaking">Вы говорите</string>
     <string name="voice_hud_transmitting">Микрофон: передача</string>
     <string name="voice_hud_players">Говорят: %1$s</string>
+    <!-- U035e first-install permission explanations -->
+    <string name="permission_mic_title">Доступ к микрофону</string>
+    <string name="permission_mic_message">ArenaMP использует микрофон только для голосового чата по расстоянию. Голос включён по умолчанию. В режиме рации нажмите V один раз, чтобы открыть микрофон, и ещё раз, чтобы закрыть. Следующее окно — системный запрос Android на доступ к микрофону.</string>
+    <string name="permission_storage_title">Доступ к файлам игры</string>
+    <string name="permission_storage_message">ArenaMP нужен доступ к файлам/хранилищу, чтобы выбрать и читать Data Files Morrowind и устанавливать обновления контента. Следующее окно — системный запрос Android на доступ к хранилищу.</string>
+    <string name="permission_continue">Продолжить</string>
+    <string name="permission_later">Не сейчас</string>
+
 </resources>

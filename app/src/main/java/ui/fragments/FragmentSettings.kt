@@ -146,18 +146,16 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         }
 
         findPreference("pref_voice_permissions")?.setOnPreferenceClickListener {
-            if (Build.VERSION.SDK_INT >= 23 && !VoicePermissions.granted(activity))
-                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), VoicePermissions.REQUEST_CODE)
+            if (!VoicePermissions.granted(activity))
+                VoicePermissions.requestExplained(activity)
             true
         }
 
         findPreference("pref_voice_enabled")?.setOnPreferenceChangeListener { _, value ->
             val enable = value as? Boolean ?: false
-            if (enable && !VoicePermissions.granted(activity)) {
-                if (Build.VERSION.SDK_INT >= 23)
-                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), VoicePermissions.REQUEST_CODE)
-                false
-            } else true
+            if (enable && !VoicePermissions.granted(activity))
+                VoicePermissions.requestExplained(activity)
+            true
         }
 
         findPreference("game_files").setOnPreferenceClickListener {
@@ -200,8 +198,8 @@ class FragmentSettings : PreferenceFragment(), OnSharedPreferenceChangeListener 
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != VoicePermissions.REQUEST_CODE) return
         val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-        preferenceScreen.sharedPreferences.edit().putBoolean(ChatVoiceActivity.PREF_VOICE_ENABLED, granted).apply()
-        (findPreference("pref_voice_enabled") as? CheckBoxPreference)?.isChecked = granted
+        // Permission is independent from the user's voice-enabled preference.
+        // Keep voice enabled by default so granting Android permission later is enough.
         if (!granted)
             Toast.makeText(activity, R.string.voice_denied, Toast.LENGTH_LONG).show()
     }

@@ -216,30 +216,26 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
             }
         }
         voiceEnabled.setOnCheckedChangeListener { _, checked ->
-            if (checked && !VoicePermissions.granted(this)) {
-                prefs.edit().putBoolean(PREF_VOICE_ENABLED, false).apply()
-                voiceEnabled.isChecked = false
-                VoicePermissions.request(this)
-            } else {
-                prefs.edit().putBoolean(PREF_VOICE_ENABLED, checked).apply()
-                updateVoiceStatus()
-            }
+            prefs.edit().putBoolean(PREF_VOICE_ENABLED, checked).apply()
+            if (checked && !VoicePermissions.granted(this))
+                VoicePermissions.requestExplained(this)
+            updateVoiceStatus()
         }
         pttKey.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) savePttKey() }
         voiceToggleMode.setOnCheckedChangeListener { _, checked ->
             prefs.edit().putBoolean(PREF_VOICE_TOGGLE, checked).apply()
             updateVoiceStatus()
         }
-        permissionButton.setOnClickListener { VoicePermissions.request(this) }
+        permissionButton.setOnClickListener { VoicePermissions.requestExplained(this) }
 
         return scroll
     }
 
     private fun loadSettings() {
         nameEdit.setText(prefs.getString(PREF_CHAT_NAME, "").orEmpty())
-        voiceEnabled.isChecked = prefs.getBoolean(PREF_VOICE_ENABLED, false) && VoicePermissions.granted(this)
+        voiceEnabled.isChecked = prefs.getBoolean(PREF_VOICE_ENABLED, true)
         pttKey.setText(prefs.getString(PREF_VOICE_PTT, "V").orEmpty().ifBlank { "V" })
-        voiceToggleMode.isChecked = prefs.getBoolean(PREF_VOICE_TOGGLE, false)
+        voiceToggleMode.isChecked = prefs.getBoolean(PREF_VOICE_TOGGLE, true)
         loadGameLogin()
         updateVoiceStatus()
     }
@@ -319,6 +315,7 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
     private fun updateVoiceStatus() {
         voiceStatus.text = when {
             !voiceEnabled.isChecked -> getString(R.string.voice_state_off)
+            !VoicePermissions.granted(this) -> getString(R.string.voice_state_permission)
             voiceToggleMode.isChecked ->
                 getString(R.string.voice_ready_radio, pttKey.text.toString().ifBlank { "V" })
             else -> getString(R.string.voice_ready_ptt, pttKey.text.toString().ifBlank { "V" })
@@ -470,8 +467,8 @@ class ChatVoiceActivity : AppCompatActivity(), ArenaLinkClient.Listener {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != VoicePermissions.REQUEST_CODE) return
         val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-        voiceEnabled.isChecked = granted
-        prefs.edit().putBoolean(PREF_VOICE_ENABLED, granted).apply()
+        // Keep the user's enabled preference. Android permission independently
+        // gates actual capture, so granting it later requires no second toggle.
         if (!granted) Toast.makeText(this, R.string.voice_denied, Toast.LENGTH_LONG).show()
         updateVoiceStatus()
     }
